@@ -62,22 +62,20 @@ func runInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("error: failed to close feed file: %w", closeErr)
 	}
 
-	// Update PRIME.md if it exists
+	// Update .beads/PRIME.md (where bd prime reads from)
 	primeUpdated := false
-	primePath := filepath.Join(root, "PRIME.md")
-	if _, primeStatErr := os.Stat(primePath); primeStatErr == nil {
-		if updateErr := updatePrimeFile(primePath); updateErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "warning: could not update PRIME.md: %v\n", updateErr)
-		} else {
-			primeUpdated = true
-		}
+	primePath := filepath.Join(root, ".beads", "PRIME.md")
+	if updateErr := updatePrimeFile(primePath); updateErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "warning: could not update .beads/PRIME.md: %v\n", updateErr)
+	} else {
+		primeUpdated = true
 	}
 
 	// Success output
 	fmt.Printf("Initialized smoke in %s\n", root)
 	fmt.Printf("  Created: %s\n", filepath.Join(config.SmokeDir, config.FeedFile))
 	if primeUpdated {
-		fmt.Println("  Updated: PRIME.md (smoke context added)")
+		fmt.Println("  Updated: .beads/PRIME.md (smoke context added)")
 	}
 	fmt.Println()
 	fmt.Println("Smoke is ready! Try: smoke post \"hello from the water cooler\"")
@@ -101,8 +99,9 @@ Use smoke for casual observations, wins, and learnings - not work coordination.
 const smokeMarker = "## Smoke - Agent Social Feed"
 
 func updatePrimeFile(path string) error {
+	// Read existing content if file exists
 	content, err := os.ReadFile(path)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
@@ -111,8 +110,8 @@ func updatePrimeFile(path string) error {
 		return nil
 	}
 
-	// Append smoke context
-	f, openErr := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	// Append smoke context (create file if it doesn't exist)
+	f, openErr := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if openErr != nil {
 		return openErr
 	}
