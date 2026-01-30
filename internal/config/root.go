@@ -60,7 +60,14 @@ func GetSmokeDir() (string, error) {
 }
 
 // GetFeedPath returns the path to the feed.jsonl file
+// If SMOKE_FEED env var is set, uses that path directly (allows external agents to join)
 func GetFeedPath() (string, error) {
+	// Check for explicit feed path override (for agents outside Gas Town)
+	if feedPath := os.Getenv("SMOKE_FEED"); feedPath != "" {
+		return feedPath, nil
+	}
+
+	// Fall back to Gas Town discovery
 	smokeDir, err := GetSmokeDir()
 	if err != nil {
 		return "", err

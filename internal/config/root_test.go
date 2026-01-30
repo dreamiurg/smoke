@@ -88,6 +88,59 @@ func TestFindGasTownRootFrom(t *testing.T) {
 	}
 }
 
+func TestGetFeedPathWithOverride(t *testing.T) {
+	// Save and restore SMOKE_FEED env var
+	origSmokeFeed := os.Getenv("SMOKE_FEED")
+	defer os.Setenv("SMOKE_FEED", origSmokeFeed)
+
+	t.Run("SMOKE_FEED override", func(t *testing.T) {
+		customPath := "/some/custom/feed.jsonl"
+		os.Setenv("SMOKE_FEED", customPath)
+
+		got, err := GetFeedPath()
+		if err != nil {
+			t.Errorf("GetFeedPath() unexpected error: %v", err)
+		}
+		if got != customPath {
+			t.Errorf("GetFeedPath() = %v, want %v", got, customPath)
+		}
+	})
+
+	t.Run("no override falls back to Gas Town", func(t *testing.T) {
+		os.Setenv("SMOKE_FEED", "")
+
+		// Create a temporary Gas Town
+		tmpDir := t.TempDir()
+		gasTownRoot := filepath.Join(tmpDir, "mytown")
+		mayorDir := filepath.Join(gasTownRoot, "mayor")
+		if err := os.MkdirAll(mayorDir, 0755); err != nil {
+			t.Fatalf("Failed to create mayor dir: %v", err)
+		}
+		townJSON := filepath.Join(mayorDir, "town.json")
+		if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
+			t.Fatalf("Failed to create town.json: %v", err)
+		}
+
+		// Change to Gas Town
+		originalDir, _ := os.Getwd()
+		defer func() { _ = os.Chdir(originalDir) }()
+		if err := os.Chdir(gasTownRoot); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		got, err := GetFeedPath()
+		if err != nil {
+			t.Errorf("GetFeedPath() unexpected error: %v", err)
+		}
+		// Resolve symlinks for comparison (macOS /var -> /private/var)
+		gotResolved, _ := filepath.EvalSymlinks(got)
+		wantResolved, _ := filepath.EvalSymlinks(filepath.Join(gasTownRoot, ".smoke", "feed.jsonl"))
+		if gotResolved != wantResolved {
+			t.Errorf("GetFeedPath() = %v, want %v", got, wantResolved)
+		}
+	})
+}
+
 func TestIsSmokeInitialized(t *testing.T) {
 	// Create a temporary Gas Town structure with mayor/town.json marker
 	tmpDir := t.TempDir()
