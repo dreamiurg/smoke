@@ -5,8 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/spf13/cobra"
+
+	"github.com/dreamiurg/smoke/internal/config"
 )
 
 var initForce bool
@@ -48,8 +49,8 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 
 	// Create .smoke directory
-	if err := os.MkdirAll(smokeDir, 0755); err != nil {
-		return fmt.Errorf("error: failed to create .smoke directory: %w", err)
+	if mkdirErr := os.MkdirAll(smokeDir, 0755); mkdirErr != nil {
+		return fmt.Errorf("error: failed to create .smoke directory: %w", mkdirErr)
 	}
 
 	// Create empty feed file
@@ -111,14 +112,14 @@ func updatePrimeFile(path string) error {
 	}
 
 	// Append smoke context
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+	f, openErr := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	if openErr != nil {
+		return openErr
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	_, err = f.WriteString(smokeContext)
-	return err
+	_, writeErr := f.WriteString(smokeContext)
+	return writeErr
 }
 
 func containsSmokeContext(content string) bool {
