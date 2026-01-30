@@ -158,6 +158,10 @@ func TestSmokeInitNotGasTown(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
+	if h.binPath == "" {
+		t.Skip("smoke binary not found. Set SMOKE_BIN or build with 'make build'")
+	}
+
 	// Create a non-Gas Town directory
 	notGasTown := filepath.Join(h.tmpDir, "notgastown")
 	os.MkdirAll(notGasTown, 0755)
