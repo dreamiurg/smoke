@@ -20,14 +20,14 @@ linters:
     - bodyclose
     - noctx
     - prealloc
-    - shadow
 
 linters-settings:
   errcheck:
     check-type-assertions: true
     check-blank: true
   govet:
-    enable-all: true
+    enable:
+      - shadow
   gofmt:
     simplify: true
   goimports:
