@@ -17,11 +17,11 @@ type FormatOptions struct {
 
 // FormatPost formats a single post for display
 func FormatPost(w io.Writer, post *Post, opts FormatOptions) {
-	useColor := ShouldColorize(opts.ColorMode)
+	cw := NewColorWriter(w, opts.ColorMode)
 	if opts.Oneline {
-		formatOneline(w, post)
+		formatOneline(w, post, cw)
 	} else {
-		formatDefault(w, post, 0, useColor)
+		formatDefault(w, post, 0, cw)
 	}
 }
 
@@ -34,22 +34,26 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 		return
 	}
 
-	useColor := ShouldColorize(opts.ColorMode)
+	cw := NewColorWriter(w, opts.ColorMode)
 
 	// Build thread structure
 	threads := buildThreads(posts)
 
 	// Display threads
-	for _, thread := range threads {
+	for i, thread := range threads {
 		if opts.Oneline {
-			formatOneline(w, thread.post)
+			formatOneline(w, thread.post, cw)
 			for _, reply := range thread.replies {
-				formatOneline(w, reply)
+				formatOneline(w, reply, cw)
 			}
 		} else {
-			formatDefault(w, thread.post, 0, useColor)
+			formatDefault(w, thread.post, 0, cw)
 			for _, reply := range thread.replies {
-				formatDefault(w, reply, 1, useColor)
+				formatDefault(w, reply, 1, cw)
+			}
+			// Add blank line between threads (not after last one)
+			if i < len(threads)-1 {
+				_, _ = fmt.Fprintln(w)
 			}
 		}
 	}
@@ -119,7 +123,7 @@ func buildThreads(posts []*Post) []thread {
 	return threads
 }
 
-func formatDefault(w io.Writer, post *Post, indent int, useColor bool) {
+func formatDefault(w io.Writer, post *Post, indent int, cw *ColorWriter) {
 	t, err := post.GetCreatedTime()
 	var timeStr string
 	if err != nil {
@@ -128,24 +132,46 @@ func formatDefault(w io.Writer, post *Post, indent int, useColor bool) {
 		timeStr = t.Local().Format("15:04")
 	}
 
-	prefix := ""
-	if indent > 0 {
-		prefix = "  " + strings.Repeat("  ", indent-1) + "\\-- "
-	}
+	// Build header line: [time] author@rig (id)
+	author := cw.AuthorColorize(post.Author)
+	timestamp := cw.Dim("[" + timeStr + "]")
+	postID := cw.Dim("(" + post.ID + ")")
+	header := fmt.Sprintf("%s %s@%s %s", timestamp, author, post.Rig, postID)
 
 	// Apply highlighting to content
-	content := HighlightAll(post.Content, useColor)
+	content := HighlightAll(post.Content, cw.ColorEnabled)
 
-	_, _ = fmt.Fprintf(w, "%s[%s] %s@%s: %s\n", prefix, timeStr, post.Author, post.Rig, content)
+	if indent > 0 {
+		// Reply: simpler format with indent
+		prefix := "  " + strings.Repeat("  ", indent-1) + "└─ "
+		_, _ = fmt.Fprintf(w, "%s%s\n", prefix, header)
+		contentPrefix := "  " + strings.Repeat("  ", indent-1) + "   "
+		_, _ = fmt.Fprintf(w, "%s%s\n", contentPrefix, content)
+	} else {
+		// Top-level post: use box
+		box := NewBoxRenderer(DefaultBoxWidth)
+		lines := []string{
+			header,
+			"",
+			content,
+		}
+		for _, line := range box.WrapContent(lines) {
+			_, _ = fmt.Fprintln(w, line)
+		}
+	}
 }
 
-func formatOneline(w io.Writer, post *Post) {
+func formatOneline(w io.Writer, post *Post, cw *ColorWriter) {
 	// Truncate content if needed for single line
 	content := post.Content
 	if len(content) > 60 {
 		content = content[:57] + "..."
 	}
-	_, _ = fmt.Fprintf(w, "%s %s@%s %s\n", post.ID, post.Author, post.Rig, content)
+	// Apply highlighting
+	content = HighlightAll(content, cw.ColorEnabled)
+	id := cw.Dim(post.ID)
+	author := cw.AuthorColorize(post.Author)
+	_, _ = fmt.Fprintf(w, "%s %s@%s %s\n", id, author, post.Rig, content)
 }
 
 // FormatPosted outputs the confirmation message after posting

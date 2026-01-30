@@ -521,3 +521,69 @@ func TestSmokeHelp(t *testing.T) {
 		t.Errorf("help output missing reply command: %s", stdout)
 	}
 }
+
+func TestSmokeFeedBoxDrawing(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	h.SetIdentity("testtown/crew/ember")
+	h.Run("post", "box drawing test")
+
+	// Read feed
+	stdout, _, err := h.Run("feed")
+	if err != nil {
+		t.Fatalf("smoke feed failed: %v", err)
+	}
+
+	// Check for box-drawing characters
+	if !strings.Contains(stdout, "╭") {
+		t.Errorf("feed missing top-left corner (╭): %s", stdout)
+	}
+	if !strings.Contains(stdout, "╯") {
+		t.Errorf("feed missing bottom-right corner (╯): %s", stdout)
+	}
+	if !strings.Contains(stdout, "│") {
+		t.Errorf("feed missing vertical border (│): %s", stdout)
+	}
+}
+
+func TestSmokeFeedReplyIndent(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	h.SetIdentity("testtown/crew/ember")
+	stdout, _, _ := h.Run("post", "parent post")
+
+	// Extract post ID
+	var postID string
+	for _, p := range strings.Fields(stdout) {
+		if strings.HasPrefix(p, "smk-") {
+			postID = p
+			break
+		}
+	}
+
+	h.SetIdentity("testtown/crew/witness")
+	h.Run("reply", postID, "reply post")
+
+	// Read feed
+	stdout, _, err := h.Run("feed")
+	if err != nil {
+		t.Fatalf("smoke feed failed: %v", err)
+	}
+
+	// Replies should use tree-style indent
+	if !strings.Contains(stdout, "└─") {
+		t.Errorf("feed reply missing tree indent (└─): %s", stdout)
+	}
+}

@@ -139,9 +139,9 @@ func TestFormatFeedWithReplies(t *testing.T) {
 
 	output := buf.String()
 
-	// Reply should be indented
-	if !strings.Contains(output, "\\--") {
-		t.Errorf("FormatFeed() reply should be indented with \\--: %s", output)
+	// Reply should be indented with tree character
+	if !strings.Contains(output, "└─") {
+		t.Errorf("FormatFeed() reply should be indented with └─: %s", output)
 	}
 }
 
@@ -424,9 +424,11 @@ func TestFormatFeedWithHashtagsAndMentions(t *testing.T) {
 }
 
 func TestFormatPostMixedContent(t *testing.T) {
+	// Use "tester" as author because "ember" hashes to Magenta,
+	// which would conflict with the @mention highlight color
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
+		Author:    "tester",
 		Rig:       "smoke",
 		Content:   "Hey @witness! #standup is starting. Check #meeting channel",
 		CreatedAt: "2026-01-30T09:24:00Z",

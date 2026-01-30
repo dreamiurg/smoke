@@ -1,6 +1,9 @@
 package feed
 
-import "hash/fnv"
+import (
+	"hash/fnv"
+	"io"
+)
 
 // ANSI escape sequences for terminal styling
 const (
@@ -50,4 +53,43 @@ func Colorize(text string, codes ...string) string {
 		prefix += code
 	}
 	return prefix + text + Reset
+}
+
+// ColorWriter wraps an io.Writer and conditionally applies color.
+// When ColorEnabled is false, color functions return plain text.
+type ColorWriter struct {
+	W            io.Writer
+	ColorEnabled bool
+}
+
+// NewColorWriter creates a ColorWriter with the given writer and color mode.
+func NewColorWriter(w io.Writer, mode ColorMode) *ColorWriter {
+	return &ColorWriter{
+		W:            w,
+		ColorEnabled: ShouldColorize(mode),
+	}
+}
+
+// Colorize applies color codes only if color is enabled.
+func (cw *ColorWriter) Colorize(text string, codes ...string) string {
+	if !cw.ColorEnabled {
+		return text
+	}
+	return Colorize(text, codes...)
+}
+
+// AuthorColor returns the colored author name if color is enabled.
+func (cw *ColorWriter) AuthorColorize(author string) string {
+	if !cw.ColorEnabled {
+		return author
+	}
+	return Colorize(author, Bold, AuthorColor(author))
+}
+
+// Dim returns dimmed text if color is enabled.
+func (cw *ColorWriter) Dim(text string) string {
+	if !cw.ColorEnabled {
+		return text
+	}
+	return Colorize(text, Dim)
 }

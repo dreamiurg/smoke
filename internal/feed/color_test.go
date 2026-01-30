@@ -101,6 +101,90 @@ func TestColorize_Empty(t *testing.T) {
 	}
 }
 
+func TestColorWriter_ColorEnabled(t *testing.T) {
+	var buf strings.Builder
+
+	t.Run("color always", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorAlways)
+		if !cw.ColorEnabled {
+			t.Error("ColorWriter with ColorAlways should have ColorEnabled=true")
+		}
+	})
+
+	t.Run("color never", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorNever)
+		if cw.ColorEnabled {
+			t.Error("ColorWriter with ColorNever should have ColorEnabled=false")
+		}
+	})
+}
+
+func TestColorWriter_Colorize(t *testing.T) {
+	var buf strings.Builder
+
+	t.Run("with color enabled", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorAlways)
+		result := cw.Colorize("hello", FgRed)
+		if !strings.Contains(result, FgRed) {
+			t.Errorf("Colorize should include color code when enabled")
+		}
+		if !strings.Contains(result, Reset) {
+			t.Errorf("Colorize should include reset when enabled")
+		}
+	})
+
+	t.Run("with color disabled", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorNever)
+		result := cw.Colorize("hello", FgRed)
+		if result != "hello" {
+			t.Errorf("Colorize should return plain text when disabled, got %q", result)
+		}
+	})
+}
+
+func TestColorWriter_AuthorColorize(t *testing.T) {
+	var buf strings.Builder
+
+	t.Run("with color enabled", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorAlways)
+		result := cw.AuthorColorize("ember")
+		if !strings.Contains(result, Bold) {
+			t.Errorf("AuthorColorize should include bold when enabled")
+		}
+		if !strings.Contains(result, "ember") {
+			t.Errorf("AuthorColorize should include author name")
+		}
+	})
+
+	t.Run("with color disabled", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorNever)
+		result := cw.AuthorColorize("ember")
+		if result != "ember" {
+			t.Errorf("AuthorColorize should return plain author when disabled, got %q", result)
+		}
+	})
+}
+
+func TestColorWriter_Dim(t *testing.T) {
+	var buf strings.Builder
+
+	t.Run("with color enabled", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorAlways)
+		result := cw.Dim("timestamp")
+		if !strings.Contains(result, Dim) {
+			t.Errorf("Dim should include dim code when enabled")
+		}
+	})
+
+	t.Run("with color disabled", func(t *testing.T) {
+		cw := NewColorWriter(&buf, ColorNever)
+		result := cw.Dim("timestamp")
+		if result != "timestamp" {
+			t.Errorf("Dim should return plain text when disabled, got %q", result)
+		}
+	})
+}
+
 func TestANSIConstants(t *testing.T) {
 	// Verify ANSI constants are correctly defined
 	tests := []struct {
