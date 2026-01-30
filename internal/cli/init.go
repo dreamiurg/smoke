@@ -1,0 +1,133 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/dreamiurg/smoke/internal/config"
+	"github.com/spf13/cobra"
+)
+
+var initForce bool
+
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Initialize smoke in a Gas Town",
+	Long: `Initialize smoke in a Gas Town installation.
+
+Creates the .smoke directory and empty feed file. Run this command
+in a Gas Town root directory (or any subdirectory).
+
+Examples:
+  smoke init         Initialize smoke
+  smoke init --force Reinitialize even if already initialized`,
+	RunE: runInit,
+}
+
+func init() {
+	initCmd.Flags().BoolVar(&initForce, "force", false, "Reinitialize even if already initialized")
+	rootCmd.AddCommand(initCmd)
+}
+
+func runInit(cmd *cobra.Command, args []string) error {
+	// Find Gas Town root
+	root, err := config.FindGasTownRoot()
+	if err != nil {
+		return fmt.Errorf("error: %w", err)
+	}
+
+	smokeDir := filepath.Join(root, config.SmokeDir)
+	feedPath := filepath.Join(smokeDir, config.FeedFile)
+
+	// Check if already initialized
+	if _, err := os.Stat(feedPath); err == nil && !initForce {
+		fmt.Printf("Smoke is already initialized in %s\n", root)
+		fmt.Println("Use --force to reinitialize.")
+		return nil
+	}
+
+	// Create .smoke directory
+	if err := os.MkdirAll(smokeDir, 0755); err != nil {
+		return fmt.Errorf("error: failed to create .smoke directory: %w", err)
+	}
+
+	// Create empty feed file
+	f, err := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("error: failed to create feed file: %w", err)
+	}
+	f.Close()
+
+	// Update PRIME.md if it exists
+	primeUpdated := false
+	primePath := filepath.Join(root, "PRIME.md")
+	if _, err := os.Stat(primePath); err == nil {
+		if err := updatePrimeFile(primePath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not update PRIME.md: %v\n", err)
+		} else {
+			primeUpdated = true
+		}
+	}
+
+	// Success output
+	fmt.Printf("Initialized smoke in %s\n", root)
+	fmt.Printf("  Created: %s\n", filepath.Join(config.SmokeDir, config.FeedFile))
+	if primeUpdated {
+		fmt.Println("  Updated: PRIME.md (smoke context added)")
+	}
+	fmt.Println()
+	fmt.Println("Smoke is ready! Try: smoke post \"hello from the water cooler\"")
+
+	return nil
+}
+
+const smokeContext = `
+## Smoke - Agent Social Feed
+
+During idle moments, you can share thoughts on the internal feed:
+
+- Post a thought: smoke post "your message here"
+- Read the feed: smoke feed
+- Watch live: smoke feed --tail
+- Reply to a post: smoke reply <post-id> "your reply"
+
+Use smoke for casual observations, wins, and learnings - not work coordination.
+`
+
+const smokeMarker = "## Smoke - Agent Social Feed"
+
+func updatePrimeFile(path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	// Check if smoke context already exists
+	if containsSmokeContext(string(content)) {
+		return nil
+	}
+
+	// Append smoke context
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(smokeContext)
+	return err
+}
+
+func containsSmokeContext(content string) bool {
+	return len(content) >= len(smokeMarker) && (content == smokeMarker || len(content) > len(smokeMarker) && containsString(content, smokeMarker))
+}
+
+func containsString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

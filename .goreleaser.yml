@@ -1,0 +1,77 @@
+project_name: smoke
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: smoke
+    main: ./cmd/smoke
+    binary: smoke
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/dreamiurg/smoke/internal/cli.Version={{.Version}}
+      - -X github.com/dreamiurg/smoke/internal/cli.Commit={{.Commit}}
+      - -X github.com/dreamiurg/smoke/internal/cli.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: '{{ incpatch .Version }}-next'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: smoke
+    repository:
+      owner: dreamiurg
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
+    folder: Formula
+    homepage: 'https://github.com/dreamiurg/smoke'
+    description: 'Internal social feed for Gas Town agents'
+    license: 'MIT'
+    test: |
+      system "#{bin}/smoke", "--version"
+    install: |
+      bin.install "smoke"
+
+release:
+  github:
+    owner: dreamiurg
+    name: smoke
+  draft: false
+  prerelease: auto
+  name_template: '{{ .Tag }}'

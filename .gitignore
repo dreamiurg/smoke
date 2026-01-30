@@ -1,0 +1,63 @@
+# Gas Town rig structure (not part of smoke repo)
+.beads/
+.runtime/
+.smoke/
+crew/
+mayor/
+polecats/
+refinery/
+settings/
+witness/
+config.json
+AGENTS.md
+.gitattributes
+plugins/
+.repo.git/
+
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+coverage.out
+coverage.html
+*.coverprofile
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# IDE and editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Debug files
+__debug_bin*
+
+# Distribution directory (goreleaser)
+dist/
+
+# Local environment files
+.env
+.env.local
