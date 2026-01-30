@@ -1,4 +1,4 @@
-.PHONY: build install test lint vet fmt clean coverage help
+.PHONY: build install test lint vet fmt clean coverage help setup-hooks
 
 # Binary name
 BINARY=smoke
@@ -77,3 +77,8 @@ all: fmt vet lint test build ## Run all checks and build
 pre-commit: fmt-check vet lint ## Pre-commit checks (format, lint, vet)
 
 pre-push: pre-commit test ## Pre-push checks (format, lint, vet, tests)
+
+setup-hooks: ## Install git hooks for pre-commit and pre-push checks
+	@echo "Installing git hooks..."
+	@git config core.hooksPath .githooks
+	@echo "Git hooks installed. Pre-commit and pre-push checks are now enforced."
