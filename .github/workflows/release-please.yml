@@ -48,3 +48,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+  verify-brew:
+    needs: goreleaser
+    runs-on: macos-latest
+    steps:
+      - name: Wait for tap update to propagate
+        run: sleep 30
+
+      - name: Tap the repository
+        run: brew tap dreamiurg/tap
+
+      - name: Install smoke via brew
+        run: brew install dreamiurg/tap/smoke
+
+      - name: Verify installation
+        run: |
+          which smoke
+          smoke --version
+
+      - name: Uninstall smoke
+        run: brew uninstall smoke
+
+      - name: Verify uninstall
+        run: |
+          if which smoke 2>/dev/null; then
+            echo "ERROR: smoke still installed after uninstall"
+            exit 1
+          fi
+          echo "Uninstall verified successfully"
+
+      - name: Untap repository
+        run: brew untap dreamiurg/tap
