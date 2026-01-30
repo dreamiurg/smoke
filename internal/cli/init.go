@@ -10,7 +10,10 @@ import (
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
-var initForce bool
+var (
+	initForce  bool
+	initDryRun bool
+)
 
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -21,13 +24,15 @@ Creates the .smoke directory and empty feed file. Run this command
 in a Gas Town root directory (or any subdirectory).
 
 Examples:
-  smoke init         Initialize smoke
-  smoke init --force Reinitialize even if already initialized`,
+  smoke init           Initialize smoke
+  smoke init --dry-run Show what would be done without making changes
+  smoke init --force   Reinitialize even if already initialized`,
 	RunE: runInit,
 }
 
 func init() {
 	initCmd.Flags().BoolVar(&initForce, "force", false, "Reinitialize even if already initialized")
+	initCmd.Flags().BoolVarP(&initDryRun, "dry-run", "n", false, "Show what would be done without making changes")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -40,47 +45,109 @@ func runInit(_ *cobra.Command, _ []string) error {
 
 	smokeDir := filepath.Join(root, config.SmokeDir)
 	feedPath := filepath.Join(smokeDir, config.FeedFile)
+	primePath := filepath.Join(root, ".beads", "PRIME.md")
+
+	// Determine prefix for output
+	prefix := ""
+	if initDryRun {
+		prefix = "[dry-run] "
+		fmt.Printf("%sWould initialize smoke in %s\n\n", prefix, root)
+	}
 
 	// Check if already initialized
-	if _, statErr := os.Stat(feedPath); statErr == nil && !initForce {
-		fmt.Printf("Smoke is already initialized in %s\n", root)
-		fmt.Println("Use --force to reinitialize.")
-		return nil
+	alreadyInitialized := false
+	if _, statErr := os.Stat(feedPath); statErr == nil {
+		alreadyInitialized = true
+		if !initForce {
+			fmt.Printf("Smoke is already initialized in %s\n", root)
+			fmt.Println("Use --force to reinitialize.")
+			return nil
+		}
 	}
+
+	// Track actions for summary
+	var actions []string
 
 	// Create .smoke directory
-	if mkdirErr := os.MkdirAll(smokeDir, 0755); mkdirErr != nil {
-		return fmt.Errorf("error: failed to create .smoke directory: %w", mkdirErr)
+	smokeDirExists := false
+	if info, statErr := os.Stat(smokeDir); statErr == nil && info.IsDir() {
+		smokeDirExists = true
 	}
 
-	// Create empty feed file
-	f, err := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("error: failed to create feed file: %w", err)
+	if !smokeDirExists {
+		action := fmt.Sprintf("create directory %s", smokeDir)
+		if initDryRun {
+			fmt.Printf("%sWould %s\n", prefix, action)
+		} else {
+			if mkdirErr := os.MkdirAll(smokeDir, 0755); mkdirErr != nil {
+				return fmt.Errorf("error: failed to create .smoke directory: %w", mkdirErr)
+			}
+			fmt.Printf("Created directory: %s\n", smokeDir)
+		}
+		actions = append(actions, action)
 	}
-	if closeErr := f.Close(); closeErr != nil {
-		return fmt.Errorf("error: failed to close feed file: %w", closeErr)
+
+	// Create or update feed file
+	feedAction := "create"
+	if alreadyInitialized {
+		feedAction = "update"
 	}
+	action := fmt.Sprintf("%s file %s", feedAction, feedPath)
+	if initDryRun {
+		fmt.Printf("%sWould %s\n", prefix, action)
+	} else {
+		f, openErr := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0644)
+		if openErr != nil {
+			return fmt.Errorf("error: failed to create feed file: %w", openErr)
+		}
+		if closeErr := f.Close(); closeErr != nil {
+			return fmt.Errorf("error: failed to close feed file: %w", closeErr)
+		}
+		if alreadyInitialized {
+			fmt.Printf("Updated file: %s\n", feedPath)
+		} else {
+			fmt.Printf("Created file: %s\n", feedPath)
+		}
+	}
+	actions = append(actions, action)
 
 	// Update .beads/PRIME.md (where bd prime reads from)
-	primeUpdated := false
-	primePath := filepath.Join(root, ".beads", "PRIME.md")
-	if updateErr := updatePrimeFile(primePath); updateErr != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "warning: could not update .beads/PRIME.md: %v\n", updateErr)
+	primeNeedsUpdate := !primeContainsSmokeContext(primePath)
+	if primeNeedsUpdate {
+		action := fmt.Sprintf("append smoke context to %s", primePath)
+		if initDryRun {
+			fmt.Printf("%sWould %s\n", prefix, action)
+		} else {
+			if updateErr := updatePrimeFile(primePath); updateErr != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "warning: could not update .beads/PRIME.md: %v\n", updateErr)
+			} else {
+				fmt.Printf("Updated file: %s (appended smoke context)\n", primePath)
+			}
+		}
+		actions = append(actions, action)
 	} else {
-		primeUpdated = true
+		fmt.Printf("Skipped: %s (smoke context already present)\n", primePath)
 	}
 
-	// Success output
-	fmt.Printf("Initialized smoke in %s\n", root)
-	fmt.Printf("  Created: %s\n", filepath.Join(config.SmokeDir, config.FeedFile))
-	if primeUpdated {
-		fmt.Println("  Updated: .beads/PRIME.md (smoke context added)")
-	}
+	// Summary
 	fmt.Println()
-	fmt.Println("Smoke is ready! Try: smoke post \"hello from the water cooler\"")
+	if initDryRun {
+		fmt.Printf("%s%d action(s) would be performed\n", prefix, len(actions))
+	} else {
+		fmt.Printf("Initialized smoke in %s\n", root)
+		fmt.Println("Smoke is ready! Try: smoke post \"hello from the water cooler\"")
+	}
 
 	return nil
+}
+
+// primeContainsSmokeContext checks if PRIME.md already has smoke context
+func primeContainsSmokeContext(path string) bool {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return containsSmokeContext(string(content))
 }
 
 const smokeContext = `
