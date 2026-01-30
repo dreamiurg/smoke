@@ -7,15 +7,30 @@ import (
 )
 
 func TestFindGasTownRootFrom(t *testing.T) {
-	// Create a temporary Gas Town structure
+	// Create a temporary Gas Town structure with mayor/town.json (town marker)
 	tmpDir := t.TempDir()
 	gasTownRoot := filepath.Join(tmpDir, "mytown")
-	beadsDir := filepath.Join(gasTownRoot, ".beads")
-	subDir := filepath.Join(gasTownRoot, "crew", "ember")
+	mayorDir := filepath.Join(gasTownRoot, "mayor")
+	rigDir := filepath.Join(gasTownRoot, "smoke")
+	rigMayorDir := filepath.Join(rigDir, "mayor") // rig has mayor/ but no town.json
+	rigBeadsDir := filepath.Join(rigDir, ".beads")
+	subDir := filepath.Join(rigDir, "crew", "ember")
 
 	// Create directories
-	if err := os.MkdirAll(beadsDir, 0755); err != nil {
-		t.Fatalf("Failed to create .beads dir: %v", err)
+	if err := os.MkdirAll(mayorDir, 0755); err != nil {
+		t.Fatalf("Failed to create mayor dir: %v", err)
+	}
+	// Create town.json marker file
+	townJSON := filepath.Join(mayorDir, "town.json")
+	if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
+		t.Fatalf("Failed to create town.json: %v", err)
+	}
+	// Create rig mayor without town.json (shouldn't match)
+	if err := os.MkdirAll(rigMayorDir, 0755); err != nil {
+		t.Fatalf("Failed to create rig mayor dir: %v", err)
+	}
+	if err := os.MkdirAll(rigBeadsDir, 0755); err != nil {
+		t.Fatalf("Failed to create rig .beads dir: %v", err)
 	}
 	if err := os.MkdirAll(subDir, 0755); err != nil {
 		t.Fatalf("Failed to create sub dir: %v", err)
@@ -34,14 +49,20 @@ func TestFindGasTownRootFrom(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "from subdirectory",
+			name:    "from rig (has mayor/ but no town.json)",
+			start:   rigDir,
+			want:    gasTownRoot,
+			wantErr: false,
+		},
+		{
+			name:    "from deep subdirectory",
 			start:   subDir,
 			want:    gasTownRoot,
 			wantErr: false,
 		},
 		{
-			name:    "from beads directory",
-			start:   beadsDir,
+			name:    "from mayor directory",
+			start:   mayorDir,
 			want:    gasTownRoot,
 			wantErr: false,
 		},
@@ -67,39 +88,25 @@ func TestFindGasTownRootFrom(t *testing.T) {
 	}
 }
 
-func TestFindGasTownRootFromWithMayor(t *testing.T) {
-	// Create a Gas Town with mayor marker
+func TestIsSmokeInitialized(t *testing.T) {
+	// Create a temporary Gas Town structure with mayor/town.json marker
 	tmpDir := t.TempDir()
 	gasTownRoot := filepath.Join(tmpDir, "mytown")
 	mayorDir := filepath.Join(gasTownRoot, "mayor")
+	smokeDir := filepath.Join(gasTownRoot, ".smoke")
 
 	if err := os.MkdirAll(mayorDir, 0755); err != nil {
 		t.Fatalf("Failed to create mayor dir: %v", err)
 	}
-
-	got, err := FindGasTownRootFrom(gasTownRoot)
-	if err != nil {
-		t.Errorf("FindGasTownRootFrom() unexpected error: %v", err)
-	}
-	if got != gasTownRoot {
-		t.Errorf("FindGasTownRootFrom() = %v, want %v", got, gasTownRoot)
-	}
-}
-
-func TestIsSmokeInitialized(t *testing.T) {
-	// Create a temporary Gas Town structure
-	tmpDir := t.TempDir()
-	gasTownRoot := filepath.Join(tmpDir, "mytown")
-	beadsDir := filepath.Join(gasTownRoot, ".beads")
-	smokeDir := filepath.Join(gasTownRoot, ".smoke")
-
-	if err := os.MkdirAll(beadsDir, 0755); err != nil {
-		t.Fatalf("Failed to create .beads dir: %v", err)
+	// Create town.json marker file
+	townJSON := filepath.Join(mayorDir, "town.json")
+	if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
+		t.Fatalf("Failed to create town.json: %v", err)
 	}
 
 	// Change to Gas Town directory
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	if err := os.Chdir(gasTownRoot); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)

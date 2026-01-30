@@ -212,18 +212,23 @@ func TestIdentityNameSanitization(t *testing.T) {
 }
 
 func TestInferRig(t *testing.T) {
-	// Create a temporary Gas Town structure
+	// Create a temporary Gas Town structure with mayor/town.json marker
 	tmpDir := t.TempDir()
 	gasTownRoot := filepath.Join(tmpDir, "my-town")
-	beadsDir := filepath.Join(gasTownRoot, ".beads")
+	mayorDir := filepath.Join(gasTownRoot, "mayor")
 
-	if err := os.MkdirAll(beadsDir, 0755); err != nil {
-		t.Fatalf("Failed to create .beads dir: %v", err)
+	if err := os.MkdirAll(mayorDir, 0755); err != nil {
+		t.Fatalf("Failed to create mayor dir: %v", err)
+	}
+	// Create town.json marker file
+	townJSON := filepath.Join(mayorDir, "town.json")
+	if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
+		t.Fatalf("Failed to create town.json: %v", err)
 	}
 
 	// Change to Gas Town directory
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	if err := os.Chdir(gasTownRoot); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)

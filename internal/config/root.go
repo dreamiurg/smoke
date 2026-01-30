@@ -7,10 +7,11 @@ import (
 )
 
 // ErrNotGasTown is returned when the current directory is not within a Gas Town
-var ErrNotGasTown = errors.New("not in a Gas Town directory (no .beads/ found)")
+var ErrNotGasTown = errors.New("not in a Gas Town directory (no mayor/town.json found)")
 
-// GasTownMarkers are directories that indicate a Gas Town root
-var GasTownMarkers = []string{".beads", "mayor"}
+// TownMarkerFile is the file that uniquely identifies a Gas Town root
+// Rigs may have mayor/ directories, but only the town root has mayor/town.json
+const TownMarkerFile = "mayor/town.json"
 
 // SmokeDir is the name of the smoke data directory
 const SmokeDir = ".smoke"
@@ -29,15 +30,14 @@ func FindGasTownRoot() (string, error) {
 }
 
 // FindGasTownRootFrom walks up from the given directory to find the Gas Town root
+// The town root is identified by the presence of mayor/town.json (unique to town, not rigs)
 func FindGasTownRootFrom(startDir string) (string, error) {
 	dir := startDir
 	for {
-		// Check for Gas Town markers
-		for _, marker := range GasTownMarkers {
-			markerPath := filepath.Join(dir, marker)
-			if info, err := os.Stat(markerPath); err == nil && info.IsDir() {
-				return dir, nil
-			}
+		// Check for town marker (mayor/town.json file)
+		markerPath := filepath.Join(dir, TownMarkerFile)
+		if info, err := os.Stat(markerPath); err == nil && !info.IsDir() {
+			return dir, nil
 		}
 
 		// Move up one directory
