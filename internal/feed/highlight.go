@@ -10,25 +10,25 @@ var (
 	MentionPattern = regexp.MustCompile(`(@[a-zA-Z0-9_]+)`)
 )
 
-// HighlightHashtags colorizes hashtags in cyan.
+// HighlightHashtags colorizes hashtags in dim cyan (muted).
 // If colorize is false, returns text unchanged.
 func HighlightHashtags(text string, colorize bool) string {
 	if !colorize {
 		return text
 	}
 	return HashtagPattern.ReplaceAllStringFunc(text, func(match string) string {
-		return Colorize(match, FgCyan)
+		return Colorize(match, Dim, FgCyan)
 	})
 }
 
-// HighlightMentions colorizes mentions in magenta.
+// HighlightMentions colorizes mentions in dim magenta (muted).
 // If colorize is false, returns text unchanged.
 func HighlightMentions(text string, colorize bool) string {
 	if !colorize {
 		return text
 	}
 	return MentionPattern.ReplaceAllStringFunc(text, func(match string) string {
-		return Colorize(match, FgMagenta)
+		return Colorize(match, Dim, FgMagenta)
 	})
 }
 

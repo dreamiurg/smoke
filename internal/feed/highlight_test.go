@@ -157,7 +157,8 @@ func TestHighlightPreservesText(t *testing.T) {
 	result := HighlightAll(input, true)
 
 	// Remove all ANSI codes to check text is preserved
-	clean := strings.ReplaceAll(result, FgCyan, "")
+	clean := strings.ReplaceAll(result, Dim, "")
+	clean = strings.ReplaceAll(clean, FgCyan, "")
 	clean = strings.ReplaceAll(clean, FgMagenta, "")
 	clean = strings.ReplaceAll(clean, Reset, "")
 

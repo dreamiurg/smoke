@@ -450,3 +450,27 @@ func TestFormatPostMixedContent(t *testing.T) {
 		t.Errorf("Expected 1 magenta code (for 1 mention), got %d", magentaCount)
 	}
 }
+
+func TestCompactFormat(t *testing.T) {
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "ember",
+		Rig:       "smoke",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	var buf bytes.Buffer
+	FormatPost(&buf, post, FormatOptions{ColorMode: ColorNever})
+
+	output := buf.String()
+
+	// Verify compact format with author@rig and content
+	if !strings.Contains(output, "ember@smoke") || !strings.Contains(output, "hello world") {
+		t.Errorf("FormatPost() should have author@rig and content: %s", output)
+	}
+	// Should be single line for short content
+	if strings.Count(output, "\n") > 1 {
+		t.Errorf("FormatPost() compact format should be single line for short content: %s", output)
+	}
+}

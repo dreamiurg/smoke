@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -21,7 +20,7 @@ func FormatPost(w io.Writer, post *Post, opts FormatOptions) {
 	if opts.Oneline {
 		formatOneline(w, post, cw)
 	} else {
-		formatDefault(w, post, 0, cw)
+		formatCompact(w, post, cw)
 	}
 }
 
@@ -33,6 +32,9 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 		}
 		return
 	}
+
+	// Reset timestamp tracking for fresh feed display
+	ResetTimestamp()
 
 	cw := NewColorWriter(w, opts.ColorMode)
 
@@ -47,9 +49,9 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 				formatOneline(w, reply, cw)
 			}
 		} else {
-			formatDefault(w, thread.post, 0, cw)
+			formatCompact(w, thread.post, cw)
 			for _, reply := range thread.replies {
-				formatDefault(w, reply, 1, cw)
+				formatReply(w, thread.post, reply, cw)
 			}
 			// Add blank line between threads (not after last one)
 			if i < len(threads)-1 {
@@ -123,7 +125,27 @@ func buildThreads(posts []*Post) []thread {
 	return threads
 }
 
-func formatDefault(w io.Writer, post *Post, indent int, cw *ColorWriter) {
+// AuthorColumnWidth is the fixed width for author@rig column (right-aligned)
+const AuthorColumnWidth = 16
+
+// ContentColumnStart is where content begins (for wrapping alignment)
+// = 5 (time or spaces) + 1 (space) + AuthorColumnWidth + 2 (spacing)
+const ContentColumnStart = 24
+
+// MaxContentWidth is the max width before wrapping (assuming ~100 char terminal)
+const MaxContentWidth = 75
+
+// lastTimestamp tracks the previous timestamp to avoid repetition
+var lastTimestamp string
+
+// ResetTimestamp resets the timestamp tracking (call at start of feed)
+func ResetTimestamp() {
+	lastTimestamp = ""
+}
+
+// formatCompact formats a post with right-aligned author@rig and smart timestamps
+// Format: 14:32  author@rig  content (timestamp only shown when it changes)
+func formatCompact(w io.Writer, post *Post, cw *ColorWriter) {
 	t, err := post.GetCreatedTime()
 	var timeStr string
 	if err != nil {
@@ -132,31 +154,118 @@ func formatDefault(w io.Writer, post *Post, indent int, cw *ColorWriter) {
 		timeStr = t.Local().Format("15:04")
 	}
 
-	// Build header line: [time] author@rig (id)
-	author := cw.AuthorColorize(post.Author)
-	timestamp := cw.Dim("[" + timeStr + "]")
-	postID := cw.Dim("(" + post.ID + ")")
-	header := fmt.Sprintf("%s %s@%s %s", timestamp, author, post.Rig, postID)
-
-	// Apply highlighting to content
-	content := HighlightAll(post.Content, cw.ColorEnabled)
-
-	if indent > 0 {
-		// Reply: simpler format with indent
-		prefix := "  " + strings.Repeat("  ", indent-1) + "└─ "
-		_, _ = fmt.Fprintf(w, "%s%s\n", prefix, header)
-		contentPrefix := "  " + strings.Repeat("  ", indent-1) + "   "
-		_, _ = fmt.Fprintf(w, "%s%s\n", contentPrefix, content)
+	// Only show timestamp if different from previous
+	var timeColumn string
+	if timeStr != lastTimestamp {
+		timeColumn = cw.Dim(timeStr)
+		lastTimestamp = timeStr
 	} else {
-		// Top-level post: use box
-		box := NewBoxRenderer(DefaultBoxWidth)
-		lines := []string{
-			header,
-			"",
-			content,
+		timeColumn = "     " // 5 spaces to match timestamp width
+	}
+
+	// Build author@rig with right-alignment
+	authorRigPlain := post.Author + "@" + post.Rig
+	visibleLen := len(authorRigPlain)
+
+	// Right-align: add padding before author@rig
+	padding := ""
+	if visibleLen < AuthorColumnWidth {
+		padding = fmt.Sprintf("%*s", AuthorColumnWidth-visibleLen, "")
+	}
+
+	author := cw.AuthorColorize(post.Author)
+	rig := cw.Dim("@" + post.Rig)
+	authorRig := padding + author + rig
+
+	// Wrap content if needed
+	contentLines := wrapText(post.Content, MaxContentWidth)
+	for i, line := range contentLines {
+		highlightedLine := HighlightAll(line, cw.ColorEnabled)
+		if i == 0 {
+			// First line: full format
+			_, _ = fmt.Fprintf(w, "%s %s  %s\n", timeColumn, authorRig, highlightedLine)
+		} else {
+			// Continuation lines: indent to align with content
+			indent := fmt.Sprintf("%*s", ContentColumnStart, "")
+			_, _ = fmt.Fprintf(w, "%s%s\n", indent, highlightedLine)
 		}
-		for _, line := range box.WrapContent(lines) {
-			_, _ = fmt.Fprintln(w, line)
+	}
+}
+
+// wrapText wraps text to specified width, breaking on word boundaries
+func wrapText(text string, maxWidth int) []string {
+	if len(text) <= maxWidth {
+		return []string{text}
+	}
+
+	var lines []string
+	remaining := text
+
+	for len(remaining) > maxWidth {
+		// Find last space within maxWidth
+		breakPoint := maxWidth
+		for breakPoint > 0 && remaining[breakPoint] != ' ' {
+			breakPoint--
+		}
+		if breakPoint == 0 {
+			// No space found, force break at maxWidth
+			breakPoint = maxWidth
+		}
+
+		lines = append(lines, remaining[:breakPoint])
+		remaining = remaining[breakPoint:]
+		// Skip leading space on next line
+		for len(remaining) > 0 && remaining[0] == ' ' {
+			remaining = remaining[1:]
+		}
+	}
+
+	if len(remaining) > 0 {
+		lines = append(lines, remaining)
+	}
+
+	return lines
+}
+
+// formatReply formats a reply with indent (parent already shown in thread)
+func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter) {
+	replyTime, err := reply.GetCreatedTime()
+	var replyTimeStr string
+	if err != nil {
+		replyTimeStr = "??:??"
+	} else {
+		replyTimeStr = replyTime.Local().Format("15:04")
+	}
+
+	// For replies, always show timestamp (they're responses, timing matters)
+	timestamp := cw.Dim(replyTimeStr)
+
+	// Build author@rig - slightly smaller width for reply indent
+	authorRigPlain := reply.Author + "@" + reply.Rig
+	visibleLen := len(authorRigPlain)
+	replyAuthorWidth := AuthorColumnWidth - 3
+
+	// Right-align
+	padding := ""
+	if visibleLen < replyAuthorWidth {
+		padding = fmt.Sprintf("%*s", replyAuthorWidth-visibleLen, "")
+	}
+
+	author := cw.AuthorColorize(reply.Author)
+	rig := cw.Dim("@" + reply.Rig)
+	authorRig := padding + author + rig
+
+	// Wrap content if needed (slightly narrower for replies)
+	contentLines := wrapText(reply.Content, MaxContentWidth-5)
+	for i, line := range contentLines {
+		highlightedLine := HighlightAll(line, cw.ColorEnabled)
+		if i == 0 {
+			// First line: with tree character
+			_, _ = fmt.Fprintf(w, "  └─ %s %s  %s\n", timestamp, authorRig, highlightedLine)
+		} else {
+			// Continuation lines: indent to align with content
+			indent := fmt.Sprintf("%*s", ContentColumnStart+5, "")
+			_, _ = fmt.Fprintf(w, "%s%s\n", indent, highlightedLine)
 		}
 	}
 }

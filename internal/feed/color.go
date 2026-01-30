@@ -23,14 +23,14 @@ const (
 )
 
 // AuthorPalette defines the colors used for author names.
-// Excludes black (invisible on dark) and white (default text).
+// Excludes black (invisible on dark), white (default text),
+// and magenta (reserved for @mentions).
 var AuthorPalette = []string{
-	FgRed,
+	FgBlue,
 	FgGreen,
 	FgYellow,
-	FgBlue,
-	FgMagenta,
 	FgCyan,
+	FgRed,
 }
 
 // AuthorColor returns a deterministic color for the given author name.
