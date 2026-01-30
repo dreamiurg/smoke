@@ -78,7 +78,7 @@ func (cw *ColorWriter) Colorize(text string, codes ...string) string {
 	return Colorize(text, codes...)
 }
 
-// AuthorColor returns the colored author name if color is enabled.
+// AuthorColorize returns the colored author name if color is enabled.
 func (cw *ColorWriter) AuthorColorize(author string) string {
 	if !cw.ColorEnabled {
 		return author
