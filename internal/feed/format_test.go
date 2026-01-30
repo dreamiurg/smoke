@@ -310,3 +310,141 @@ func TestFormatOnelineTruncation(t *testing.T) {
 		}
 	}
 }
+
+// Integration tests for hashtag and mention highlighting
+
+func TestFormatPostWithHashtags(t *testing.T) {
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "ember",
+		Rig:       "smoke",
+		Content:   "Working on #golang today!",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	t.Run("color always shows cyan hashtags", func(t *testing.T) {
+		var buf bytes.Buffer
+		FormatPost(&buf, post, FormatOptions{ColorMode: ColorAlways})
+
+		output := buf.String()
+		if !strings.Contains(output, FgCyan) {
+			t.Errorf("FormatPost(ColorAlways) should colorize hashtag in cyan: %s", output)
+		}
+		if !strings.Contains(output, "#golang") {
+			t.Errorf("FormatPost() should contain hashtag text: %s", output)
+		}
+	})
+
+	t.Run("color never shows no ANSI codes", func(t *testing.T) {
+		var buf bytes.Buffer
+		FormatPost(&buf, post, FormatOptions{ColorMode: ColorNever})
+
+		output := buf.String()
+		if strings.Contains(output, FgCyan) {
+			t.Errorf("FormatPost(ColorNever) should not contain color codes: %s", output)
+		}
+		if strings.Contains(output, "\033[") {
+			t.Errorf("FormatPost(ColorNever) should not contain ANSI escape codes: %s", output)
+		}
+	})
+}
+
+func TestFormatPostWithMentions(t *testing.T) {
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "ember",
+		Rig:       "smoke",
+		Content:   "Hey @witness check this out!",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	t.Run("color always shows magenta mentions", func(t *testing.T) {
+		var buf bytes.Buffer
+		FormatPost(&buf, post, FormatOptions{ColorMode: ColorAlways})
+
+		output := buf.String()
+		if !strings.Contains(output, FgMagenta) {
+			t.Errorf("FormatPost(ColorAlways) should colorize mention in magenta: %s", output)
+		}
+		if !strings.Contains(output, "@witness") {
+			t.Errorf("FormatPost() should contain mention text: %s", output)
+		}
+	})
+}
+
+func TestFormatFeedWithHashtagsAndMentions(t *testing.T) {
+	posts := []*Post{
+		{
+			ID:        "smk-aaa111",
+			Author:    "ember",
+			Rig:       "smoke",
+			Content:   "Check out #rust and @alice",
+			CreatedAt: "2026-01-30T09:00:00Z",
+		},
+		{
+			ID:        "smk-bbb222",
+			Author:    "witness",
+			Rig:       "smoke",
+			Content:   "#golang is great! cc @bob @charlie",
+			CreatedAt: "2026-01-30T09:05:00Z",
+		},
+	}
+
+	t.Run("multiple posts with highlighting", func(t *testing.T) {
+		var buf bytes.Buffer
+		FormatFeed(&buf, posts, FormatOptions{ColorMode: ColorAlways}, 2)
+
+		output := buf.String()
+
+		// Check hashtags are cyan
+		if !strings.Contains(output, FgCyan) {
+			t.Errorf("FormatFeed() should contain cyan for hashtags: %s", output)
+		}
+
+		// Check mentions are magenta
+		if !strings.Contains(output, FgMagenta) {
+			t.Errorf("FormatFeed() should contain magenta for mentions: %s", output)
+		}
+
+		// Check both posts are present
+		if !strings.Contains(output, "#rust") || !strings.Contains(output, "#golang") {
+			t.Errorf("FormatFeed() should contain all hashtags: %s", output)
+		}
+	})
+
+	t.Run("color never in feed", func(t *testing.T) {
+		var buf bytes.Buffer
+		FormatFeed(&buf, posts, FormatOptions{ColorMode: ColorNever}, 2)
+
+		output := buf.String()
+		if strings.Contains(output, "\033[") {
+			t.Errorf("FormatFeed(ColorNever) should not contain ANSI codes: %s", output)
+		}
+	})
+}
+
+func TestFormatPostMixedContent(t *testing.T) {
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "ember",
+		Rig:       "smoke",
+		Content:   "Hey @witness! #standup is starting. Check #meeting channel",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	var buf bytes.Buffer
+	FormatPost(&buf, post, FormatOptions{ColorMode: ColorAlways})
+
+	output := buf.String()
+
+	// Count occurrences of color codes
+	cyanCount := strings.Count(output, FgCyan)
+	magentaCount := strings.Count(output, FgMagenta)
+
+	if cyanCount != 2 {
+		t.Errorf("Expected 2 cyan codes (for 2 hashtags), got %d", cyanCount)
+	}
+	if magentaCount != 1 {
+		t.Errorf("Expected 1 magenta code (for 1 mention), got %d", magentaCount)
+	}
+}

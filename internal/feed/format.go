@@ -10,16 +10,18 @@ import (
 
 // FormatOptions controls how posts are displayed
 type FormatOptions struct {
-	Oneline bool // Single-line compact format
-	Quiet   bool // Suppress headers and formatting
+	Oneline   bool      // Single-line compact format
+	Quiet     bool      // Suppress headers and formatting
+	ColorMode ColorMode // Color output mode (Auto, Always, Never)
 }
 
 // FormatPost formats a single post for display
 func FormatPost(w io.Writer, post *Post, opts FormatOptions) {
+	useColor := ShouldColorize(opts.ColorMode)
 	if opts.Oneline {
 		formatOneline(w, post)
 	} else {
-		formatDefault(w, post, 0)
+		formatDefault(w, post, 0, useColor)
 	}
 }
 
@@ -32,6 +34,8 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 		return
 	}
 
+	useColor := ShouldColorize(opts.ColorMode)
+
 	// Build thread structure
 	threads := buildThreads(posts)
 
@@ -43,9 +47,9 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 				formatOneline(w, reply)
 			}
 		} else {
-			formatDefault(w, thread.post, 0)
+			formatDefault(w, thread.post, 0, useColor)
 			for _, reply := range thread.replies {
-				formatDefault(w, reply, 1)
+				formatDefault(w, reply, 1, useColor)
 			}
 		}
 	}
@@ -115,7 +119,7 @@ func buildThreads(posts []*Post) []thread {
 	return threads
 }
 
-func formatDefault(w io.Writer, post *Post, indent int) {
+func formatDefault(w io.Writer, post *Post, indent int, useColor bool) {
 	t, err := post.GetCreatedTime()
 	var timeStr string
 	if err != nil {
@@ -129,7 +133,10 @@ func formatDefault(w io.Writer, post *Post, indent int) {
 		prefix = "  " + strings.Repeat("  ", indent-1) + "\\-- "
 	}
 
-	_, _ = fmt.Fprintf(w, "%s[%s] %s@%s: %s\n", prefix, timeStr, post.Author, post.Rig, post.Content)
+	// Apply highlighting to content
+	content := HighlightAll(post.Content, useColor)
+
+	_, _ = fmt.Fprintf(w, "%s[%s] %s@%s: %s\n", prefix, timeStr, post.Author, post.Rig, content)
 }
 
 func formatOneline(w io.Writer, post *Post) {
