@@ -52,7 +52,7 @@ func init() {
 	rootCmd.AddCommand(feedCmd)
 }
 
-func runFeed(cmd *cobra.Command, args []string) error {
+func runFeed(_ *cobra.Command, _ []string) error {
 	// Check if smoke is initialized
 	initialized, err := config.IsSmokeInitialized()
 	if err != nil {
@@ -156,10 +156,11 @@ func runTailMode(store *feed.Store) error {
 			fmt.Println()
 			return nil
 		case <-ticker.C:
-			posts, err := store.ReadAll()
-			if err != nil {
+			currentPosts, readErr := store.ReadAll()
+			if readErr != nil {
 				continue
 			}
+			posts = currentPosts
 
 			// Check for new posts
 			if len(posts) > lastCount {

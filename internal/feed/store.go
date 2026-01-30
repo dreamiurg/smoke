@@ -58,7 +58,7 @@ func (s *Store) Append(post *Post) error {
 	if err != nil {
 		return fmt.Errorf("failed to open feed file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Encode and write
 	data, err := json.Marshal(post)
@@ -84,7 +84,7 @@ func (s *Store) ReadAll() ([]*Post, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open feed file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var posts []*Post
 	scanner := bufio.NewScanner(f)
@@ -100,7 +100,7 @@ func (s *Store) ReadAll() ([]*Post, error) {
 		var post Post
 		if err := json.Unmarshal([]byte(line), &post); err != nil {
 			// Skip invalid lines with warning (per spec: skip invalid, warn, continue)
-			fmt.Fprintf(os.Stderr, "warning: skipping invalid line %d: %v\n", lineNum, err)
+			_, _ = fmt.Fprintf(os.Stderr, "warning: skipping invalid line %d: %v\n", lineNum, err)
 			continue
 		}
 
@@ -123,8 +123,11 @@ func (s *Store) ReadRecent(limit int) ([]*Post, error) {
 
 	// Sort by created_at descending (most recent first)
 	sort.Slice(posts, func(i, j int) bool {
-		ti, _ := posts[i].GetCreatedTime()
-		tj, _ := posts[j].GetCreatedTime()
+		ti, errI := posts[i].GetCreatedTime()
+		tj, errJ := posts[j].GetCreatedTime()
+		if errI != nil || errJ != nil {
+			return false
+		}
 		return ti.After(tj)
 	})
 

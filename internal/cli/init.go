@@ -30,7 +30,7 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(_ *cobra.Command, _ []string) error {
 	// Find Gas Town root
 	root, err := config.FindGasTownRoot()
 	if err != nil {
@@ -41,7 +41,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	feedPath := filepath.Join(smokeDir, config.FeedFile)
 
 	// Check if already initialized
-	if _, err := os.Stat(feedPath); err == nil && !initForce {
+	if _, statErr := os.Stat(feedPath); statErr == nil && !initForce {
 		fmt.Printf("Smoke is already initialized in %s\n", root)
 		fmt.Println("Use --force to reinitialize.")
 		return nil
@@ -57,14 +57,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("error: failed to create feed file: %w", err)
 	}
-	f.Close()
+	if closeErr := f.Close(); closeErr != nil {
+		return fmt.Errorf("error: failed to close feed file: %w", closeErr)
+	}
 
 	// Update PRIME.md if it exists
 	primeUpdated := false
 	primePath := filepath.Join(root, "PRIME.md")
-	if _, err := os.Stat(primePath); err == nil {
-		if err := updatePrimeFile(primePath); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not update PRIME.md: %v\n", err)
+	if _, primeStatErr := os.Stat(primePath); primeStatErr == nil {
+		if updateErr := updatePrimeFile(primePath); updateErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warning: could not update PRIME.md: %v\n", updateErr)
 		} else {
 			primeUpdated = true
 		}

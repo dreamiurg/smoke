@@ -27,7 +27,7 @@ func FormatPost(w io.Writer, post *Post, opts FormatOptions) {
 func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 	if len(posts) == 0 {
 		if !opts.Quiet {
-			fmt.Fprintln(w, "No posts yet. Be the first! Try: smoke post \"hello world\"")
+			_, _ = fmt.Fprintln(w, "No posts yet. Be the first! Try: smoke post \"hello world\"")
 		}
 		return
 	}
@@ -52,14 +52,14 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 
 	// Footer
 	if !opts.Quiet && total > len(posts) {
-		fmt.Fprintf(w, "\nShowing %d of %d posts. Use -n to see more.\n", len(posts), total)
+		_, _ = fmt.Fprintf(w, "\nShowing %d of %d posts. Use -n to see more.\n", len(posts), total)
 	}
 }
 
 // FormatTailHeader prints the tail mode header
 func FormatTailHeader(w io.Writer) {
-	fmt.Fprintln(w, "Watching for new posts... (Ctrl+C to stop)")
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "Watching for new posts... (Ctrl+C to stop)")
+	_, _ = fmt.Fprintln(w)
 }
 
 type thread struct {
@@ -85,20 +85,26 @@ func buildThreads(posts []*Post) []thread {
 
 	// Sort top-level posts by time (most recent first)
 	sort.Slice(topLevelPosts, func(i, j int) bool {
-		ti, _ := topLevelPosts[i].GetCreatedTime()
-		tj, _ := topLevelPosts[j].GetCreatedTime()
+		ti, errI := topLevelPosts[i].GetCreatedTime()
+		tj, errJ := topLevelPosts[j].GetCreatedTime()
+		if errI != nil || errJ != nil {
+			return false
+		}
 		return ti.After(tj)
 	})
 
 	// Build threads
-	var threads []thread
+	threads := make([]thread, 0, len(topLevelPosts))
 	for _, post := range topLevelPosts {
 		t := thread{post: post}
 		if replies, ok := replyMap[post.ID]; ok {
 			// Sort replies by time (oldest first)
 			sort.Slice(replies, func(i, j int) bool {
-				ti, _ := replies[i].GetCreatedTime()
-				tj, _ := replies[j].GetCreatedTime()
+				ti, errI := replies[i].GetCreatedTime()
+				tj, errJ := replies[j].GetCreatedTime()
+				if errI != nil || errJ != nil {
+					return false
+				}
 				return ti.Before(tj)
 			})
 			t.replies = replies
@@ -123,7 +129,7 @@ func formatDefault(w io.Writer, post *Post, indent int) {
 		prefix = "  " + strings.Repeat("  ", indent-1) + "\\-- "
 	}
 
-	fmt.Fprintf(w, "%s[%s] %s@%s: %s\n", prefix, timeStr, post.Author, post.Rig, post.Content)
+	_, _ = fmt.Fprintf(w, "%s[%s] %s@%s: %s\n", prefix, timeStr, post.Author, post.Rig, post.Content)
 }
 
 func formatOneline(w io.Writer, post *Post) {
@@ -132,20 +138,20 @@ func formatOneline(w io.Writer, post *Post) {
 	if len(content) > 60 {
 		content = content[:57] + "..."
 	}
-	fmt.Fprintf(w, "%s %s@%s %s\n", post.ID, post.Author, post.Rig, content)
+	_, _ = fmt.Fprintf(w, "%s %s@%s %s\n", post.ID, post.Author, post.Rig, content)
 }
 
 // FormatPosted outputs the confirmation message after posting
 func FormatPosted(w io.Writer, post *Post) {
-	fmt.Fprintf(w, "Posted %s\n", post.ID)
+	_, _ = fmt.Fprintf(w, "Posted %s\n", post.ID)
 }
 
 // FormatReplied outputs the confirmation message after replying
 func FormatReplied(w io.Writer, post *Post) {
-	fmt.Fprintf(w, "Replied %s -> %s\n", post.ID, post.ParentID)
+	_, _ = fmt.Fprintf(w, "Replied %s -> %s\n", post.ID, post.ParentID)
 }
 
-// FilterPosts filters posts based on criteria
+// FilterCriteria specifies filters to apply when reading posts
 type FilterCriteria struct {
 	Author string
 	Rig    string
@@ -155,7 +161,7 @@ type FilterCriteria struct {
 
 // FilterPosts returns posts matching the given criteria
 func FilterPosts(posts []*Post, criteria FilterCriteria) []*Post {
-	var result []*Post
+	result := make([]*Post, 0, len(posts))
 
 	for _, post := range posts {
 		// Author filter

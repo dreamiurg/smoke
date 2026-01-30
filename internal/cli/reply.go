@@ -35,7 +35,7 @@ func init() {
 	rootCmd.AddCommand(replyCmd)
 }
 
-func runReply(cmd *cobra.Command, args []string) error {
+func runReply(_ *cobra.Command, args []string) error {
 	parentID := args[0]
 	message := args[1]
 

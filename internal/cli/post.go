@@ -36,7 +36,7 @@ func init() {
 	rootCmd.AddCommand(postCmd)
 }
 
-func runPost(cmd *cobra.Command, args []string) error {
+func runPost(_ *cobra.Command, args []string) error {
 	message := args[0]
 
 	// Check if smoke is initialized
