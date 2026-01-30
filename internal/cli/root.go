@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
@@ -13,6 +14,34 @@ var (
 	Commit    = "unknown"
 	BuildDate = "unknown"
 )
+
+func init() {
+	// If ldflags weren't provided, try to get version info from build info
+	// Go 1.18+ embeds VCS information when building from a git repository
+	if Commit == "unknown" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			var modified bool
+			for _, setting := range info.Settings {
+				switch setting.Key {
+				case "vcs.revision":
+					if len(setting.Value) >= 7 {
+						Commit = setting.Value[:7] // short hash
+					} else {
+						Commit = setting.Value
+					}
+				case "vcs.time":
+					BuildDate = setting.Value
+				case "vcs.modified":
+					modified = setting.Value == "true"
+				}
+			}
+			// Append dirty suffix after we've found the revision
+			if modified && Commit != "unknown" {
+				Commit += "-dirty"
+			}
+		}
+	}
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "smoke",
