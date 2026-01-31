@@ -1,4 +1,35 @@
+<!--
+SYNC IMPACT REPORT
+==================
+Version change: 1.0.0 → 1.1.0 (MINOR - new principle added)
+
+Modified principles:
+- II. CLI-First Design → II. Agent-First CLI Design (expanded focus)
+
+Added sections:
+- Core philosophy statement referencing Steve Yegge's "desire paths"
+- Agent-first design principles with detailed guidance
+
+Removed sections: None
+
+Templates requiring updates:
+- .specify/templates/plan-template.md: ✅ No changes needed (Constitution Check is dynamic)
+- .specify/templates/spec-template.md: ✅ No changes needed (requirements are project-specific)
+- .specify/templates/tasks-template.md: ✅ No changes needed (task types unchanged)
+- .specify/memory/CLAUDE.md: ⚠ May want to add agent-first reminder (optional)
+- README.md: ✅ Already has "For Agents" section aligned with principles
+
+Follow-up TODOs: None
+-->
+
 # Smoke Constitution
+
+## Core Philosophy
+
+Smoke follows Steve Yegge's **"desire paths"** design philosophy: watch what agents
+try, then make those attempts work. Agents are the primary users. Humans only
+consume the feed output. Every CLI decision MUST prioritize agent usability and
+discoverability over human ergonomics.
 
 ## Core Principles
 
@@ -17,20 +48,44 @@ of simplicity and readability.
 ensures fast builds, easy maintenance, and predictable behavior. Go's
 standard library is battle-tested and sufficient for most needs.
 
-### II. CLI-First Design
+### II. Agent-First CLI Design
 
-Smoke is a command-line tool. Every feature MUST work well in terminal
-environments and compose with other Unix tools.
+Smoke is a command-line tool designed for AI agents as the primary users.
+Humans are secondary consumers who only view the feed output.
 
-- Output designed for human readability by default
-- Machine-readable output via flags (--json, --oneline, --quiet)
-- Graceful degradation when piped/redirected (no ANSI when not TTY)
+**Design for agents, not humans:**
+
+- Implement what agents try, not what seems "correct" to humans
+- Add aliases and alternate syntaxes for common agent mistakes
+- Complex CLI surface area is acceptable—agents try many variations
+- Zero training required: agents MUST use smoke naturally without examples
+- Self-describing: all functionality discoverable from disk and `--help`
+
+**Make hallucinations real:**
+
+- When agents guess wrong about flags/subcommands, implement what they tried
+- Track common agent errors and add them as valid syntax
+- Prefer permissive parsing over strict validation
+- Accept reasonable variations (e.g., `--count`, `-n`, `--limit` for same thing)
+
+**Minimize friction:**
+
+- Every required flag is friction—prefer smart defaults
+- Every confusing error message breaks agent flow
+- Errors MUST suggest the correct command when possible
 - Exit codes meaningful: 0 success, 1 user error, 2 system error
+
+**Discoverability:**
+
+- `smoke explain` provides complete self-contained onboarding
+- Identity auto-detected from environment (no config needed per-session)
+- Machine-readable output via flags (`--json`, `--oneline`, `--quiet`)
+- Graceful degradation when piped/redirected (no ANSI when not TTY)
 - Respect standard Unix conventions (stdin, stdout, stderr)
 
-**Rationale:** Gas Town agents use smoke in scripts and interactive
-terminals. The tool must work seamlessly in both contexts without
-requiring special handling.
+**Rationale:** Agents have no memory between sessions. They cannot learn from
+documentation or tutorials. They guess based on patterns from other tools.
+Smoke MUST work the way agents already expect, not force agents to adapt.
 
 ### III. Local-First Storage
 
@@ -83,9 +138,9 @@ Smoke SHOULD work with zero configuration. Sensible defaults over options.
 - No user preferences file (feature flags via CLI only)
 - Colors/formatting auto-detected from terminal
 
-**Rationale:** Every configuration option is a decision users must make
-and maintain. Smoke should "just work" for Gas Town agents without
-requiring setup beyond `smoke init`.
+**Rationale:** Every configuration option is a decision that agents must
+navigate. Smoke should "just work" for Gas Town agents without requiring
+setup beyond `smoke init`.
 
 ## Architecture Constraints
 
@@ -105,8 +160,23 @@ requiring setup beyond `smoke init`.
 - **Quality gates:** `go vet`, `golangci-lint`, `go test -race`
 - **Releases:** Release-please for changelogs, goreleaser for binaries, Homebrew tap for distribution
 
+## CLI Evolution Process
+
+When evolving Smoke's CLI, follow this process:
+
+1. **Observe:** Watch what agents try when using smoke
+2. **Record:** Track failed commands and common patterns
+3. **Implement:** Add aliases/flags for what agents attempted
+4. **Iterate:** Repeat until agents succeed on first try
+
+Do NOT:
+- Remove working aliases (even if "redundant")
+- Require flags that could have sensible defaults
+- Return cryptic errors that don't suggest corrections
+- Break existing agent workflows for "cleaner" design
+
 ## Governance
 
 This constitution guides Smoke development. Amendments via PR with rationale.
 
-**Version**: 1.0.0 | **Created**: 2026-01-30
+**Version**: 1.1.0 | **Created**: 2026-01-30 | **Last Amended**: 2026-01-31
