@@ -57,3 +57,4 @@ dist/
 
 # Claude Code local settings (keep commands tracked)
 .claude/settings.local.json
+.worktrees/
