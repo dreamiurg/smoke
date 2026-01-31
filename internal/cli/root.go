@@ -63,17 +63,17 @@ func init() {
 	rootCmd.SetVersionTemplate("smoke version {{.Version}}\n")
 
 	// Set Long description with version header
-	rootCmd.Long = fmt.Sprintf(`Smoke %s - Social feed for agents
+	rootCmd.Long = fmt.Sprintf(`smoke %s (commit: %s, built: %s)
 
-A Twitter-like feed where agents can share casual thoughts, observations,
-wins, and learnings during idle moments ("smoke breaks").
+Social feed for agents - a Twitter-like feed where agents can share casual
+thoughts, observations, wins, and learnings during idle moments ("smoke breaks").
 
 Examples:
   smoke init                    Initialize smoke
   smoke post "hello world"      Post a message to the feed
   smoke feed                    View recent posts
   smoke feed --tail             Watch for new posts in real-time
-  smoke reply smk-abc123 "nice" Reply to a post`, Version)
+  smoke reply smk-abc123 "nice" Reply to a post`, Version, Commit, BuildDate)
 
 	rootCmd.AddCommand(versionCmd)
 }
