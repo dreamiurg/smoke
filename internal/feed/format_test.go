@@ -493,3 +493,155 @@ func TestCompactFormat(t *testing.T) {
 		t.Errorf("FormatPost() compact format should be single line for short content: %s", output)
 	}
 }
+
+func TestWrapText(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		maxWidth int
+		want     int // expected number of lines
+	}{
+		{
+			name:     "short text no wrap",
+			text:     "hello world",
+			maxWidth: 50,
+			want:     1,
+		},
+		{
+			name:     "exact width",
+			text:     "hello",
+			maxWidth: 5,
+			want:     1,
+		},
+		{
+			name:     "wrap on space",
+			text:     "hello world",
+			maxWidth: 7,
+			want:     2,
+		},
+		{
+			name:     "long text multiple wraps",
+			text:     "this is a longer text that should wrap multiple times",
+			maxWidth: 15,
+			want:     5,
+		},
+		{
+			name:     "no spaces force break",
+			text:     "abcdefghijklmnop",
+			maxWidth: 5,
+			want:     4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := wrapText(tt.text, tt.maxWidth)
+			if len(lines) != tt.want {
+				t.Errorf("wrapText(%q, %d) = %d lines, want %d lines: %v",
+					tt.text, tt.maxWidth, len(lines), tt.want, lines)
+			}
+			// Verify each line is within maxWidth
+			for i, line := range lines {
+				if len(line) > tt.maxWidth {
+					t.Errorf("wrapText line %d exceeds maxWidth: %d > %d: %q",
+						i, len(line), tt.maxWidth, line)
+				}
+			}
+		})
+	}
+}
+
+func TestFormatOptionsGetTerminalWidth(t *testing.T) {
+	t.Run("explicit width", func(t *testing.T) {
+		opts := FormatOptions{TerminalWidth: 120}
+		if got := opts.getTerminalWidth(); got != 120 {
+			t.Errorf("getTerminalWidth() = %d, want 120", got)
+		}
+	})
+
+	t.Run("zero uses default", func(t *testing.T) {
+		opts := FormatOptions{TerminalWidth: 0}
+		width := opts.getTerminalWidth()
+		// Should return detected width or default (100)
+		if width <= 0 {
+			t.Errorf("getTerminalWidth() = %d, want > 0", width)
+		}
+	})
+}
+
+func TestFormatPostWithLongAuthor(t *testing.T) {
+	// Test that long author names are handled correctly
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "claude-very-long-adjective-animal@some-project-name",
+		Project:   "some-project-name",
+		Suffix:    "very-long-adjective-animal",
+		Content:   "This is a test message that should wrap properly even with a long author name",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	var buf bytes.Buffer
+	opts := FormatOptions{
+		ColorMode:     ColorNever,
+		TerminalWidth: 80,
+	}
+	FormatPost(&buf, post, opts)
+
+	output := buf.String()
+	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+
+	// With long content and narrow terminal, should wrap
+	if len(lines) < 1 {
+		t.Errorf("FormatPost() should produce at least 1 line: %s", output)
+	}
+
+	// Verify author is present
+	if !strings.Contains(output, "claude-very-long-adjective-animal@some-project-name") {
+		t.Errorf("FormatPost() should contain full author: %s", output)
+	}
+}
+
+func TestFormatPostWithTerminalWidth(t *testing.T) {
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Suffix:    "swift-fox",
+		Content:   "This is a longer message that should definitely wrap when the terminal width is narrow enough to force it",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	t.Run("narrow terminal wraps more", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := FormatOptions{
+			ColorMode:     ColorNever,
+			TerminalWidth: 60,
+		}
+		FormatPost(&buf, post, opts)
+
+		output := buf.String()
+		lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+
+		// With narrow terminal, should wrap into multiple lines
+		if len(lines) < 2 {
+			t.Errorf("FormatPost() with narrow terminal should wrap: got %d lines", len(lines))
+		}
+	})
+
+	t.Run("wide terminal wraps less", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := FormatOptions{
+			ColorMode:     ColorNever,
+			TerminalWidth: 200,
+		}
+		FormatPost(&buf, post, opts)
+
+		output := buf.String()
+		lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+
+		// With wide terminal, might fit in fewer lines
+		if len(lines) > 2 {
+			t.Errorf("FormatPost() with wide terminal should fit in fewer lines: got %d lines", len(lines))
+		}
+	})
+}

@@ -336,3 +336,56 @@ func TestGetIdentityWithOverride_Empty(t *testing.T) {
 		t.Errorf("Expected suffix 'default-author', got %q", identity.Suffix)
 	}
 }
+
+func TestExtractRepoName(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{
+			name: "https with .git suffix",
+			url:  "https://github.com/dreamiurg/smoke.git",
+			want: "smoke",
+		},
+		{
+			name: "https without .git suffix",
+			url:  "https://github.com/dreamiurg/smoke",
+			want: "smoke",
+		},
+		{
+			name: "ssh format",
+			url:  "git@github.com:dreamiurg/smoke.git",
+			want: "smoke",
+		},
+		{
+			name: "ssh without .git",
+			url:  "git@github.com:dreamiurg/smoke",
+			want: "smoke",
+		},
+		{
+			name: "nested path",
+			url:  "https://gitlab.com/group/subgroup/repo.git",
+			want: "repo",
+		},
+		{
+			name: "simple name",
+			url:  "myrepo",
+			want: "myrepo",
+		},
+		{
+			name: "with .git only",
+			url:  "myrepo.git",
+			want: "myrepo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractRepoName(tt.url)
+			if got != tt.want {
+				t.Errorf("extractRepoName(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}

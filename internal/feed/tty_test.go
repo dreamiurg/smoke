@@ -49,3 +49,26 @@ func TestIsTerminal(t *testing.T) {
 	// Don't assert the value since it depends on test runner
 	_ = result
 }
+
+func TestGetTerminalWidth(t *testing.T) {
+	// GetTerminalWidth should return a positive value
+	// Either the actual terminal width or the default
+	width := GetTerminalWidth()
+	if width <= 0 {
+		t.Errorf("GetTerminalWidth() = %d, want > 0", width)
+	}
+	// In non-TTY test environment, should return default
+	if width != DefaultTerminalWidth {
+		t.Logf("GetTerminalWidth() returned actual width: %d", width)
+	}
+}
+
+func TestDefaultTerminalWidth(t *testing.T) {
+	// Verify default is a reasonable value
+	if DefaultTerminalWidth < 80 {
+		t.Errorf("DefaultTerminalWidth = %d, want >= 80", DefaultTerminalWidth)
+	}
+	if DefaultTerminalWidth > 200 {
+		t.Errorf("DefaultTerminalWidth = %d, want <= 200", DefaultTerminalWidth)
+	}
+}
