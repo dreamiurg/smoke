@@ -7,10 +7,24 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dreamiurg/smoke/internal/config"
 )
+
+// isTerminal returns true if stdout is a terminal
+func isTerminal() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+// color returns the colored string if color output is enabled
+func color(c, s string) string {
+	if !useColor {
+		return s
+	}
+	return c + s + colorReset
+}
 
 // CheckStatus represents the result of a health check
 type CheckStatus int
@@ -24,6 +38,19 @@ const (
 	// StatusFail indicates a critical issue
 	StatusFail
 )
+
+// ANSI color codes
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorCyan   = "\033[36m"
+	colorDim    = "\033[2m"
+)
+
+// useColor determines if color output should be used
+var useColor = isTerminal()
 
 // Check represents a single diagnostic check
 type Check struct {
@@ -144,23 +171,23 @@ func formatCheck(c Check) string {
 	var indicator string
 	switch c.Status {
 	case StatusPass:
-		indicator = "✓"
+		indicator = color(colorGreen, "✓")
 	case StatusWarn:
-		indicator = "⚠"
+		indicator = color(colorYellow, "⚠")
 	case StatusFail:
-		indicator = "✗"
+		indicator = color(colorRed, "✗")
 	}
 
 	line := fmt.Sprintf("  %s  %s %s", indicator, c.Name, c.Message)
 	if c.Detail != "" {
-		line += fmt.Sprintf("\n     └─ %s", c.Detail)
+		line += fmt.Sprintf("\n     %s", color(colorDim, "└─ "+c.Detail))
 	}
 	return line
 }
 
 // formatCategory formats a category with all its checks
 func formatCategory(cat Category) string {
-	result := cat.Name + "\n"
+	result := color(colorCyan, cat.Name) + "\n"
 	for _, check := range cat.Checks {
 		result += formatCheck(check) + "\n"
 	}
