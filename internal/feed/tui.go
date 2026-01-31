@@ -224,23 +224,36 @@ func (m Model) formatPostForTUI(post *Post) []string {
 	}
 
 	// Right-align identity
-	visibleLen := len(post.Author)
+	authorLen := len(post.Author)
 	padding := ""
-	if visibleLen < AuthorColumnWidth {
-		padding = fmt.Sprintf("%*s", AuthorColumnWidth-visibleLen, "")
+	authorColWidth := authorLen
+	if authorLen < MinAuthorColumnWidth {
+		padding = fmt.Sprintf("%*s", MinAuthorColumnWidth-authorLen, "")
+		authorColWidth = MinAuthorColumnWidth
 	}
 
 	identity := m.styleAuthor(post.Author)
 	authorRig := padding + identity
 
+	// Calculate actual content start position and available width
+	contentStart := TimeColumnWidth + 1 + authorColWidth + 2
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+	contentWidth := termWidth - contentStart - 1
+	if contentWidth < MinContentWidth {
+		contentWidth = MinContentWidth
+	}
+
 	// Wrap content
-	contentLines := wrapText(post.Content, MaxContentWidth)
+	contentLines := wrapText(post.Content, contentWidth)
 	for i, line := range contentLines {
 		highlightedLine := HighlightAll(line, true) // Always enable color in TUI
 		if i == 0 {
 			lines = append(lines, fmt.Sprintf("%s %s  %s", timeColumn, authorRig, highlightedLine))
 		} else {
-			indent := fmt.Sprintf("%*s", ContentColumnStart, "")
+			indent := fmt.Sprintf("%*s", contentStart, "")
 			lines = append(lines, fmt.Sprintf("%s%s", indent, highlightedLine))
 		}
 	}
@@ -262,25 +275,41 @@ func (m Model) formatReplyForTUI(_ *Post, reply *Post) []string {
 
 	timestamp := m.styleTimestamp(replyTimeStr)
 
-	// Right-align identity (slightly smaller for indent)
-	visibleLen := len(reply.Author)
-	replyAuthorWidth := AuthorColumnWidth - 3
+	// Reply prefix: "  └─ " = 5 chars
+	const replyPrefix = 5
+
+	// Right-align identity (slightly smaller minimum width for indent)
+	authorLen := len(reply.Author)
+	minReplyAuthorWidth := MinAuthorColumnWidth - 3
 	padding := ""
-	if visibleLen < replyAuthorWidth {
-		padding = fmt.Sprintf("%*s", replyAuthorWidth-visibleLen, "")
+	authorColWidth := authorLen
+	if authorLen < minReplyAuthorWidth {
+		padding = fmt.Sprintf("%*s", minReplyAuthorWidth-authorLen, "")
+		authorColWidth = minReplyAuthorWidth
 	}
 
 	identity := m.styleAuthor(reply.Author)
 	authorRig := padding + identity
 
+	// Calculate actual content start position and available width
+	contentStart := replyPrefix + TimeColumnWidth + 1 + authorColWidth + 2
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+	contentWidth := termWidth - contentStart - 1
+	if contentWidth < MinContentWidth {
+		contentWidth = MinContentWidth
+	}
+
 	// Wrap content
-	contentLines := wrapText(reply.Content, MaxContentWidth-5)
+	contentLines := wrapText(reply.Content, contentWidth)
 	for i, line := range contentLines {
 		highlightedLine := HighlightAll(line, true)
 		if i == 0 {
 			lines = append(lines, fmt.Sprintf("  └─ %s %s  %s", timestamp, authorRig, highlightedLine))
 		} else {
-			indent := fmt.Sprintf("%*s", ContentColumnStart+5, "")
+			indent := fmt.Sprintf("%*s", contentStart, "")
 			lines = append(lines, fmt.Sprintf("%s%s", indent, highlightedLine))
 		}
 	}

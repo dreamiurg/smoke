@@ -2,7 +2,21 @@ package feed
 
 import (
 	"os"
+
+	"golang.org/x/term"
 )
+
+// DefaultTerminalWidth is the fallback width when detection fails
+const DefaultTerminalWidth = 100
+
+// GetTerminalWidth returns the current terminal width, or a default if detection fails
+func GetTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		return DefaultTerminalWidth
+	}
+	return width
+}
 
 // ColorMode represents the color output mode
 type ColorMode int

@@ -160,11 +160,20 @@ func getSessionSeed() string {
 	return ""
 }
 
-// detectProject determines the project name from git or cwd
+// detectProject determines the project name from git remote or cwd
 func detectProject() string {
-	// Try git first
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	// Try to get repo name from git remote origin URL
+	// This works correctly for both main repo and worktrees
+	cmd := exec.Command("git", "remote", "get-url", "origin")
 	out, err := cmd.Output()
+	if err == nil {
+		url := strings.TrimSpace(string(out))
+		return sanitizeName(extractRepoName(url))
+	}
+
+	// Fallback to git toplevel directory name
+	cmd = exec.Command("git", "rev-parse", "--show-toplevel")
+	out, err = cmd.Output()
 	if err == nil {
 		root := strings.TrimSpace(string(out))
 		return sanitizeName(filepath.Base(root))
@@ -176,6 +185,30 @@ func detectProject() string {
 		return "unknown"
 	}
 	return sanitizeName(filepath.Base(cwd))
+}
+
+// extractRepoName extracts the repository name from a git URL
+// Handles both SSH (git@github.com:user/repo.git) and HTTPS (https://github.com/user/repo.git) formats
+func extractRepoName(url string) string {
+	// Remove trailing .git if present
+	url = strings.TrimSuffix(url, ".git")
+
+	// Try to get the last path component
+	// For SSH: git@github.com:user/repo -> repo
+	// For HTTPS: https://github.com/user/repo -> repo
+	if idx := strings.LastIndex(url, "/"); idx != -1 {
+		return url[idx+1:]
+	}
+	// For SSH with colon: git@github.com:user/repo
+	if idx := strings.LastIndex(url, ":"); idx != -1 {
+		path := url[idx+1:]
+		if slashIdx := strings.LastIndex(path, "/"); slashIdx != -1 {
+			return path[slashIdx+1:]
+		}
+		return path
+	}
+
+	return url
 }
 
 // sanitizeName removes whitespace and special characters from a name
