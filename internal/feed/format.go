@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -144,8 +145,8 @@ func ResetTimestamp() {
 	lastTimestamp = ""
 }
 
-// formatCompact formats a post with right-aligned author@rig and smart timestamps
-// Format: 14:32  author@rig  content (timestamp only shown when it changes)
+// formatCompact formats a post with right-aligned author@project and smart timestamps
+// Format: 14:32  author@project  content (timestamp only shown when it changes)
 func formatCompact(w io.Writer, post *Post, cw *ColorWriter) {
 	t, err := post.GetCreatedTime()
 	var timeStr string
@@ -294,7 +295,7 @@ func FormatReplied(w io.Writer, post *Post) {
 // FilterCriteria specifies filters to apply when reading posts
 type FilterCriteria struct {
 	Author string
-	Rig    string
+	Suffix string
 	Since  time.Time
 	Today  bool
 }
@@ -304,13 +305,13 @@ func FilterPosts(posts []*Post, criteria FilterCriteria) []*Post {
 	result := make([]*Post, 0, len(posts))
 
 	for _, post := range posts {
-		// Author filter
-		if criteria.Author != "" && post.Author != criteria.Author {
+		// Author filter (supports substring matching for easier filtering)
+		if criteria.Author != "" && !strings.Contains(post.Author, criteria.Author) {
 			continue
 		}
 
-		// Rig filter
-		if criteria.Rig != "" && post.Rig != criteria.Rig {
+		// Suffix filter
+		if criteria.Suffix != "" && post.Suffix != criteria.Suffix {
 			continue
 		}
 

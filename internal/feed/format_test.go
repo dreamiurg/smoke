@@ -12,7 +12,7 @@ func TestFormatPost(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello world",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -50,7 +50,7 @@ func TestFormatFeed(t *testing.T) {
 			ID:        "smk-aaa111",
 			Author:    "claude-swift-fox@smoke",
 			Project:   "smoke",
-			Rig:       "swift-fox",
+			Suffix:       "swift-fox",
 			Content:   "first post",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
@@ -58,7 +58,7 @@ func TestFormatFeed(t *testing.T) {
 			ID:        "smk-bbb222",
 			Author:    "claude-calm-owl@smoke",
 			Project:   "smoke",
-			Rig:       "calm-owl",
+			Suffix:       "calm-owl",
 			Content:   "second post",
 			CreatedAt: "2026-01-30T09:05:00Z",
 		},
@@ -124,7 +124,7 @@ func TestFormatFeedWithReplies(t *testing.T) {
 			ID:        "smk-parent",
 			Author:    "claude-swift-fox@smoke",
 			Project:   "smoke",
-			Rig:       "swift-fox",
+			Suffix:       "swift-fox",
 			Content:   "parent post",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
@@ -132,7 +132,7 @@ func TestFormatFeedWithReplies(t *testing.T) {
 			ID:        "smk-reply1",
 			Author:    "claude-calm-owl@smoke",
 			Project:   "smoke",
-			Rig:       "calm-owl",
+			Suffix:       "calm-owl",
 			Content:   "reply to parent",
 			CreatedAt: "2026-01-30T09:05:00Z",
 			ParentID:  "smk-parent",
@@ -168,7 +168,7 @@ func TestFormatPosted(t *testing.T) {
 		ID:        "smk-posted",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "test",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -187,7 +187,7 @@ func TestFormatReplied(t *testing.T) {
 		ID:        "smk-reply1",
 		Author:    "claude-calm-owl@smoke",
 		Project:   "smoke",
-		Rig:       "calm-owl",
+		Suffix:       "calm-owl",
 		Content:   "nice!",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		ParentID:  "smk-parent",
@@ -209,7 +209,7 @@ func TestFilterPosts(t *testing.T) {
 			ID:        "smk-aaa111",
 			Author:    "claude-swift-fox@smoke",
 			Project:   "smoke",
-			Rig:       "swift-fox",
+			Suffix:       "swift-fox",
 			Content:   "swift-fox smoke post",
 			CreatedAt: now.Add(-1 * time.Hour).UTC().Format(time.RFC3339),
 		},
@@ -217,7 +217,7 @@ func TestFilterPosts(t *testing.T) {
 			ID:        "smk-bbb222",
 			Author:    "claude-calm-owl@smoke",
 			Project:   "smoke",
-			Rig:       "calm-owl",
+			Suffix:       "calm-owl",
 			Content:   "calm-owl smoke post",
 			CreatedAt: now.Add(-30 * time.Minute).UTC().Format(time.RFC3339),
 		},
@@ -225,7 +225,7 @@ func TestFilterPosts(t *testing.T) {
 			ID:        "smk-ccc333",
 			Author:    "claude-swift-fox@calle",
 			Project:   "calle",
-			Rig:       "swift-fox",
+			Suffix:       "swift-fox",
 			Content:   "swift-fox calle post",
 			CreatedAt: now.Add(-10 * time.Minute).UTC().Format(time.RFC3339),
 		},
@@ -233,7 +233,7 @@ func TestFilterPosts(t *testing.T) {
 			ID:        "smk-ddd444",
 			Author:    "claude-calm-owl@calle",
 			Project:   "calle",
-			Rig:       "calm-owl",
+			Suffix:       "calm-owl",
 			Content:   "calm-owl calle post",
 			CreatedAt: now.Add(-25 * time.Hour).UTC().Format(time.RFC3339), // yesterday
 		},
@@ -247,14 +247,14 @@ func TestFilterPosts(t *testing.T) {
 	})
 
 	t.Run("filter by rig", func(t *testing.T) {
-		result := FilterPosts(posts, FilterCriteria{Rig: "swift-fox"})
+		result := FilterPosts(posts, FilterCriteria{Suffix: "swift-fox"})
 		if len(result) != 2 {
 			t.Errorf("FilterPosts(rig=swift-fox) returned %d, want 2", len(result))
 		}
 	})
 
 	t.Run("filter by author and rig", func(t *testing.T) {
-		result := FilterPosts(posts, FilterCriteria{Author: "claude-swift-fox@smoke", Rig: "swift-fox"})
+		result := FilterPosts(posts, FilterCriteria{Author: "claude-swift-fox@smoke", Suffix: "swift-fox"})
 		if len(result) != 1 {
 			t.Errorf("FilterPosts(author=claude-swift-fox@smoke, rig=swift-fox) returned %d, want 1", len(result))
 		}
@@ -287,7 +287,7 @@ func TestFormatDefaultWithInvalidTime(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "test",
 		CreatedAt: "invalid-time",
 	}
@@ -307,7 +307,7 @@ func TestFormatOnelineTruncation(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   longContent,
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -331,7 +331,7 @@ func TestFormatPostWithHashtags(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "Working on #golang today!",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -368,7 +368,7 @@ func TestFormatPostWithMentions(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "Hey @witness check this out!",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -393,7 +393,7 @@ func TestFormatFeedWithHashtagsAndMentions(t *testing.T) {
 			ID:        "smk-aaa111",
 			Author:    "claude-swift-fox@smoke",
 			Project:   "smoke",
-			Rig:       "swift-fox",
+			Suffix:       "swift-fox",
 			Content:   "Check out #rust and @alice",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
@@ -401,7 +401,7 @@ func TestFormatFeedWithHashtagsAndMentions(t *testing.T) {
 			ID:        "smk-bbb222",
 			Author:    "claude-calm-owl@smoke",
 			Project:   "smoke",
-			Rig:       "calm-owl",
+			Suffix:       "calm-owl",
 			Content:   "#golang is great! cc @bob @charlie",
 			CreatedAt: "2026-01-30T09:05:00Z",
 		},
@@ -447,7 +447,7 @@ func TestFormatPostMixedContent(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-bold-cat@smoke",
 		Project:   "smoke",
-		Rig:       "bold-cat",
+		Suffix:       "bold-cat",
 		Content:   "Hey @witness! #standup is starting. Check #meeting channel",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -474,7 +474,7 @@ func TestCompactFormat(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "claude-swift-fox@smoke",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello world",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}

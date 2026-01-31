@@ -12,7 +12,6 @@ import (
 
 var (
 	postAuthor string
-	postRig    string
 )
 
 var postCmd = &cobra.Command{
@@ -33,7 +32,6 @@ Examples:
 
 func init() {
 	postCmd.Flags().StringVar(&postAuthor, "author", "", "Override author name")
-	postCmd.Flags().StringVar(&postRig, "rig", "", "Override rig name")
 	rootCmd.AddCommand(postCmd)
 }
 

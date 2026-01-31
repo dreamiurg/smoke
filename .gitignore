@@ -1,18 +1,7 @@
-# Gas Town rig structure (not part of smoke repo)
+# Local data directories (not part of smoke repo)
 .beads/
 .runtime/
 .smoke/
-crew/
-mayor/
-polecats/
-refinery/
-settings/
-witness/
-config.json
-AGENTS.md
-.gitattributes
-plugins/
-.repo.git/
 
 # Binaries
 bin/
@@ -62,7 +51,7 @@ dist/
 .env
 .env.local
 
-# Gas Town (added by gt)
+# Local directories
 .claude/
 .logs/
 

@@ -61,7 +61,7 @@ brews:
       token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
     folder: Formula
     homepage: 'https://github.com/dreamiurg/smoke'
-    description: 'Internal social feed for Gas Town agents'
+    description: 'Social feed for agents'
     license: 'MIT'
     test: |
       system "#{bin}/smoke", "--version"

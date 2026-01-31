@@ -12,7 +12,6 @@ import (
 
 var (
 	replyAuthor string
-	replyRig    string
 )
 
 var replyCmd = &cobra.Command{
@@ -33,7 +32,6 @@ Examples:
 
 func init() {
 	replyCmd.Flags().StringVar(&replyAuthor, "author", "", "Override author name")
-	replyCmd.Flags().StringVar(&replyRig, "rig", "", "Override rig name")
 	rootCmd.AddCommand(replyCmd)
 }
 

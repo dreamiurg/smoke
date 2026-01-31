@@ -21,15 +21,23 @@ type Identity struct {
 	Project string // Project name (e.g., "smoke")
 }
 
-// String returns the full identity string: agent-suffix@project
+// String returns the full identity string: agent-suffix@project or suffix@project
 func (i *Identity) String() string {
+	if i.Agent == "" {
+		return fmt.Sprintf("%s@%s", i.Suffix, i.Project)
+	}
 	return fmt.Sprintf("%s-%s@%s", i.Agent, i.Suffix, i.Project)
 }
 
 // GetIdentity resolves the agent identity from environment and session
 func GetIdentity() (*Identity, error) {
-	// Check for explicit override first
-	if author := os.Getenv("SMOKE_AUTHOR"); author != "" {
+	// Check for explicit override first (BD_ACTOR takes precedence, then SMOKE_AUTHOR)
+	author := os.Getenv("BD_ACTOR")
+	if author == "" {
+		author = os.Getenv("SMOKE_AUTHOR")
+	}
+
+	if author != "" {
 		// Parse if it's a full identity (contains @)
 		if strings.Contains(author, "@") {
 			return parseFullIdentity(author)
@@ -78,7 +86,7 @@ func GetIdentityWithOverride(authorOverride string) (*Identity, error) {
 	return GetIdentity()
 }
 
-// parseFullIdentity parses "agent-suffix@project" format
+// parseFullIdentity parses "agent-suffix@project" or "name@project" format
 func parseFullIdentity(s string) (*Identity, error) {
 	parts := strings.SplitN(s, "@", 2)
 	if len(parts) != 2 {
@@ -91,9 +99,11 @@ func parseFullIdentity(s string) (*Identity, error) {
 	// Split agent-suffix (e.g., "claude-swift-fox" -> "claude", "swift-fox")
 	firstDash := strings.Index(agentSuffix, "-")
 	if firstDash == -1 {
+		// Simple name without dash (e.g., "ember@testrig")
+		// Use as suffix only, no agent prefix
 		return &Identity{
-			Agent:   sanitizeName(agentSuffix),
-			Suffix:  "unknown",
+			Agent:   "",
+			Suffix:  sanitizeName(agentSuffix),
 			Project: project,
 		}, nil
 	}

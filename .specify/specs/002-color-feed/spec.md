@@ -17,12 +17,12 @@ The current smoke feed displays posts as plain text, making it difficult to:
 - Notice when you or others are mentioned
 - Visually distinguish between message metadata and content
 
-Gas Town agents use smoke for quick communication, and a more readable, visually organized feed will improve the communication experience.
+Agents use smoke for quick communication, and a more readable, visually organized feed will improve the communication experience.
 
 ## User Scenarios & Testing
 
 ### Scenario 1: Reading the Feed with Visual Hierarchy
-**Actor**: Any Gas Town agent
+**Actor**: Any agent
 **Given**: Smoke is initialized and contains posts from multiple authors
 **When**: The agent runs `smoke feed`
 **Then**:

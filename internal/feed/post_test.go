@@ -69,7 +69,7 @@ func TestNewPost(t *testing.T) {
 			project: "smoke",
 			rig:     "",
 			content: "hello",
-			wantErr: ErrEmptyRig,
+			wantErr: ErrEmptySuffix,
 		},
 		{
 			name:    "content with whitespace trimmed",
@@ -99,8 +99,8 @@ func TestNewPost(t *testing.T) {
 			if post.Project != tt.project {
 				t.Errorf("NewPost().Project = %v, want %v", post.Project, tt.project)
 			}
-			if post.Rig != tt.rig {
-				t.Errorf("NewPost().Rig = %v, want %v", post.Rig, tt.rig)
+			if post.Suffix != tt.rig {
+				t.Errorf("NewPost().Rig = %v, want %v", post.Suffix, tt.rig)
 			}
 			if !ValidateID(post.ID) {
 				t.Errorf("NewPost().ID = %v, invalid format", post.ID)
@@ -186,7 +186,7 @@ func TestPostValidate(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "ember",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -206,7 +206,7 @@ func TestPostValidate(t *testing.T) {
 				ID:        "invalid",
 				Author:    "ember",
 				Project:   "smoke",
-				Rig:       "swift-fox",
+				Suffix:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -218,7 +218,7 @@ func TestPostValidate(t *testing.T) {
 				ID:        "",
 				Author:    "ember",
 				Project:   "smoke",
-				Rig:       "swift-fox",
+				Suffix:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -230,7 +230,7 @@ func TestPostValidate(t *testing.T) {
 				ID:        "smk-abc123",
 				Author:    "",
 				Project:   "smoke",
-				Rig:       "swift-fox",
+				Suffix:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -242,11 +242,11 @@ func TestPostValidate(t *testing.T) {
 				ID:        "smk-abc123",
 				Author:    "ember",
 				Project:   "smoke",
-				Rig:       "",
+				Suffix:       "",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
-			wantErr: ErrEmptyRig,
+			wantErr: ErrEmptySuffix,
 		},
 		{
 			name: "empty content",
@@ -254,7 +254,7 @@ func TestPostValidate(t *testing.T) {
 				ID:        "smk-abc123",
 				Author:    "ember",
 				Project:   "smoke",
-				Rig:       "swift-fox",
+				Suffix:       "swift-fox",
 				Content:   "",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -266,7 +266,7 @@ func TestPostValidate(t *testing.T) {
 				ID:        "smk-abc123",
 				Author:    "ember",
 				Project:   "smoke",
-				Rig:       "swift-fox",
+				Suffix:       "swift-fox",
 				Content:   strings.Repeat("a", 281),
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -278,7 +278,7 @@ func TestPostValidate(t *testing.T) {
 				ID:        "smk-abc123",
 				Author:    "ember",
 				Project:   "smoke",
-				Rig:       "swift-fox",
+				Suffix:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 				ParentID:  "invalid",
@@ -302,7 +302,7 @@ func TestPostIsReply(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "ember",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -315,7 +315,7 @@ func TestPostIsReply(t *testing.T) {
 		ID:        "smk-def456",
 		Author:    "witness",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "nice!",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		ParentID:  "smk-abc123",
@@ -332,7 +332,7 @@ func TestPostGetCreatedTime(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "ember",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: now.Format(time.RFC3339),
 	}
@@ -352,7 +352,7 @@ func TestPostGetCreatedTime(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "ember",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: "invalid",
 	}
@@ -368,7 +368,7 @@ func TestPostContentLength(t *testing.T) {
 		ID:        "smk-abc123",
 		Author:    "ember",
 		Project:   "smoke",
-		Rig:       "swift-fox",
+		Suffix:       "swift-fox",
 		Content:   "hello world",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}

@@ -45,14 +45,14 @@ func init() {
 
 var rootCmd = &cobra.Command{
 	Use:   "smoke",
-	Short: "Internal social feed for Gas Town agents",
-	Long: `Smoke - Internal social feed for Gas Town agents
+	Short: "Social feed for agents",
+	Long: `Smoke - Social feed for agents
 
 A Twitter-like feed where agents can share casual thoughts, observations,
 wins, and learnings during idle moments ("smoke breaks").
 
 Examples:
-  smoke init                    Initialize smoke in a Gas Town
+  smoke init                    Initialize smoke
   smoke post "hello world"      Post a message to the feed
   smoke feed                    View recent posts
   smoke feed --tail             Watch for new posts in real-time

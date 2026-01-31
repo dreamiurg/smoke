@@ -27,7 +27,7 @@ func TestStoreAppend(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Suffix:       "smoke",
 		Content:   "test post",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -55,7 +55,7 @@ func TestStoreAppendValidation(t *testing.T) {
 	invalidPost := &Post{
 		ID:        "invalid",
 		Author:    "ember",
-		Rig:       "smoke",
+		Suffix:       "smoke",
 		Content:   "test",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -73,7 +73,7 @@ func TestStoreAppendNotInitialized(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Suffix:       "smoke",
 		Content:   "test",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -92,21 +92,21 @@ func TestStoreReadAll(t *testing.T) {
 		{
 			ID:        "smk-aaa111",
 			Author:    "ember",
-			Rig:       "smoke",
+			Suffix:       "smoke",
 			Content:   "first post",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
 		{
 			ID:        "smk-bbb222",
 			Author:    "witness",
-			Rig:       "smoke",
+			Suffix:       "smoke",
 			Content:   "second post",
 			CreatedAt: "2026-01-30T09:05:00Z",
 		},
 		{
 			ID:        "smk-ccc333",
 			Author:    "ember",
-			Rig:       "calle",
+			Suffix:       "calle",
 			Content:   "third post",
 			CreatedAt: "2026-01-30T09:10:00Z",
 		},
@@ -153,7 +153,7 @@ func TestStoreReadAllSkipsInvalidLines(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Suffix:       "smoke",
 		Content:   "valid post",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -188,7 +188,7 @@ func TestStoreReadRecent(t *testing.T) {
 		post := &Post{
 			ID:        "smk-" + string(rune('a'+i)) + "bcdef",
 			Author:    "ember",
-			Rig:       "smoke",
+			Suffix:       "smoke",
 			Content:   "post " + string(rune('0'+i)),
 			CreatedAt: time.Now().Add(time.Duration(i) * time.Minute).UTC().Format(time.RFC3339),
 		}
@@ -222,7 +222,7 @@ func TestStoreFindByID(t *testing.T) {
 	post := &Post{
 		ID:        "smk-target",
 		Author:    "ember",
-		Rig:       "smoke",
+		Suffix:       "smoke",
 		Content:   "target post",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -252,7 +252,7 @@ func TestStoreExists(t *testing.T) {
 	post := &Post{
 		ID:        "smk-exists",
 		Author:    "ember",
-		Rig:       "smoke",
+		Suffix:       "smoke",
 		Content:   "test",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -296,7 +296,7 @@ func TestStoreCount(t *testing.T) {
 		post := &Post{
 			ID:        "smk-" + string(rune('a'+i)) + "bcdef",
 			Author:    "ember",
-			Rig:       "smoke",
+			Suffix:       "smoke",
 			Content:   "post",
 			CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		}

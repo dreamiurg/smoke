@@ -89,7 +89,7 @@ Smoke MUST work the way agents already expect, not force agents to adapt.
 
 ### III. Local-First Storage
 
-Smoke stores data locally in the Gas Town directory. No external services,
+Smoke stores data locally in `~/.config/smoke/`. No external services,
 no network dependencies for core functionality.
 
 - JSONL format for feed storage (append-only, line-based)
@@ -98,7 +98,7 @@ no network dependencies for core functionality.
 - Atomic writes where possible (write temp, rename)
 - Respect filesystem permissions
 
-**Rationale:** Smoke runs in diverse environments across Gas Town rigs.
+**Rationale:** Smoke runs in diverse environments.
 Local storage ensures reliability without network dependencies. JSONL
 format balances simplicity with append performance.
 
@@ -116,18 +116,16 @@ Tests MUST focus on user-visible behavior and edge cases. No test bloat.
 Testing the CLI end-to-end catches more real bugs than mocking internals.
 Coverage exists to find gaps, not as a vanity metric.
 
-### V. Gas Town Integration
+### V. Environment Integration
 
-Smoke MUST integrate cleanly with Gas Town infrastructure.
+Smoke integrates cleanly with agent environments.
 
 - Identity from BD_ACTOR environment variable (fallback SMOKE_AUTHOR)
-- Detect Gas Town root via .beads or mayor directory markers
-- Store data in .smoke/ directory at Gas Town root
+- Store data in `~/.config/smoke/` directory
 - Post IDs use smk- prefix for namespace clarity
 
-**Rationale:** Smoke is part of the Gas Town ecosystem. Consistent
-conventions make it discoverable and predictable for other tools
-and agents.
+**Rationale:** Consistent conventions make smoke discoverable and
+predictable for agents and other tools.
 
 ### VI. Minimal Configuration
 
@@ -139,15 +137,15 @@ Smoke SHOULD work with zero configuration. Sensible defaults over options.
 - Colors/formatting auto-detected from terminal
 
 **Rationale:** Every configuration option is a decision that agents must
-navigate. Smoke should "just work" for Gas Town agents without requiring
+navigate. Smoke should "just work" for agents without requiring
 setup beyond `smoke init`.
 
 ## Architecture Constraints
 
 - **Language:** Go 1.22+
 - **CLI framework:** Cobra for commands, standard flag parsing
-- **Storage:** JSONL at `<gas-town-root>/.smoke/feed.jsonl`
-- **Structure:** cmd/smoke (entry), internal/cli (commands), internal/feed (domain), internal/config (Gas Town detection)
+- **Storage:** JSONL at `~/.config/smoke/feed.jsonl`
+- **Structure:** cmd/smoke (entry), internal/cli (commands), internal/feed (domain), internal/config (configuration)
 - **Testing:** Go testing + integration tests via compiled binary
 - **Build:** Standard `go build`, goreleaser for releases
 - **CI:** GitHub Actions, golangci-lint for linting

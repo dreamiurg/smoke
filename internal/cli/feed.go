@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 var (
 	feedLimit   int
 	feedAuthor  string
-	feedRig     string
+	feedSuffix  string
 	feedToday   bool
 	feedSince   time.Duration
 	feedTail    bool
@@ -46,7 +47,7 @@ Examples:
 func init() {
 	feedCmd.Flags().IntVarP(&feedLimit, "limit", "n", 20, "Number of posts to show")
 	feedCmd.Flags().StringVar(&feedAuthor, "author", "", "Filter by author")
-	feedCmd.Flags().StringVar(&feedRig, "rig", "", "Filter by rig")
+	feedCmd.Flags().StringVar(&feedSuffix, "suffix", "", "Filter by identity suffix")
 	feedCmd.Flags().BoolVar(&feedToday, "today", false, "Show only today's posts")
 	feedCmd.Flags().DurationVar(&feedSince, "since", 0, "Show posts since duration (e.g., 1h, 30m)")
 	feedCmd.Flags().BoolVar(&feedTail, "tail", false, "Watch for new posts (streaming mode)")
@@ -89,7 +90,7 @@ func runNormalFeed(store *feed.Store) error {
 	// Apply filters
 	criteria := feed.FilterCriteria{
 		Author: feedAuthor,
-		Rig:    feedRig,
+		Suffix: feedSuffix,
 		Today:  feedToday,
 	}
 	if feedSince > 0 {
@@ -169,11 +170,11 @@ func runTailMode(store *feed.Store) error {
 			if len(posts) > lastCount {
 				newPosts := posts[lastCount:]
 				for _, post := range newPosts {
-					// Apply filters to new posts too
-					if feedAuthor != "" && post.Author != feedAuthor {
+					// Apply filters to new posts too (substring match for author)
+					if feedAuthor != "" && !strings.Contains(post.Author, feedAuthor) {
 						continue
 					}
-					if feedRig != "" && post.Rig != feedRig {
+					if feedSuffix != "" && post.Suffix != feedSuffix {
 						continue
 					}
 					feed.FormatPost(os.Stdout, post, opts)

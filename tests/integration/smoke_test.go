@@ -13,31 +13,18 @@ import (
 type TestHelper struct {
 	t           *testing.T
 	tmpDir      string
-	gasTownRoot string
+	configDir   string
 	binPath     string
 	origDir     string
 	origBDActor string
+	origEnv     map[string]string
 }
 
 func NewTestHelper(t *testing.T) *TestHelper {
 	t.Helper()
 
 	tmpDir := t.TempDir()
-	gasTownRoot := filepath.Join(tmpDir, "testtown")
-	beadsDir := filepath.Join(gasTownRoot, ".beads")
-	mayorDir := filepath.Join(gasTownRoot, "mayor")
-
-	if err := os.MkdirAll(beadsDir, 0755); err != nil {
-		t.Fatalf("Failed to create test Gas Town .beads: %v", err)
-	}
-	if err := os.MkdirAll(mayorDir, 0755); err != nil {
-		t.Fatalf("Failed to create test Gas Town mayor: %v", err)
-	}
-	// Create mayor/town.json to identify this as a Gas Town root
-	townJSON := filepath.Join(mayorDir, "town.json")
-	if err := os.WriteFile(townJSON, []byte(`{"name":"testtown"}`), 0644); err != nil {
-		t.Fatalf("Failed to create town.json: %v", err)
-	}
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
 
 	// Find smoke binary
 	binPath := os.Getenv("SMOKE_BIN")
@@ -65,24 +52,27 @@ func NewTestHelper(t *testing.T) *TestHelper {
 	origDir, _ := os.Getwd()
 	origBDActor := os.Getenv("BD_ACTOR")
 
+	// Save original HOME
+	origEnv := map[string]string{
+		"HOME": os.Getenv("HOME"),
+	}
+
 	return &TestHelper{
 		t:           t,
 		tmpDir:      tmpDir,
-		gasTownRoot: gasTownRoot,
+		configDir:   configDir,
 		binPath:     binPath,
 		origDir:     origDir,
 		origBDActor: origBDActor,
+		origEnv:     origEnv,
 	}
 }
 
 func (h *TestHelper) Cleanup() {
 	os.Chdir(h.origDir)
 	os.Setenv("BD_ACTOR", h.origBDActor)
-}
-
-func (h *TestHelper) ChDir() {
-	if err := os.Chdir(h.gasTownRoot); err != nil {
-		h.t.Fatalf("Failed to chdir: %v", err)
+	for k, v := range h.origEnv {
+		os.Setenv(k, v)
 	}
 }
 
@@ -105,8 +95,12 @@ func (h *TestHelper) Run(args ...string) (string, string, error) {
 	}
 
 	cmd := exec.Command(h.binPath, args...)
-	cmd.Dir = h.gasTownRoot
-	cmd.Env = os.Environ()
+	cmd.Dir = h.tmpDir
+
+	// Set HOME to tmpDir so smoke uses tmpDir/.config/smoke/
+	env := os.Environ()
+	env = append(env, "HOME="+h.tmpDir)
+	cmd.Env = env
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -130,14 +124,13 @@ func TestSmokeInit(t *testing.T) {
 		t.Errorf("init output missing success message: %s", stdout)
 	}
 
-	// Check .smoke directory created
-	smokeDir := filepath.Join(h.gasTownRoot, ".smoke")
-	if _, err := os.Stat(smokeDir); os.IsNotExist(err) {
-		t.Error(".smoke directory not created")
+	// Check config directory created
+	if _, err := os.Stat(h.configDir); os.IsNotExist(err) {
+		t.Error("config directory not created")
 	}
 
 	// Check feed.jsonl created
-	feedFile := filepath.Join(smokeDir, "feed.jsonl")
+	feedFile := filepath.Join(h.configDir, "feed.jsonl")
 	if _, err := os.Stat(feedFile); os.IsNotExist(err) {
 		t.Error("feed.jsonl not created")
 	}
@@ -163,36 +156,6 @@ func TestSmokeInitIdempotent(t *testing.T) {
 	}
 }
 
-func TestSmokeInitNotGasTown(t *testing.T) {
-	h := NewTestHelper(t)
-	defer h.Cleanup()
-
-	if h.binPath == "" {
-		t.Skip("smoke binary not found. Set SMOKE_BIN or build with 'make build'")
-	}
-
-	// Create a non-Gas Town directory
-	notGasTown := filepath.Join(h.tmpDir, "notgastown")
-	os.MkdirAll(notGasTown, 0755)
-
-	// Try to init in non-Gas Town
-	cmd := exec.Command(h.binPath, "init")
-	cmd.Dir = notGasTown
-	cmd.Env = os.Environ()
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err == nil {
-		t.Error("smoke init should fail in non-Gas Town directory")
-	}
-
-	if !strings.Contains(stderr.String(), "not in a Gas Town") {
-		t.Errorf("Expected 'not in a Gas Town' error: %s", stderr.String())
-	}
-}
-
 func TestSmokePost(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -203,7 +166,7 @@ func TestSmokePost(t *testing.T) {
 	}
 
 	// Set identity
-	h.SetIdentity("testtown/crew/testuser")
+	h.SetIdentity("testuser@testrig")
 
 	// Post a message
 	stdout, _, err := h.Run("post", "hello from integration test")
@@ -216,14 +179,14 @@ func TestSmokePost(t *testing.T) {
 	}
 
 	// Verify post in feed
-	feedFile := filepath.Join(h.gasTownRoot, ".smoke", "feed.jsonl")
+	feedFile := filepath.Join(h.configDir, "feed.jsonl")
 	content, _ := os.ReadFile(feedFile)
 	if !strings.Contains(string(content), "hello from integration test") {
 		t.Errorf("Post not found in feed file: %s", content)
 	}
 }
 
-func TestSmokePostNoIdentity(t *testing.T) {
+func TestSmokePostAutoIdentity(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
@@ -232,18 +195,18 @@ func TestSmokePostNoIdentity(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Clear identity
+	// Clear explicit identity env vars - smoke should auto-generate
 	os.Unsetenv("BD_ACTOR")
 	os.Unsetenv("SMOKE_AUTHOR")
 
-	// Post should fail
-	_, stderr, err := h.Run("post", "test message")
-	if err == nil {
-		t.Error("smoke post should fail without identity")
+	// Post should succeed with auto-generated identity
+	stdout, _, err := h.Run("post", "test message with auto identity")
+	if err != nil {
+		t.Fatalf("smoke post with auto identity failed: %v", err)
 	}
 
-	if !strings.Contains(stderr, "cannot determine identity") {
-		t.Errorf("Expected identity error: %s", stderr)
+	if !strings.Contains(stdout, "Posted smk-") {
+		t.Errorf("post output missing confirmation: %s", stdout)
 	}
 }
 
@@ -256,7 +219,7 @@ func TestSmokePostTooLong(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/testuser")
+	h.SetIdentity("testuser@testrig")
 
 	// Post a message that's too long
 	longMessage := strings.Repeat("a", 281)
@@ -274,7 +237,7 @@ func TestSmokePostNotInitialized(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
-	h.SetIdentity("testtown/crew/testuser")
+	h.SetIdentity("testuser@testrig")
 
 	// Post without init
 	_, stderr, err := h.Run("post", "test message")
@@ -296,7 +259,7 @@ func TestSmokeFeed(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 
 	// Post a few messages
 	h.Run("post", "first post")
@@ -316,7 +279,7 @@ func TestSmokeFeed(t *testing.T) {
 	if !strings.Contains(stdout, "third post") {
 		t.Errorf("feed missing third post: %s", stdout)
 	}
-	if !strings.Contains(stdout, "ember@testtown") {
+	if !strings.Contains(stdout, "ember@testrig") {
 		t.Errorf("feed missing author: %s", stdout)
 	}
 }
@@ -330,7 +293,7 @@ func TestSmokeFeedLimit(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 
 	// Post 5 messages
 	for i := 0; i < 5; i++ {
@@ -344,7 +307,7 @@ func TestSmokeFeedLimit(t *testing.T) {
 	}
 
 	// Count posts in output (look for author pattern)
-	count := strings.Count(stdout, "ember@testtown")
+	count := strings.Count(stdout, "ember@testrig")
 	if count != 2 {
 		t.Errorf("feed -n 2 returned %d posts, want 2", count)
 	}
@@ -360,10 +323,10 @@ func TestSmokeFeedAuthorFilter(t *testing.T) {
 	}
 
 	// Post from different users
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 	h.Run("post", "ember's post")
 
-	h.SetIdentity("testtown/crew/witness")
+	h.SetIdentity("witness@testrig")
 	h.Run("post", "witness's post")
 
 	// Filter by author
@@ -389,7 +352,7 @@ func TestSmokeFeedOneline(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 	h.Run("post", "test post")
 
 	// Read feed in oneline format
@@ -413,7 +376,7 @@ func TestSmokeReply(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 
 	// Post original
 	stdout, _, _ := h.Run("post", "original post")
@@ -431,7 +394,7 @@ func TestSmokeReply(t *testing.T) {
 		t.Fatal("Could not extract post ID from output")
 	}
 
-	h.SetIdentity("testtown/crew/witness")
+	h.SetIdentity("witness@testrig")
 
 	// Reply
 	stdout, _, err := h.Run("reply", postID, "nice post!")
@@ -456,7 +419,7 @@ func TestSmokeReplyInvalidID(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 
 	// Reply to invalid ID
 	_, stderr, err := h.Run("reply", "invalid-id", "test reply")
@@ -478,7 +441,7 @@ func TestSmokeReplyNonExistent(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 
 	// Reply to non-existent ID
 	_, stderr, err := h.Run("reply", "smk-notfnd", "test reply")
@@ -514,7 +477,7 @@ func TestSmokeHelp(t *testing.T) {
 		t.Fatalf("smoke --help failed: %v", err)
 	}
 
-	if !strings.Contains(stdout, "Internal social feed") {
+	if !strings.Contains(stdout, "Social feed") {
 		t.Errorf("help output missing description: %s", stdout)
 	}
 	if !strings.Contains(stdout, "init") {
@@ -540,7 +503,7 @@ func TestSmokeFeedBoxDrawing(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 	h.Run("post", "box drawing test")
 
 	// Read feed
@@ -549,10 +512,9 @@ func TestSmokeFeedBoxDrawing(t *testing.T) {
 		t.Fatalf("smoke feed failed: %v", err)
 	}
 
-	// Check for compact format elements (current implementation uses compact format)
-	// The box-drawing renderer exists but isn't integrated into the feed yet
-	if !strings.Contains(stdout, "ember@testtown") {
-		t.Errorf("feed missing author@rig: %s", stdout)
+	// Check for compact format elements
+	if !strings.Contains(stdout, "ember@testrig") {
+		t.Errorf("feed missing author@project: %s", stdout)
 	}
 	if !strings.Contains(stdout, "box drawing test") {
 		t.Errorf("feed missing post content: %s", stdout)
@@ -568,7 +530,7 @@ func TestSmokeFeedReplyIndent(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("testtown/crew/ember")
+	h.SetIdentity("ember@testrig")
 	stdout, _, _ := h.Run("post", "parent post")
 
 	// Extract post ID
@@ -580,7 +542,7 @@ func TestSmokeFeedReplyIndent(t *testing.T) {
 		}
 	}
 
-	h.SetIdentity("testtown/crew/witness")
+	h.SetIdentity("witness@testrig")
 	h.Run("reply", postID, "reply post")
 
 	// Read feed

@@ -14,7 +14,7 @@ type Post struct {
 	ID        string `json:"id"`
 	Author    string `json:"author"`
 	Project   string `json:"project"`
-	Rig       string `json:"rig"`
+	Suffix    string `json:"suffix"`
 	Content   string `json:"content"`
 	CreatedAt string `json:"created_at"`
 	ParentID  string `json:"parent_id,omitempty"`
@@ -25,12 +25,12 @@ var (
 	ErrEmptyContent   = errors.New("content cannot be empty")
 	ErrContentTooLong = errors.New("message exceeds 280 characters")
 	ErrEmptyAuthor    = errors.New("author cannot be empty")
-	ErrEmptyRig       = errors.New("rig cannot be empty")
+	ErrEmptySuffix    = errors.New("suffix cannot be empty")
 	ErrInvalidID      = errors.New("invalid post ID format")
 )
 
 // NewPost creates a new post with validation
-func NewPost(author, project, rig, content string) (*Post, error) {
+func NewPost(author, project, suffix, content string) (*Post, error) {
 	// Trim content
 	content = strings.TrimSpace(content)
 
@@ -51,10 +51,10 @@ func NewPost(author, project, rig, content string) (*Post, error) {
 	// Validate project
 	project = strings.TrimSpace(project)
 
-	// Validate rig
-	rig = strings.TrimSpace(rig)
-	if rig == "" {
-		return nil, ErrEmptyRig
+	// Validate suffix
+	suffix = strings.TrimSpace(suffix)
+	if suffix == "" {
+		return nil, ErrEmptySuffix
 	}
 
 	// Generate ID
@@ -67,15 +67,15 @@ func NewPost(author, project, rig, content string) (*Post, error) {
 		ID:        id,
 		Author:    author,
 		Project:   project,
-		Rig:       rig,
+		Suffix:    suffix,
 		Content:   content,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}, nil
 }
 
 // NewReply creates a new reply post with validation
-func NewReply(author, project, rig, content, parentID string) (*Post, error) {
-	post, err := NewPost(author, project, rig, content)
+func NewReply(author, project, suffix, content, parentID string) (*Post, error) {
+	post, err := NewPost(author, project, suffix, content)
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +97,8 @@ func (p *Post) Validate() error {
 	if p.Author == "" {
 		return ErrEmptyAuthor
 	}
-	if p.Rig == "" {
-		return ErrEmptyRig
+	if p.Suffix == "" {
+		return ErrEmptySuffix
 	}
 	if p.Content == "" {
 		return ErrEmptyContent

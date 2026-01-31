@@ -62,7 +62,7 @@ func TestParseFullIdentity(t *testing.T) {
 	}{
 		{"claude-swift-fox@smoke", "claude", "swift-fox", "smoke"},
 		{"unknown-calm-owl@myproject", "unknown", "calm-owl", "myproject"},
-		{"custom@test", "custom", "unknown", "test"},
+		{"custom@test", "", "custom", "test"},
 	}
 
 	for _, tt := range tests {
@@ -213,8 +213,8 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 			name:  "no agent dash",
 			input: "agent@project",
 			wantID: &Identity{
-				Agent:   "agent",
-				Suffix:  "unknown",
+				Agent:   "",
+				Suffix:  "agent",
 				Project: "project",
 			},
 		},
