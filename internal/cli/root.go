@@ -18,7 +18,7 @@ var (
 
 // formatBuildDate converts the build date to a human-readable local time format.
 // Input formats: RFC3339 (2026-01-31T23:26:18Z) or similar.
-// Output: "Jan 31, 2026 at 3:26 PM" in local timezone.
+// Output: "~4 hours ago on Jan 31 2026 3:26pm PT" in local timezone.
 func formatBuildDate(raw string) string {
 	if raw == "" || raw == "unknown" {
 		return raw
@@ -31,7 +31,42 @@ func formatBuildDate(raw string) string {
 			return raw // Return as-is if unparseable
 		}
 	}
-	return t.Local().Format("Jan 2, 2006 at 3:04 PM")
+	local := t.Local()
+	relative := formatRelativeTime(time.Since(local))
+	absolute := local.Format("Jan 2 2006 3:04pm MST")
+	return fmt.Sprintf("~%s on %s", relative, absolute)
+}
+
+// formatRelativeTime returns a human-friendly relative time string.
+func formatRelativeTime(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		mins := int(d.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	case d < 24*time.Hour:
+		hours := int(d.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case d < 7*24*time.Hour:
+		days := int(d.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	default:
+		weeks := int(d.Hours() / 24 / 7)
+		if weeks == 1 {
+			return "1 week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", weeks)
+	}
 }
 
 func init() {
