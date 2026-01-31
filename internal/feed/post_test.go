@@ -10,6 +10,7 @@ func TestNewPost(t *testing.T) {
 	tests := []struct {
 		name    string
 		author  string
+		project string
 		rig     string
 		content string
 		wantErr error
@@ -17,48 +18,55 @@ func TestNewPost(t *testing.T) {
 		{
 			name:    "valid post",
 			author:  "ember",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: "hello world",
 			wantErr: nil,
 		},
 		{
 			name:    "empty content",
 			author:  "ember",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: "",
 			wantErr: ErrEmptyContent,
 		},
 		{
 			name:    "whitespace only content",
 			author:  "ember",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: "   ",
 			wantErr: ErrEmptyContent,
 		},
 		{
 			name:    "content too long",
 			author:  "ember",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: strings.Repeat("a", 281),
 			wantErr: ErrContentTooLong,
 		},
 		{
 			name:    "max length content",
 			author:  "ember",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: strings.Repeat("a", 280),
 			wantErr: nil,
 		},
 		{
 			name:    "empty author",
 			author:  "",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: "hello",
 			wantErr: ErrEmptyAuthor,
 		},
 		{
 			name:    "empty rig",
 			author:  "ember",
+			project: "smoke",
 			rig:     "",
 			content: "hello",
 			wantErr: ErrEmptyRig,
@@ -66,7 +74,8 @@ func TestNewPost(t *testing.T) {
 		{
 			name:    "content with whitespace trimmed",
 			author:  "ember",
-			rig:     "smoke",
+			project: "smoke",
+			rig:     "swift-fox",
 			content: "  hello world  ",
 			wantErr: nil,
 		},
@@ -74,7 +83,7 @@ func TestNewPost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			post, err := NewPost(tt.author, tt.rig, tt.content)
+			post, err := NewPost(tt.author, tt.project, tt.rig, tt.content)
 			if err != tt.wantErr {
 				t.Errorf("NewPost() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -86,6 +95,9 @@ func TestNewPost(t *testing.T) {
 			// Verify post fields
 			if post.Author != tt.author {
 				t.Errorf("NewPost().Author = %v, want %v", post.Author, tt.author)
+			}
+			if post.Project != tt.project {
+				t.Errorf("NewPost().Project = %v, want %v", post.Project, tt.project)
 			}
 			if post.Rig != tt.rig {
 				t.Errorf("NewPost().Rig = %v, want %v", post.Rig, tt.rig)
@@ -107,6 +119,7 @@ func TestNewReply(t *testing.T) {
 	tests := []struct {
 		name     string
 		author   string
+		project  string
 		rig      string
 		content  string
 		parentID string
@@ -115,7 +128,8 @@ func TestNewReply(t *testing.T) {
 		{
 			name:     "valid reply",
 			author:   "witness",
-			rig:      "smoke",
+			project:  "smoke",
+			rig:      "swift-fox",
 			content:  "nice!",
 			parentID: "smk-abc123",
 			wantErr:  false,
@@ -123,7 +137,8 @@ func TestNewReply(t *testing.T) {
 		{
 			name:     "invalid parent ID",
 			author:   "witness",
-			rig:      "smoke",
+			project:  "smoke",
+			rig:      "swift-fox",
 			content:  "nice!",
 			parentID: "invalid",
 			wantErr:  true,
@@ -131,7 +146,8 @@ func TestNewReply(t *testing.T) {
 		{
 			name:     "empty parent ID",
 			author:   "witness",
-			rig:      "smoke",
+			project:  "smoke",
+			rig:      "swift-fox",
 			content:  "nice!",
 			parentID: "",
 			wantErr:  true,
@@ -139,7 +155,8 @@ func TestNewReply(t *testing.T) {
 		{
 			name:     "content too long",
 			author:   "witness",
-			rig:      "smoke",
+			project:  "smoke",
+			rig:      "swift-fox",
 			content:  strings.Repeat("a", 281),
 			parentID: "smk-abc123",
 			wantErr:  true,
@@ -148,7 +165,7 @@ func TestNewReply(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reply, err := NewReply(tt.author, tt.rig, tt.content, tt.parentID)
+			reply, err := NewReply(tt.author, tt.project, tt.rig, tt.content, tt.parentID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewReply() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -168,7 +185,8 @@ func TestPostValidate(t *testing.T) {
 	validPost := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -187,7 +205,8 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "invalid",
 				Author:    "ember",
-				Rig:       "smoke",
+				Project:   "smoke",
+				Rig:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -198,7 +217,8 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "",
 				Author:    "ember",
-				Rig:       "smoke",
+				Project:   "smoke",
+				Rig:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -209,7 +229,8 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "smk-abc123",
 				Author:    "",
-				Rig:       "smoke",
+				Project:   "smoke",
+				Rig:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -220,6 +241,7 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "smk-abc123",
 				Author:    "ember",
+				Project:   "smoke",
 				Rig:       "",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
@@ -231,7 +253,8 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "smk-abc123",
 				Author:    "ember",
-				Rig:       "smoke",
+				Project:   "smoke",
+				Rig:       "swift-fox",
 				Content:   "",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -242,7 +265,8 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "smk-abc123",
 				Author:    "ember",
-				Rig:       "smoke",
+				Project:   "smoke",
+				Rig:       "swift-fox",
 				Content:   strings.Repeat("a", 281),
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			},
@@ -253,7 +277,8 @@ func TestPostValidate(t *testing.T) {
 			post: &Post{
 				ID:        "smk-abc123",
 				Author:    "ember",
-				Rig:       "smoke",
+				Project:   "smoke",
+				Rig:       "swift-fox",
 				Content:   "hello",
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 				ParentID:  "invalid",
@@ -276,7 +301,8 @@ func TestPostIsReply(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -288,7 +314,8 @@ func TestPostIsReply(t *testing.T) {
 	reply := &Post{
 		ID:        "smk-def456",
 		Author:    "witness",
-		Rig:       "smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "nice!",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		ParentID:  "smk-abc123",
@@ -304,7 +331,8 @@ func TestPostGetCreatedTime(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: now.Format(time.RFC3339),
 	}
@@ -323,7 +351,8 @@ func TestPostGetCreatedTime(t *testing.T) {
 	invalidPost := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello",
 		CreatedAt: "invalid",
 	}
@@ -338,7 +367,8 @@ func TestPostContentLength(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
 		Author:    "ember",
-		Rig:       "smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello world",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}

@@ -70,13 +70,13 @@ func runReply(_ *cobra.Command, args []string) error {
 	}
 
 	// Get identity
-	identity, err := config.GetIdentityWithOverrides(replyAuthor, replyRig)
+	identity, err := config.GetIdentityWithOverride(replyAuthor)
 	if err != nil {
 		return fmt.Errorf("error: %w", err)
 	}
 
 	// Create reply
-	reply, err := feed.NewReply(identity.Author, identity.Rig, message, parentID)
+	reply, err := feed.NewReply(identity.String(), identity.Project, identity.Suffix, message, parentID)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
 			return fmt.Errorf("error: message exceeds 280 characters (got %d)", len(message))

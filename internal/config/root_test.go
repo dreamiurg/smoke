@@ -6,89 +6,23 @@ import (
 	"testing"
 )
 
-func TestFindGasTownRootFrom(t *testing.T) {
-	// Create a temporary Gas Town structure with mayor/town.json (town marker)
-	tmpDir := t.TempDir()
-	gasTownRoot := filepath.Join(tmpDir, "mytown")
-	mayorDir := filepath.Join(gasTownRoot, "mayor")
-	rigDir := filepath.Join(gasTownRoot, "smoke")
-	rigMayorDir := filepath.Join(rigDir, "mayor") // rig has mayor/ but no town.json
-	rigBeadsDir := filepath.Join(rigDir, ".beads")
-	subDir := filepath.Join(rigDir, "crew", "ember")
-
-	// Create directories
-	if err := os.MkdirAll(mayorDir, 0755); err != nil {
-		t.Fatalf("Failed to create mayor dir: %v", err)
-	}
-	// Create town.json marker file
-	townJSON := filepath.Join(mayorDir, "town.json")
-	if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
-		t.Fatalf("Failed to create town.json: %v", err)
-	}
-	// Create rig mayor without town.json (shouldn't match)
-	if err := os.MkdirAll(rigMayorDir, 0755); err != nil {
-		t.Fatalf("Failed to create rig mayor dir: %v", err)
-	}
-	if err := os.MkdirAll(rigBeadsDir, 0755); err != nil {
-		t.Fatalf("Failed to create rig .beads dir: %v", err)
-	}
-	if err := os.MkdirAll(subDir, 0755); err != nil {
-		t.Fatalf("Failed to create sub dir: %v", err)
+func TestGetConfigDir(t *testing.T) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		t.Fatalf("GetConfigDir() error: %v", err)
 	}
 
-	tests := []struct {
-		name    string
-		start   string
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "from root",
-			start:   gasTownRoot,
-			want:    gasTownRoot,
-			wantErr: false,
-		},
-		{
-			name:    "from rig (has mayor/ but no town.json)",
-			start:   rigDir,
-			want:    gasTownRoot,
-			wantErr: false,
-		},
-		{
-			name:    "from deep subdirectory",
-			start:   subDir,
-			want:    gasTownRoot,
-			wantErr: false,
-		},
-		{
-			name:    "from mayor directory",
-			start:   mayorDir,
-			want:    gasTownRoot,
-			wantErr: false,
-		},
-		{
-			name:    "not in gas town",
-			start:   tmpDir,
-			want:    "",
-			wantErr: true,
-		},
+	if configDir == "" {
+		t.Error("GetConfigDir() returned empty string")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := FindGasTownRootFrom(tt.start)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("FindGasTownRootFrom() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("FindGasTownRootFrom() = %v, want %v", got, tt.want)
-			}
-		})
+	// Should end with .config/smoke
+	if filepath.Base(configDir) != "smoke" {
+		t.Errorf("GetConfigDir() should end with 'smoke', got %s", configDir)
 	}
 }
 
-func TestGetFeedPathWithOverride(t *testing.T) {
+func TestGetFeedPath(t *testing.T) {
 	// Save and restore SMOKE_FEED env var
 	origSmokeFeed := os.Getenv("SMOKE_FEED")
 	defer os.Setenv("SMOKE_FEED", origSmokeFeed)
@@ -106,64 +40,43 @@ func TestGetFeedPathWithOverride(t *testing.T) {
 		}
 	})
 
-	t.Run("no override falls back to Gas Town", func(t *testing.T) {
+	t.Run("no override uses global config", func(t *testing.T) {
 		os.Setenv("SMOKE_FEED", "")
-
-		// Create a temporary Gas Town
-		tmpDir := t.TempDir()
-		gasTownRoot := filepath.Join(tmpDir, "mytown")
-		mayorDir := filepath.Join(gasTownRoot, "mayor")
-		if err := os.MkdirAll(mayorDir, 0755); err != nil {
-			t.Fatalf("Failed to create mayor dir: %v", err)
-		}
-		townJSON := filepath.Join(mayorDir, "town.json")
-		if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
-			t.Fatalf("Failed to create town.json: %v", err)
-		}
-
-		// Change to Gas Town
-		originalDir, _ := os.Getwd()
-		defer func() { _ = os.Chdir(originalDir) }()
-		if err := os.Chdir(gasTownRoot); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
 
 		got, err := GetFeedPath()
 		if err != nil {
 			t.Errorf("GetFeedPath() unexpected error: %v", err)
 		}
-		// Resolve symlinks for comparison (macOS /var -> /private/var)
-		gotResolved, _ := filepath.EvalSymlinks(got)
-		wantResolved, _ := filepath.EvalSymlinks(filepath.Join(gasTownRoot, ".smoke", "feed.jsonl"))
-		if gotResolved != wantResolved {
-			t.Errorf("GetFeedPath() = %v, want %v", got, wantResolved)
+
+		// Should be in ~/.config/smoke/
+		if filepath.Base(got) != "feed.jsonl" {
+			t.Errorf("GetFeedPath() should end with feed.jsonl, got %s", got)
 		}
 	})
 }
 
+func TestGetConfigPath(t *testing.T) {
+	got, err := GetConfigPath()
+	if err != nil {
+		t.Fatalf("GetConfigPath() error: %v", err)
+	}
+
+	if filepath.Base(got) != "config.yaml" {
+		t.Errorf("GetConfigPath() should end with config.yaml, got %s", got)
+	}
+}
+
 func TestIsSmokeInitialized(t *testing.T) {
-	// Create a temporary Gas Town structure with mayor/town.json marker
-	tmpDir := t.TempDir()
-	gasTownRoot := filepath.Join(tmpDir, "mytown")
-	mayorDir := filepath.Join(gasTownRoot, "mayor")
-	smokeDir := filepath.Join(gasTownRoot, ".smoke")
+	// Use temp directory as HOME
+	tmpHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", oldHome)
 
-	if err := os.MkdirAll(mayorDir, 0755); err != nil {
-		t.Fatalf("Failed to create mayor dir: %v", err)
-	}
-	// Create town.json marker file
-	townJSON := filepath.Join(mayorDir, "town.json")
-	if err := os.WriteFile(townJSON, []byte("{}"), 0644); err != nil {
-		t.Fatalf("Failed to create town.json: %v", err)
-	}
-
-	// Change to Gas Town directory
-	originalDir, _ := os.Getwd()
-	defer func() { _ = os.Chdir(originalDir) }()
-
-	if err := os.Chdir(gasTownRoot); err != nil {
-		t.Fatalf("Failed to chdir: %v", err)
-	}
+	// Clear any SMOKE_FEED override
+	oldSmokeFeed := os.Getenv("SMOKE_FEED")
+	os.Setenv("SMOKE_FEED", "")
+	defer os.Setenv("SMOKE_FEED", oldSmokeFeed)
 
 	// Test before initialization
 	initialized, err := IsSmokeInitialized()
@@ -171,16 +84,17 @@ func TestIsSmokeInitialized(t *testing.T) {
 		t.Errorf("IsSmokeInitialized() unexpected error: %v", err)
 	}
 	if initialized {
-		t.Error("IsSmokeInitialized() = true, want false")
+		t.Error("IsSmokeInitialized() = true, want false (no feed file yet)")
 	}
 
 	// Create smoke directory and feed file
-	if mkdirErr := os.MkdirAll(smokeDir, 0755); mkdirErr != nil {
-		t.Fatalf("Failed to create .smoke dir: %v", mkdirErr)
+	smokeDir := filepath.Join(tmpHome, ".config", "smoke")
+	if err := os.MkdirAll(smokeDir, 0755); err != nil {
+		t.Fatalf("Failed to create smoke dir: %v", err)
 	}
 	feedPath := filepath.Join(smokeDir, "feed.jsonl")
-	if writeErr := os.WriteFile(feedPath, []byte{}, 0644); writeErr != nil {
-		t.Fatalf("Failed to create feed file: %v", writeErr)
+	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to create feed file: %v", err)
 	}
 
 	// Test after initialization
@@ -190,5 +104,35 @@ func TestIsSmokeInitialized(t *testing.T) {
 	}
 	if !initialized {
 		t.Error("IsSmokeInitialized() = false, want true")
+	}
+}
+
+func TestEnsureInitialized(t *testing.T) {
+	// Use temp directory as HOME
+	tmpHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", oldHome)
+
+	// Clear any SMOKE_FEED override
+	oldSmokeFeed := os.Getenv("SMOKE_FEED")
+	os.Setenv("SMOKE_FEED", "")
+	defer os.Setenv("SMOKE_FEED", oldSmokeFeed)
+
+	// Should return error when not initialized
+	err := EnsureInitialized()
+	if err != ErrNotInitialized {
+		t.Errorf("EnsureInitialized() = %v, want ErrNotInitialized", err)
+	}
+
+	// Initialize
+	smokeDir := filepath.Join(tmpHome, ".config", "smoke")
+	os.MkdirAll(smokeDir, 0755)
+	os.WriteFile(filepath.Join(smokeDir, "feed.jsonl"), []byte{}, 0644)
+
+	// Should return nil when initialized
+	err = EnsureInitialized()
+	if err != nil {
+		t.Errorf("EnsureInitialized() = %v, want nil", err)
 	}
 }

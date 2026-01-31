@@ -6,76 +6,52 @@ import (
 	"path/filepath"
 )
 
-// ErrNotGasTown is returned when the current directory is not within a Gas Town
-var ErrNotGasTown = errors.New("not in a Gas Town directory (no mayor/town.json found)")
+// ErrNotInitialized is returned when smoke hasn't been initialized
+var ErrNotInitialized = errors.New("smoke not initialized. Run 'smoke init' first")
 
-// TownMarkerFile is the file that uniquely identifies a Gas Town root
-// Rigs may have mayor/ directories, but only the town root has mayor/town.json
-const TownMarkerFile = "mayor/town.json"
-
-// SmokeDir is the name of the smoke data directory
-const SmokeDir = ".smoke"
+// SmokeDir is the name of the smoke data directory within ~/.config/
+const SmokeDir = "smoke"
 
 // FeedFile is the name of the feed file
 const FeedFile = "feed.jsonl"
 
-// FindGasTownRoot walks up the directory tree to find the Gas Town root
-// It returns the path to the Gas Town root directory or an error if not found
-func FindGasTownRoot() (string, error) {
-	dir, err := os.Getwd()
+// ConfigFile is the name of the config file
+const ConfigFile = "config.yaml"
+
+// GetConfigDir returns the path to the smoke config directory (~/.config/smoke/)
+func GetConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return FindGasTownRootFrom(dir)
-}
-
-// FindGasTownRootFrom walks up from the given directory to find the Gas Town root
-// The town root is identified by the presence of mayor/town.json (unique to town, not rigs)
-func FindGasTownRootFrom(startDir string) (string, error) {
-	dir := startDir
-	for {
-		// Check for town marker (mayor/town.json file)
-		markerPath := filepath.Join(dir, TownMarkerFile)
-		if info, err := os.Stat(markerPath); err == nil && !info.IsDir() {
-			return dir, nil
-		}
-
-		// Move up one directory
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached filesystem root
-			return "", ErrNotGasTown
-		}
-		dir = parent
-	}
-}
-
-// GetSmokeDir returns the path to the .smoke directory
-func GetSmokeDir() (string, error) {
-	root, err := FindGasTownRoot()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(root, SmokeDir), nil
+	return filepath.Join(home, ".config", SmokeDir), nil
 }
 
 // GetFeedPath returns the path to the feed.jsonl file
-// If SMOKE_FEED env var is set, uses that path directly (allows external agents to join)
+// If SMOKE_FEED env var is set, uses that path directly (allows custom feed location)
 func GetFeedPath() (string, error) {
-	// Check for explicit feed path override (for agents outside Gas Town)
+	// Check for explicit feed path override
 	if feedPath := os.Getenv("SMOKE_FEED"); feedPath != "" {
 		return feedPath, nil
 	}
 
-	// Fall back to Gas Town discovery
-	smokeDir, err := GetSmokeDir()
+	configDir, err := GetConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(smokeDir, FeedFile), nil
+	return filepath.Join(configDir, FeedFile), nil
 }
 
-// IsSmokeInitialized checks if smoke has been initialized in the current Gas Town
+// GetConfigPath returns the path to the config.yaml file
+func GetConfigPath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, ConfigFile), nil
+}
+
+// IsSmokeInitialized checks if smoke has been initialized
 func IsSmokeInitialized() (bool, error) {
 	feedPath, err := GetFeedPath()
 	if err != nil {
@@ -89,4 +65,16 @@ func IsSmokeInitialized() (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// EnsureInitialized returns an error if smoke is not initialized
+func EnsureInitialized() error {
+	initialized, err := IsSmokeInitialized()
+	if err != nil {
+		return err
+	}
+	if !initialized {
+		return ErrNotInitialized
+	}
+	return nil
 }

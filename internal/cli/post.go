@@ -50,13 +50,13 @@ func runPost(_ *cobra.Command, args []string) error {
 	}
 
 	// Get identity
-	identity, err := config.GetIdentityWithOverrides(postAuthor, postRig)
+	identity, err := config.GetIdentityWithOverride(postAuthor)
 	if err != nil {
 		return fmt.Errorf("error: %w", err)
 	}
 
 	// Create post
-	post, err := feed.NewPost(identity.Author, identity.Rig, message)
+	post, err := feed.NewPost(identity.String(), identity.Project, identity.Suffix, message)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
 			return fmt.Errorf("error: message exceeds 280 characters (got %d)", len(message))

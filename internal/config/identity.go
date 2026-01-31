@@ -2,133 +2,177 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/dreamiurg/smoke/internal/identity"
 )
 
 // ErrNoIdentity is returned when identity cannot be determined
-var ErrNoIdentity = errors.New("cannot determine identity. Set BD_ACTOR or use --author")
+var ErrNoIdentity = errors.New("cannot determine identity. Use --as flag or set SMOKE_AUTHOR")
 
-// Identity represents the agent's identity
+// Identity represents the agent's identity for posting
 type Identity struct {
-	Author string // Agent name (e.g., "ember", "witness")
-	Rig    string // Gas Town rig name (e.g., "smoke", "calle")
+	Agent   string // Agent type (e.g., "claude", "unknown")
+	Suffix  string // Adjective-animal suffix (e.g., "swift-fox")
+	Project string // Project name (e.g., "smoke")
 }
 
-// GetIdentity resolves the agent identity from environment variables
-// Priority: BD_ACTOR > SMOKE_AUTHOR > error
-func GetIdentity() (*Identity, error) {
-	// Try BD_ACTOR first (format: "rig/role/name" or "rig/name")
-	if bdActor := os.Getenv("BD_ACTOR"); bdActor != "" {
-		return parseIdentity(bdActor)
-	}
+// String returns the full identity string: agent-suffix@project
+func (i *Identity) String() string {
+	return fmt.Sprintf("%s-%s@%s", i.Agent, i.Suffix, i.Project)
+}
 
-	// Try SMOKE_AUTHOR as fallback
-	if smokeAuthor := os.Getenv("SMOKE_AUTHOR"); smokeAuthor != "" {
-		rig, err := inferRig()
-		if err != nil {
-			rig = "unknown"
+// GetIdentity resolves the agent identity from environment and session
+func GetIdentity() (*Identity, error) {
+	// Check for explicit override first
+	if author := os.Getenv("SMOKE_AUTHOR"); author != "" {
+		// Parse if it's a full identity (contains @)
+		if strings.Contains(author, "@") {
+			return parseFullIdentity(author)
 		}
+		// Otherwise use as-is with detected project
+		project := detectProject()
 		return &Identity{
-			Author: sanitizeName(smokeAuthor),
-			Rig:    rig,
+			Agent:   "custom",
+			Suffix:  sanitizeName(author),
+			Project: project,
 		}, nil
 	}
 
-	return nil, ErrNoIdentity
-}
+	// Auto-detect identity
+	agent := detectAgent()
+	seed := getSessionSeed()
+	project := detectProject()
 
-// GetIdentityWithOverrides resolves identity with optional command-line overrides
-func GetIdentityWithOverrides(authorOverride, rigOverride string) (*Identity, error) {
-	identity, err := GetIdentity()
-
-	// If no identity and no overrides, return error
-	if err != nil && authorOverride == "" {
-		return nil, err
-	}
-
-	// Create identity from overrides if needed
-	if identity == nil {
-		identity = &Identity{}
-	}
-
-	// Apply overrides
-	if authorOverride != "" {
-		identity.Author = sanitizeName(authorOverride)
-	}
-	if rigOverride != "" {
-		identity.Rig = sanitizeName(rigOverride)
-	}
-
-	// Validate we have an author
-	if identity.Author == "" {
+	if seed == "" {
 		return nil, ErrNoIdentity
 	}
 
-	// Ensure rig is set
-	if identity.Rig == "" {
-		rig, err := inferRig()
-		if err != nil {
-			identity.Rig = "unknown"
-		} else {
-			identity.Rig = rig
+	suffix := identity.Generate(seed)
+
+	return &Identity{
+		Agent:   agent,
+		Suffix:  suffix,
+		Project: project,
+	}, nil
+}
+
+// GetIdentityWithOverride resolves identity with optional --as override
+func GetIdentityWithOverride(authorOverride string) (*Identity, error) {
+	if authorOverride != "" {
+		// Parse override as full identity or suffix
+		if strings.Contains(authorOverride, "@") {
+			return parseFullIdentity(authorOverride)
+		}
+		project := detectProject()
+		return &Identity{
+			Agent:   "custom",
+			Suffix:  sanitizeName(authorOverride),
+			Project: project,
+		}, nil
+	}
+	return GetIdentity()
+}
+
+// parseFullIdentity parses "agent-suffix@project" format
+func parseFullIdentity(s string) (*Identity, error) {
+	parts := strings.SplitN(s, "@", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid identity format: %s", s)
+	}
+
+	agentSuffix := parts[0]
+	project := sanitizeName(parts[1])
+
+	// Split agent-suffix (e.g., "claude-swift-fox" -> "claude", "swift-fox")
+	firstDash := strings.Index(agentSuffix, "-")
+	if firstDash == -1 {
+		return &Identity{
+			Agent:   sanitizeName(agentSuffix),
+			Suffix:  "unknown",
+			Project: project,
+		}, nil
+	}
+
+	return &Identity{
+		Agent:   sanitizeName(agentSuffix[:firstDash]),
+		Suffix:  sanitizeName(agentSuffix[firstDash+1:]),
+		Project: project,
+	}, nil
+}
+
+// detectAgent determines the agent type from environment
+func detectAgent() string {
+	// Check for Claude Code
+	home, _ := os.UserHomeDir()
+	if home != "" {
+		claudeDir := filepath.Join(home, ".claude")
+		if _, err := os.Stat(claudeDir); err == nil {
+			return "claude"
 		}
 	}
 
-	return identity, nil
+	return "unknown"
 }
 
-// parseIdentity parses BD_ACTOR format: "rig/role/name" or "rig/name"
-func parseIdentity(bdActor string) (*Identity, error) {
-	parts := strings.Split(bdActor, "/")
-
-	switch len(parts) {
-	case 3:
-		// Format: rig/role/name
-		return &Identity{
-			Rig:    sanitizeName(parts[0]),
-			Author: sanitizeName(parts[2]),
-		}, nil
-	case 2:
-		// Format: rig/name
-		return &Identity{
-			Rig:    sanitizeName(parts[0]),
-			Author: sanitizeName(parts[1]),
-		}, nil
-	case 1:
-		// Just a name
-		rig, _ := inferRig()
-		if rig == "" {
-			rig = "unknown"
-		}
-		return &Identity{
-			Rig:    rig,
-			Author: sanitizeName(parts[0]),
-		}, nil
-	default:
-		return nil, errors.New("invalid BD_ACTOR format")
+// getSessionSeed returns a stable seed for the current session
+func getSessionSeed() string {
+	// Try various session identifiers in order of preference
+	signals := []string{
+		os.Getenv("TERM_SESSION_ID"), // macOS Terminal
+		os.Getenv("WINDOWID"),        // X11
 	}
+
+	for _, sig := range signals {
+		if sig != "" {
+			return sig
+		}
+	}
+
+	// Fallback: PPID + TTY
+	ppid := os.Getppid()
+	tty := os.Getenv("TTY")
+	if tty == "" {
+		// Try to get TTY another way
+		if ttyname, err := os.Readlink("/dev/fd/0"); err == nil {
+			tty = ttyname
+		}
+	}
+
+	if ppid > 0 {
+		return fmt.Sprintf("%d-%s", ppid, tty)
+	}
+
+	return ""
 }
 
-// inferRig tries to determine the rig name from the current directory
-func inferRig() (string, error) {
-	root, err := FindGasTownRoot()
+// detectProject determines the project name from git or cwd
+func detectProject() string {
+	// Try git first
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	out, err := cmd.Output()
+	if err == nil {
+		root := strings.TrimSpace(string(out))
+		return sanitizeName(filepath.Base(root))
+	}
+
+	// Fallback to cwd
+	cwd, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "unknown"
 	}
-	return sanitizeName(filepath.Base(root)), nil
+	return sanitizeName(filepath.Base(cwd))
 }
 
 // sanitizeName removes whitespace and special characters from a name
 func sanitizeName(name string) string {
-	// Trim whitespace
 	name = strings.TrimSpace(name)
-
-	// Replace spaces with hyphens
 	name = strings.ReplaceAll(name, " ", "-")
 
-	// Remove any characters that aren't alphanumeric, hyphen, or underscore
 	var result strings.Builder
 	for _, r := range name {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {

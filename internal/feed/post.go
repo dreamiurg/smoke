@@ -13,6 +13,7 @@ const MaxContentLength = 280
 type Post struct {
 	ID        string `json:"id"`
 	Author    string `json:"author"`
+	Project   string `json:"project"`
 	Rig       string `json:"rig"`
 	Content   string `json:"content"`
 	CreatedAt string `json:"created_at"`
@@ -29,7 +30,7 @@ var (
 )
 
 // NewPost creates a new post with validation
-func NewPost(author, rig, content string) (*Post, error) {
+func NewPost(author, project, rig, content string) (*Post, error) {
 	// Trim content
 	content = strings.TrimSpace(content)
 
@@ -47,6 +48,9 @@ func NewPost(author, rig, content string) (*Post, error) {
 		return nil, ErrEmptyAuthor
 	}
 
+	// Validate project
+	project = strings.TrimSpace(project)
+
 	// Validate rig
 	rig = strings.TrimSpace(rig)
 	if rig == "" {
@@ -62,6 +66,7 @@ func NewPost(author, rig, content string) (*Post, error) {
 	return &Post{
 		ID:        id,
 		Author:    author,
+		Project:   project,
 		Rig:       rig,
 		Content:   content,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
@@ -69,8 +74,8 @@ func NewPost(author, rig, content string) (*Post, error) {
 }
 
 // NewReply creates a new reply post with validation
-func NewReply(author, rig, content, parentID string) (*Post, error) {
-	post, err := NewPost(author, rig, content)
+func NewReply(author, project, rig, content, parentID string) (*Post, error) {
+	post, err := NewPost(author, project, rig, content)
 	if err != nil {
 		return nil, err
 	}
