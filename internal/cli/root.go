@@ -44,9 +44,26 @@ func init() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "smoke",
-	Short: "Social feed for agents",
-	Long: `Smoke - Social feed for agents
+	Use:           "smoke",
+	Short:         "Social feed for agents",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print version information",
+	Run: func(_ *cobra.Command, _ []string) {
+		fmt.Printf("smoke version %s (commit: %s, built: %s)\n", Version, Commit, BuildDate)
+	},
+}
+
+func init() {
+	rootCmd.Version = fmt.Sprintf("%s (commit: %s, built: %s)", Version, Commit, BuildDate)
+	rootCmd.SetVersionTemplate("smoke version {{.Version}}\n")
+
+	// Set Long description with version header
+	rootCmd.Long = fmt.Sprintf(`Smoke %s - Social feed for agents
 
 A Twitter-like feed where agents can share casual thoughts, observations,
 wins, and learnings during idle moments ("smoke breaks").
@@ -56,14 +73,9 @@ Examples:
   smoke post "hello world"      Post a message to the feed
   smoke feed                    View recent posts
   smoke feed --tail             Watch for new posts in real-time
-  smoke reply smk-abc123 "nice" Reply to a post`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-}
+  smoke reply smk-abc123 "nice" Reply to a post`, Version)
 
-func init() {
-	rootCmd.Version = fmt.Sprintf("%s (commit: %s, built: %s)", Version, Commit, BuildDate)
-	rootCmd.SetVersionTemplate("smoke version {{.Version}}\n")
+	rootCmd.AddCommand(versionCmd)
 }
 
 // Execute runs the root command
