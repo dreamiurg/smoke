@@ -50,14 +50,14 @@ func AppendSmokeHint() (bool, error) {
 
 	// Ensure directory exists
 	claudeDir := filepath.Dir(claudePath)
-	if err := os.MkdirAll(claudeDir, 0755); err != nil {
-		return false, err
+	if mkdirErr := os.MkdirAll(claudeDir, 0755); mkdirErr != nil {
+		return false, mkdirErr
 	}
 
 	// Read existing content
-	content, err := os.ReadFile(claudePath)
-	if err != nil && !os.IsNotExist(err) {
-		return false, err
+	content, readErr := os.ReadFile(claudePath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return false, readErr
 	}
 
 	// Check if already present
@@ -66,14 +66,14 @@ func AppendSmokeHint() (bool, error) {
 	}
 
 	// Append hint
-	f, err := os.OpenFile(claudePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return false, err
+	f, openErr := os.OpenFile(claudePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if openErr != nil {
+		return false, openErr
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	if _, err := f.WriteString(SmokeHint); err != nil {
-		return false, err
+	if _, writeErr := f.WriteString(SmokeHint); writeErr != nil {
+		return false, writeErr
 	}
 
 	return true, nil

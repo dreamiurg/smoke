@@ -148,10 +148,11 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 
 	// Update ~/.claude/CLAUDE.md
-	hasHint, err := config.HasSmokeHint()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "warning: could not check CLAUDE.md: %v\n", err)
-	} else if !hasHint {
+	hasHint, hintErr := config.HasSmokeHint()
+	switch {
+	case hintErr != nil:
+		_, _ = fmt.Fprintf(os.Stderr, "warning: could not check CLAUDE.md: %v\n", hintErr)
+	case !hasHint:
 		action := fmt.Sprintf("append smoke hint to %s", claudePath)
 		if initDryRun {
 			fmt.Printf("%sWould %s\n", prefix, action)
@@ -164,7 +165,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 			}
 		}
 		actions = append(actions, action)
-	} else {
+	default:
 		fmt.Printf("Skipped: %s (smoke hint already present)\n", claudePath)
 	}
 

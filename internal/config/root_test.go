@@ -89,12 +89,12 @@ func TestIsSmokeInitialized(t *testing.T) {
 
 	// Create smoke directory and feed file
 	smokeDir := filepath.Join(tmpHome, ".config", "smoke")
-	if err := os.MkdirAll(smokeDir, 0755); err != nil {
-		t.Fatalf("Failed to create smoke dir: %v", err)
+	if mkdirErr := os.MkdirAll(smokeDir, 0755); mkdirErr != nil {
+		t.Fatalf("Failed to create smoke dir: %v", mkdirErr)
 	}
 	feedPath := filepath.Join(smokeDir, "feed.jsonl")
-	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
-		t.Fatalf("Failed to create feed file: %v", err)
+	if writeErr := os.WriteFile(feedPath, []byte{}, 0644); writeErr != nil {
+		t.Fatalf("Failed to create feed file: %v", writeErr)
 	}
 
 	// Test after initialization
