@@ -556,3 +556,187 @@ func TestSmokeFeedReplyIndent(t *testing.T) {
 		t.Errorf("feed reply missing tree indent (└─): %s", stdout)
 	}
 }
+
+// RunWithExitCode runs smoke and returns stdout, stderr, and exit code
+func (h *TestHelper) RunWithExitCode(args ...string) (string, string, int) {
+	h.t.Helper()
+
+	if h.binPath == "" {
+		h.t.Skip("smoke binary not found. Set SMOKE_BIN or build with 'make build'")
+		return "", "", 0
+	}
+
+	cmd := exec.Command(h.binPath, args...)
+	cmd.Dir = h.tmpDir
+
+	env := os.Environ()
+	env = append(env, "HOME="+h.tmpDir)
+	cmd.Env = env
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+	}
+	return stdout.String(), stderr.String(), exitCode
+}
+
+func TestSmokeDoctorHealthy(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Run doctor
+	stdout, _, exitCode := h.RunWithExitCode("doctor")
+
+	// Should show all checks passing
+	if !strings.Contains(stdout, "smoke doctor") {
+		t.Errorf("doctor output missing header: %s", stdout)
+	}
+	if !strings.Contains(stdout, "INSTALLATION") {
+		t.Errorf("doctor output missing INSTALLATION category: %s", stdout)
+	}
+	if !strings.Contains(stdout, "✓") {
+		t.Errorf("doctor output missing pass indicators: %s", stdout)
+	}
+
+	// Exit code should be 0 for healthy installation
+	if exitCode != 0 {
+		t.Errorf("doctor exit code = %d, want 0 for healthy installation", exitCode)
+	}
+}
+
+func TestSmokeDoctorMissingFeed(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Delete feed file
+	feedPath := filepath.Join(h.configDir, "feed.jsonl")
+	os.Remove(feedPath)
+
+	// Run doctor
+	stdout, _, exitCode := h.RunWithExitCode("doctor")
+
+	// Should show error for missing feed
+	if !strings.Contains(stdout, "✗") {
+		t.Errorf("doctor output missing error indicator: %s", stdout)
+	}
+	if !strings.Contains(stdout, "not found") {
+		t.Errorf("doctor output missing 'not found' message: %s", stdout)
+	}
+
+	// Exit code should be 2 for errors
+	if exitCode != 2 {
+		t.Errorf("doctor exit code = %d, want 2 for errors", exitCode)
+	}
+}
+
+func TestSmokeDoctorFix(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Don't initialize - let doctor --fix do it
+	// Run doctor --fix
+	stdout, _, exitCode := h.RunWithExitCode("doctor", "--fix")
+
+	// Should show fixes applied
+	if !strings.Contains(stdout, "Fixed:") {
+		t.Errorf("doctor --fix output missing 'Fixed:' message: %s", stdout)
+	}
+	if !strings.Contains(stdout, "Fixed") && !strings.Contains(stdout, "issue") {
+		t.Errorf("doctor --fix output missing fix count: %s", stdout)
+	}
+
+	// After fix, exit code should be 0
+	if exitCode != 0 {
+		t.Errorf("doctor --fix exit code = %d, want 0 after fixes applied", exitCode)
+	}
+
+	// Verify files were created
+	feedPath := filepath.Join(h.configDir, "feed.jsonl")
+	if _, err := os.Stat(feedPath); os.IsNotExist(err) {
+		t.Error("doctor --fix did not create feed.jsonl")
+	}
+
+	configPath := filepath.Join(h.configDir, "config.yaml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("doctor --fix did not create config.yaml")
+	}
+}
+
+func TestSmokeDoctorFixNoProblems(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Run doctor --fix on healthy installation
+	stdout, _, exitCode := h.RunWithExitCode("doctor", "--fix")
+
+	// Should show no problems to fix
+	if !strings.Contains(stdout, "No problems to fix") {
+		t.Errorf("doctor --fix output missing 'No problems to fix' message: %s", stdout)
+	}
+
+	// Exit code should be 0
+	if exitCode != 0 {
+		t.Errorf("doctor --fix exit code = %d, want 0", exitCode)
+	}
+}
+
+func TestSmokeDoctorDryRun(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Don't initialize - run doctor --fix --dry-run
+	stdout, _, exitCode := h.RunWithExitCode("doctor", "--fix", "--dry-run")
+
+	// Should show what would be fixed
+	if !strings.Contains(stdout, "Would fix:") {
+		t.Errorf("doctor --fix --dry-run output missing 'Would fix:' message: %s", stdout)
+	}
+	if !strings.Contains(stdout, "would be fixed") {
+		t.Errorf("doctor --fix --dry-run output missing summary: %s", stdout)
+	}
+
+	// Exit code should be 2 (problems still exist)
+	if exitCode != 2 {
+		t.Errorf("doctor --fix --dry-run exit code = %d, want 2 (problems remain)", exitCode)
+	}
+}
+
+func TestSmokeDoctorDryRunNoModify(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Run doctor --fix --dry-run
+	h.RunWithExitCode("doctor", "--fix", "--dry-run")
+
+	// Verify files were NOT created
+	if _, err := os.Stat(h.configDir); !os.IsNotExist(err) {
+		t.Error("doctor --fix --dry-run should not create config directory")
+	}
+
+	feedPath := filepath.Join(h.configDir, "feed.jsonl")
+	if _, err := os.Stat(feedPath); !os.IsNotExist(err) {
+		t.Error("doctor --fix --dry-run should not create feed.jsonl")
+	}
+}
