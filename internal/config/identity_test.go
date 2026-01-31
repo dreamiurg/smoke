@@ -378,6 +378,67 @@ func TestExtractRepoName(t *testing.T) {
 			url:  "myrepo.git",
 			want: "myrepo",
 		},
+		// Edge cases
+		{
+			name: "empty string",
+			url:  "",
+			want: "",
+		},
+		{
+			name: "url with no slashes",
+			url:  "repo",
+			want: "repo",
+		},
+		{
+			name: "url ending in just .git",
+			url:  ".git",
+			want: "",
+		},
+		{
+			name: "malformed url - just a colon",
+			url:  ":",
+			want: "",
+		},
+		{
+			name: "malformed url - colon at end",
+			url:  "git@github.com:",
+			want: "",
+		},
+		{
+			name: "malformed url - double slash at start",
+			url:  "//github.com/repo.git",
+			want: "repo",
+		},
+		{
+			name: "malformed url - multiple slashes",
+			url:  "https:///github.com/repo.git",
+			want: "repo",
+		},
+		{
+			name: "ssh with multiple slashes after colon",
+			url:  "git@github.com://user/repo.git",
+			want: "repo",
+		},
+		{
+			name: "trailing slash",
+			url:  "https://github.com/user/repo/",
+			want: "",
+		},
+		{
+			name: "only .git suffix",
+			url:  ".git",
+			want: "",
+		},
+		{
+			name: "whitespace in url",
+			url:  "https://github.com/user/my repo.git",
+			want: "my repo",
+		},
+		{
+			name: "complex nested path",
+			url:  "https://gitlab.com/group/subgroup/nested/repo.git",
+			want: "repo",
+		},
 	}
 
 	for _, tt := range tests {

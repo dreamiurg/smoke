@@ -323,3 +323,64 @@ func TestStorePath(t *testing.T) {
 		t.Errorf("Path() = %v, want %v", store.Path(), feedPath)
 	}
 }
+
+func TestNewStore(t *testing.T) {
+	// Create a temporary directory and feed file
+	tmpDir := t.TempDir()
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+
+	// Create the feed file
+	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to create feed file: %v", err)
+	}
+
+	// Set SMOKE_FEED environment variable to point to test feed
+	oldFeed := os.Getenv("SMOKE_FEED")
+	defer func() {
+		if oldFeed != "" {
+			os.Setenv("SMOKE_FEED", oldFeed)
+		} else {
+			os.Unsetenv("SMOKE_FEED")
+		}
+	}()
+
+	os.Setenv("SMOKE_FEED", feedPath)
+
+	// Create store with NewStore()
+	store, err := NewStore()
+	if err != nil {
+		t.Fatalf("NewStore() unexpected error: %v", err)
+	}
+
+	// Verify store is not nil
+	if store == nil {
+		t.Error("NewStore() returned nil store")
+	}
+
+	// Verify store has the correct path
+	if store.Path() != feedPath {
+		t.Errorf("NewStore().Path() = %v, want %v", store.Path(), feedPath)
+	}
+
+	// Verify store can perform basic operations
+	post := &Post{
+		ID:        "smk-abc123",
+		Author:    "ember",
+		Suffix:    "smoke",
+		Content:   "test post",
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if err := store.Append(post); err != nil {
+		t.Errorf("NewStore() store.Append() unexpected error: %v", err)
+	}
+
+	// Verify post was written
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Errorf("NewStore() store.ReadAll() unexpected error: %v", err)
+	}
+	if len(posts) != 1 {
+		t.Errorf("NewStore() store.ReadAll() returned %d posts, want 1", len(posts))
+	}
+}
