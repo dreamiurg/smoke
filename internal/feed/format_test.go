@@ -10,8 +10,9 @@ import (
 func TestFormatPost(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello world",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -21,8 +22,8 @@ func TestFormatPost(t *testing.T) {
 		FormatPost(&buf, post, FormatOptions{})
 
 		output := buf.String()
-		if !strings.Contains(output, "ember@smoke") {
-			t.Errorf("FormatPost() output missing author@rig: %s", output)
+		if !strings.Contains(output, "claude-swift-fox@smoke") {
+			t.Errorf("FormatPost() output missing identity: %s", output)
 		}
 		if !strings.Contains(output, "hello world") {
 			t.Errorf("FormatPost() output missing content: %s", output)
@@ -47,15 +48,17 @@ func TestFormatFeed(t *testing.T) {
 	posts := []*Post{
 		{
 			ID:        "smk-aaa111",
-			Author:    "ember",
-			Rig:       "smoke",
+			Author:    "claude-swift-fox@smoke",
+			Project:   "smoke",
+			Rig:       "swift-fox",
 			Content:   "first post",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
 		{
 			ID:        "smk-bbb222",
-			Author:    "witness",
-			Rig:       "smoke",
+			Author:    "claude-calm-owl@smoke",
+			Project:   "smoke",
+			Rig:       "calm-owl",
 			Content:   "second post",
 			CreatedAt: "2026-01-30T09:05:00Z",
 		},
@@ -66,11 +69,11 @@ func TestFormatFeed(t *testing.T) {
 		FormatFeed(&buf, posts, FormatOptions{}, 10)
 
 		output := buf.String()
-		if !strings.Contains(output, "ember@smoke") {
-			t.Errorf("FormatFeed() output missing first author: %s", output)
+		if !strings.Contains(output, "claude-swift-fox@smoke") {
+			t.Errorf("FormatFeed() output missing first identity: %s", output)
 		}
-		if !strings.Contains(output, "witness@smoke") {
-			t.Errorf("FormatFeed() output missing second author: %s", output)
+		if !strings.Contains(output, "claude-calm-owl@smoke") {
+			t.Errorf("FormatFeed() output missing second identity: %s", output)
 		}
 	})
 
@@ -119,15 +122,17 @@ func TestFormatFeedWithReplies(t *testing.T) {
 	posts := []*Post{
 		{
 			ID:        "smk-parent",
-			Author:    "ember",
-			Rig:       "smoke",
+			Author:    "claude-swift-fox@smoke",
+			Project:   "smoke",
+			Rig:       "swift-fox",
 			Content:   "parent post",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
 		{
 			ID:        "smk-reply1",
-			Author:    "witness",
-			Rig:       "smoke",
+			Author:    "claude-calm-owl@smoke",
+			Project:   "smoke",
+			Rig:       "calm-owl",
 			Content:   "reply to parent",
 			CreatedAt: "2026-01-30T09:05:00Z",
 			ParentID:  "smk-parent",
@@ -161,8 +166,9 @@ func TestFormatTailHeader(t *testing.T) {
 func TestFormatPosted(t *testing.T) {
 	post := &Post{
 		ID:        "smk-posted",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "test",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -179,8 +185,9 @@ func TestFormatPosted(t *testing.T) {
 func TestFormatReplied(t *testing.T) {
 	reply := &Post{
 		ID:        "smk-reply1",
-		Author:    "witness",
-		Rig:       "smoke",
+		Author:    "claude-calm-owl@smoke",
+		Project:   "smoke",
+		Rig:       "calm-owl",
 		Content:   "nice!",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		ParentID:  "smk-parent",
@@ -200,52 +207,56 @@ func TestFilterPosts(t *testing.T) {
 	posts := []*Post{
 		{
 			ID:        "smk-aaa111",
-			Author:    "ember",
-			Rig:       "smoke",
-			Content:   "ember smoke post",
+			Author:    "claude-swift-fox@smoke",
+			Project:   "smoke",
+			Rig:       "swift-fox",
+			Content:   "swift-fox smoke post",
 			CreatedAt: now.Add(-1 * time.Hour).UTC().Format(time.RFC3339),
 		},
 		{
 			ID:        "smk-bbb222",
-			Author:    "witness",
-			Rig:       "smoke",
-			Content:   "witness smoke post",
+			Author:    "claude-calm-owl@smoke",
+			Project:   "smoke",
+			Rig:       "calm-owl",
+			Content:   "calm-owl smoke post",
 			CreatedAt: now.Add(-30 * time.Minute).UTC().Format(time.RFC3339),
 		},
 		{
 			ID:        "smk-ccc333",
-			Author:    "ember",
-			Rig:       "calle",
-			Content:   "ember calle post",
+			Author:    "claude-swift-fox@calle",
+			Project:   "calle",
+			Rig:       "swift-fox",
+			Content:   "swift-fox calle post",
 			CreatedAt: now.Add(-10 * time.Minute).UTC().Format(time.RFC3339),
 		},
 		{
 			ID:        "smk-ddd444",
-			Author:    "witness",
-			Rig:       "calle",
-			Content:   "witness calle post",
+			Author:    "claude-calm-owl@calle",
+			Project:   "calle",
+			Rig:       "calm-owl",
+			Content:   "calm-owl calle post",
 			CreatedAt: now.Add(-25 * time.Hour).UTC().Format(time.RFC3339), // yesterday
 		},
 	}
 
 	t.Run("filter by author", func(t *testing.T) {
-		result := FilterPosts(posts, FilterCriteria{Author: "ember"})
-		if len(result) != 2 {
-			t.Errorf("FilterPosts(author=ember) returned %d, want 2", len(result))
+		result := FilterPosts(posts, FilterCriteria{Author: "claude-swift-fox@smoke"})
+		if len(result) != 1 {
+			t.Errorf("FilterPosts(author=claude-swift-fox@smoke) returned %d, want 1", len(result))
 		}
 	})
 
 	t.Run("filter by rig", func(t *testing.T) {
-		result := FilterPosts(posts, FilterCriteria{Rig: "smoke"})
+		result := FilterPosts(posts, FilterCriteria{Rig: "swift-fox"})
 		if len(result) != 2 {
-			t.Errorf("FilterPosts(rig=smoke) returned %d, want 2", len(result))
+			t.Errorf("FilterPosts(rig=swift-fox) returned %d, want 2", len(result))
 		}
 	})
 
 	t.Run("filter by author and rig", func(t *testing.T) {
-		result := FilterPosts(posts, FilterCriteria{Author: "ember", Rig: "smoke"})
+		result := FilterPosts(posts, FilterCriteria{Author: "claude-swift-fox@smoke", Rig: "swift-fox"})
 		if len(result) != 1 {
-			t.Errorf("FilterPosts(author=ember, rig=smoke) returned %d, want 1", len(result))
+			t.Errorf("FilterPosts(author=claude-swift-fox@smoke, rig=swift-fox) returned %d, want 1", len(result))
 		}
 	})
 
@@ -274,8 +285,9 @@ func TestFilterPosts(t *testing.T) {
 func TestFormatDefaultWithInvalidTime(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "test",
 		CreatedAt: "invalid-time",
 	}
@@ -293,8 +305,9 @@ func TestFormatOnelineTruncation(t *testing.T) {
 	longContent := strings.Repeat("a", 100)
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   longContent,
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -316,8 +329,9 @@ func TestFormatOnelineTruncation(t *testing.T) {
 func TestFormatPostWithHashtags(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "Working on #golang today!",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -352,8 +366,9 @@ func TestFormatPostWithHashtags(t *testing.T) {
 func TestFormatPostWithMentions(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "Hey @witness check this out!",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -376,15 +391,17 @@ func TestFormatFeedWithHashtagsAndMentions(t *testing.T) {
 	posts := []*Post{
 		{
 			ID:        "smk-aaa111",
-			Author:    "ember",
-			Rig:       "smoke",
+			Author:    "claude-swift-fox@smoke",
+			Project:   "smoke",
+			Rig:       "swift-fox",
 			Content:   "Check out #rust and @alice",
 			CreatedAt: "2026-01-30T09:00:00Z",
 		},
 		{
 			ID:        "smk-bbb222",
-			Author:    "witness",
-			Rig:       "smoke",
+			Author:    "claude-calm-owl@smoke",
+			Project:   "smoke",
+			Rig:       "calm-owl",
 			Content:   "#golang is great! cc @bob @charlie",
 			CreatedAt: "2026-01-30T09:05:00Z",
 		},
@@ -424,12 +441,13 @@ func TestFormatFeedWithHashtagsAndMentions(t *testing.T) {
 }
 
 func TestFormatPostMixedContent(t *testing.T) {
-	// Use "tester" as author because "ember" hashes to Magenta,
-	// which would conflict with the @mention highlight color
+	// Use an identity that hashes to a color different from magenta
+	// to avoid conflict with the @mention highlight color
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "tester",
-		Rig:       "smoke",
+		Author:    "claude-bold-cat@smoke",
+		Project:   "smoke",
+		Rig:       "bold-cat",
 		Content:   "Hey @witness! #standup is starting. Check #meeting channel",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -454,8 +472,9 @@ func TestFormatPostMixedContent(t *testing.T) {
 func TestCompactFormat(t *testing.T) {
 	post := &Post{
 		ID:        "smk-abc123",
-		Author:    "ember",
-		Rig:       "smoke",
+		Author:    "claude-swift-fox@smoke",
+		Project:   "smoke",
+		Rig:       "swift-fox",
 		Content:   "hello world",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
@@ -465,9 +484,9 @@ func TestCompactFormat(t *testing.T) {
 
 	output := buf.String()
 
-	// Verify compact format with author@rig and content
-	if !strings.Contains(output, "ember@smoke") || !strings.Contains(output, "hello world") {
-		t.Errorf("FormatPost() should have author@rig and content: %s", output)
+	// Verify compact format with identity and content
+	if !strings.Contains(output, "claude-swift-fox@smoke") || !strings.Contains(output, "hello world") {
+		t.Errorf("FormatPost() should have identity and content: %s", output)
 	}
 	// Should be single line for short content
 	if strings.Count(output, "\n") > 1 {

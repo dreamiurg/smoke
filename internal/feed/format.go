@@ -125,12 +125,13 @@ func buildThreads(posts []*Post) []thread {
 	return threads
 }
 
-// AuthorColumnWidth is the fixed width for author@rig column (right-aligned)
-const AuthorColumnWidth = 16
+// AuthorColumnWidth is the fixed width for identity column (right-aligned)
+// Format: agent-adjective-animal@project (e.g., claude-swift-fox@smoke)
+const AuthorColumnWidth = 28
 
 // ContentColumnStart is where content begins (for wrapping alignment)
 // = 5 (time or spaces) + 1 (space) + AuthorColumnWidth + 2 (spacing)
-const ContentColumnStart = 24
+const ContentColumnStart = 36
 
 // MaxContentWidth is the max width before wrapping (assuming ~100 char terminal)
 const MaxContentWidth = 75
@@ -163,19 +164,18 @@ func formatCompact(w io.Writer, post *Post, cw *ColorWriter) {
 		timeColumn = "     " // 5 spaces to match timestamp width
 	}
 
-	// Build author@rig with right-alignment
-	authorRigPlain := post.Author + "@" + post.Rig
-	visibleLen := len(authorRigPlain)
+	// Build identity display with right-alignment
+	// Author field contains full identity: agent-adjective-animal@project
+	visibleLen := len(post.Author)
 
-	// Right-align: add padding before author@rig
+	// Right-align: add padding before identity
 	padding := ""
 	if visibleLen < AuthorColumnWidth {
 		padding = fmt.Sprintf("%*s", AuthorColumnWidth-visibleLen, "")
 	}
 
-	author := cw.AuthorColorize(post.Author)
-	rig := cw.Dim("@" + post.Rig)
-	authorRig := padding + author + rig
+	identity := cw.AuthorColorize(post.Author)
+	authorRig := padding + identity
 
 	// Wrap content if needed
 	contentLines := wrapText(post.Content, MaxContentWidth)
@@ -240,9 +240,8 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter) {
 	// For replies, always show timestamp (they're responses, timing matters)
 	timestamp := cw.Dim(replyTimeStr)
 
-	// Build author@rig - slightly smaller width for reply indent
-	authorRigPlain := reply.Author + "@" + reply.Rig
-	visibleLen := len(authorRigPlain)
+	// Build identity display - slightly smaller width for reply indent
+	visibleLen := len(reply.Author)
 	replyAuthorWidth := AuthorColumnWidth - 3
 
 	// Right-align
@@ -251,9 +250,8 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter) {
 		padding = fmt.Sprintf("%*s", replyAuthorWidth-visibleLen, "")
 	}
 
-	author := cw.AuthorColorize(reply.Author)
-	rig := cw.Dim("@" + reply.Rig)
-	authorRig := padding + author + rig
+	identity := cw.AuthorColorize(reply.Author)
+	authorRig := padding + identity
 
 	// Wrap content if needed (slightly narrower for replies)
 	contentLines := wrapText(reply.Content, MaxContentWidth-5)
@@ -279,8 +277,8 @@ func formatOneline(w io.Writer, post *Post, cw *ColorWriter) {
 	// Apply highlighting
 	content = HighlightAll(content, cw.ColorEnabled)
 	id := cw.Dim(post.ID)
-	author := cw.AuthorColorize(post.Author)
-	_, _ = fmt.Fprintf(w, "%s %s@%s %s\n", id, author, post.Rig, content)
+	identity := cw.AuthorColorize(post.Author)
+	_, _ = fmt.Fprintf(w, "%s %s %s\n", id, identity, content)
 }
 
 // FormatPosted outputs the confirmation message after posting

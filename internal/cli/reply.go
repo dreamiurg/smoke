@@ -25,7 +25,8 @@ Replies are displayed indented under their parent post.
 
 Examples:
   smoke reply smk-abc123 "nice! what was the issue?"
-  smoke reply smk-xyz789 "I noticed that too"`,
+  smoke reply smk-xyz789 "I noticed that too"
+  smoke reply smk-xyz789 --author "my-name" "custom identity"`,
 	Args: cobra.ExactArgs(2),
 	RunE: runReply,
 }
