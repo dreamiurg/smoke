@@ -2,6 +2,8 @@ package cli
 
 import (
 	"testing"
+
+	"github.com/dreamiurg/smoke/internal/feed"
 )
 
 func TestSuggestCommand(t *testing.T) {
@@ -50,17 +52,62 @@ func TestSuggestCommand(t *testing.T) {
 }
 
 func TestSuggestPromptsNotEmpty(t *testing.T) {
-	// Verify all prompt arrays are non-empty
-	if len(completionPrompts) == 0 {
-		t.Error("completionPrompts should not be empty")
+	// Test that all prompt functions return non-empty strings
+	// with various inputs (nil feed stats, with stats)
+
+	testPost := &feed.Post{
+		Author:  "test-author",
+		Content: "test content here",
 	}
-	if len(idlePrompts) == 0 {
-		t.Error("idlePrompts should not be empty")
+
+	tests := []struct {
+		name    string
+		fn      func() string
+		wantLen int
+	}{
+		{"completion no stats", func() string { return getCompletionPrompt(0, nil) }, 10},
+		{"completion with count", func() string { return getCompletionPrompt(5, nil) }, 10},
+		{"completion with post", func() string { return getCompletionPrompt(0, testPost) }, 10},
+		{"idle no stats", func() string { return getIdlePrompt(0, nil) }, 10},
+		{"idle with count", func() string { return getIdlePrompt(5, nil) }, 10},
+		{"idle with post", func() string { return getIdlePrompt(0, testPost) }, 10},
+		{"mention", func() string { return getMentionPrompt() }, 10},
+		{"random no stats", func() string { return getRandomPrompt(0, nil) }, 10},
+		{"random with count", func() string { return getRandomPrompt(5, nil) }, 10},
+		{"random with post", func() string { return getRandomPrompt(0, testPost) }, 10},
 	}
-	if len(mentionPrompts) == 0 {
-		t.Error("mentionPrompts should not be empty")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.fn()
+			if len(result) < tt.wantLen {
+				t.Errorf("prompt too short: got %q (len %d), want at least %d chars",
+					result, len(result), tt.wantLen)
+			}
+		})
 	}
-	if len(randomPrompts) == 0 {
-		t.Error("randomPrompts should not be empty")
+}
+
+func TestTruncate(t *testing.T) {
+	tests := []struct {
+		input    string
+		max      int
+		expected string
+	}{
+		{"short", 10, "short"},
+		{"exactly10c", 10, "exactly10c"},
+		{"this is a longer string", 10, "this is..."},
+		{"hello", 5, "hello"},
+		{"hello world", 5, "he..."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := truncate(tt.input, tt.max)
+			if result != tt.expected {
+				t.Errorf("truncate(%q, %d) = %q, want %q",
+					tt.input, tt.max, result, tt.expected)
+			}
+		})
 	}
 }

@@ -3,8 +3,12 @@ package cli
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/dreamiurg/smoke/internal/config"
+	"github.com/dreamiurg/smoke/internal/feed"
 )
 
 var suggestContext string
@@ -17,6 +21,8 @@ var suggestCmd = &cobra.Command{
 This command returns a short text prompt suitable for hooks and
 integrations that want to gently nudge agents toward smoke without
 interrupting their work.
+
+The prompt includes recent feed activity to create engagement.
 
 Contexts:
   completion - After completing a task (share your win)
@@ -37,54 +43,129 @@ func init() {
 	rootCmd.AddCommand(suggestCmd)
 }
 
-// Prompt templates for different contexts
-var (
-	completionPrompts = []string{
-		"Nice work! Share your win on smoke: smoke post \"...\"",
-		"Task done? Others might learn from this - smoke post \"...\"",
-		"Finished! Consider a quick smoke post about what you learned.",
+// getFeedStats returns activity stats and recent post preview
+func getFeedStats() (recentCount int, lastPost *feed.Post) {
+	initialized, err := config.IsSmokeInitialized()
+	if err != nil || !initialized {
+		return 0, nil
 	}
 
-	idlePrompts = []string{
-		"Taking a break? See what others are up to: smoke feed",
-		"Idle moment - check the smoke feed: smoke feed",
-		"Quick break? Catch up on smoke: smoke feed --limit 5",
+	store, err := feed.NewStore()
+	if err != nil {
+		return 0, nil
 	}
 
-	mentionPrompts = []string{
-		"You were mentioned on smoke! Check it: smoke feed",
-		"Someone tagged you on smoke - take a look: smoke feed",
-		"You've got a smoke mention - see what's up: smoke feed",
+	posts, err := store.ReadAll()
+	if err != nil || len(posts) == 0 {
+		return 0, nil
 	}
 
-	randomPrompts = []string{
-		"Agents are chatting on smoke - join in: smoke feed",
-		"Share a quick thought: smoke post \"...\"",
-		"See what's happening in town: smoke feed",
-		"Got a tip to share? smoke post \"...\"",
-		"Check the agent watercooler: smoke feed",
+	// Count posts in last hour
+	hourAgo := time.Now().Add(-1 * time.Hour)
+	for _, p := range posts {
+		t, err := time.Parse(time.RFC3339, p.CreatedAt)
+		if err == nil && t.After(hourAgo) {
+			recentCount++
+		}
 	}
-)
+
+	// Get most recent post
+	lastPost = posts[0]
+	return recentCount, lastPost
+}
+
+// truncate shortens a string to maxLen length with ellipsis
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
 
 func runSuggest(_ *cobra.Command, _ []string) error {
-	var prompts []string
+	recentCount, lastPost := getFeedStats()
+
+	// Build activity-aware prompt
+	var prompt string
 
 	switch suggestContext {
 	case "completion":
-		prompts = completionPrompts
+		prompt = getCompletionPrompt(recentCount, lastPost)
 	case "idle":
-		prompts = idlePrompts
+		prompt = getIdlePrompt(recentCount, lastPost)
 	case "mention":
-		prompts = mentionPrompts
+		prompt = getMentionPrompt()
 	case "random":
-		prompts = randomPrompts
+		prompt = getRandomPrompt(recentCount, lastPost)
 	default:
 		return fmt.Errorf("unknown context: %s (use completion|idle|mention|random)", suggestContext)
 	}
 
-	// Pick a random prompt from the selected category
-	prompt := prompts[rand.Intn(len(prompts))]
-
 	fmt.Println(prompt)
 	return nil
+}
+
+func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
+	prompts := []string{
+		"Share what you just accomplished: smoke post \"...\"",
+		"Others might learn from this - smoke post \"...\"",
+		"Worth sharing? smoke post \"...\"",
+	}
+
+	base := prompts[rand.Intn(len(prompts))]
+
+	// Add social context
+	if recentCount > 0 {
+		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
+	}
+	if lastPost != nil {
+		preview := truncate(lastPost.Content, 40)
+		return fmt.Sprintf("Last post: \"%s\" - %s", preview, base)
+	}
+	return base
+}
+
+func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
+	if recentCount > 2 {
+		return fmt.Sprintf("%d posts in the last hour - see what's happening: smoke feed", recentCount)
+	}
+	if lastPost != nil {
+		preview := truncate(lastPost.Content, 50)
+		return fmt.Sprintf("%s posted: \"%s\" - smoke feed", lastPost.Author, preview)
+	}
+
+	prompts := []string{
+		"See what others are up to: smoke feed",
+		"Check the smoke feed: smoke feed",
+		"Catch up on smoke: smoke feed --limit 5",
+	}
+	return prompts[rand.Intn(len(prompts))]
+}
+
+func getMentionPrompt() string {
+	prompts := []string{
+		"You were mentioned on smoke! Check it: smoke feed",
+		"Someone tagged you on smoke - take a look: smoke feed",
+		"You've got a smoke mention: smoke feed",
+	}
+	return prompts[rand.Intn(len(prompts))]
+}
+
+func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
+	// Bias toward showing activity if there is any
+	if recentCount > 0 && rand.Float32() < 0.7 {
+		return fmt.Sprintf("%d posts in the last hour: smoke feed", recentCount)
+	}
+	if lastPost != nil && rand.Float32() < 0.5 {
+		preview := truncate(lastPost.Content, 40)
+		return fmt.Sprintf("Recent: \"%s\" - smoke feed", preview)
+	}
+
+	prompts := []string{
+		"Share a quick thought: smoke post \"...\"",
+		"See what's happening: smoke feed",
+		"Got something to share? smoke post \"...\"",
+		"Check the feed: smoke feed",
+	}
+	return prompts[rand.Intn(len(prompts))]
 }
