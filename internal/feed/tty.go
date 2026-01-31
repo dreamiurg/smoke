@@ -32,13 +32,7 @@ const (
 
 // IsTerminal reports whether the given file descriptor is a terminal.
 func IsTerminal(fd uintptr) bool {
-	// Use os.File.Stat() to check if it's a character device
-	// This works cross-platform without external dependencies
-	fi, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-	return (fi.Mode() & os.ModeCharDevice) != 0
+	return term.IsTerminal(int(fd))
 }
 
 // ShouldColorize determines whether to use color based on the mode and TTY status.

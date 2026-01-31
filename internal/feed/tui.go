@@ -11,6 +11,12 @@ import (
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
+// Help overlay dimensions
+const (
+	helpBoxInnerWidth = 35 // Content width inside the help box
+	helpBoxPadding    = 4  // Additional width for borders and padding
+)
+
 // Model is the Bubbletea model for the TUI feed.
 type Model struct {
 	posts    []*Post
@@ -36,15 +42,10 @@ type loadPostsMsg struct {
 // NewModel creates a new TUI model with the given store, theme, and contrast level.
 func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, cfg *config.TUIConfig) Model {
 	return Model{
-		posts:    make([]*Post, 0),
 		theme:    theme,
 		contrast: contrast,
-		showHelp: false,
-		width:    0,
-		height:   0,
 		store:    store,
 		config:   cfg,
-		err:      nil,
 	}
 }
 
@@ -86,18 +87,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			return m, m.loadPostsCmd
 
-		// T018: Theme cycling (placeholder for later implementation)
+		// T018: Theme cycling
 		case "t":
 			m.config.Theme = NextTheme(m.config.Theme)
 			m.theme = GetTheme(m.config.Theme)
-			_ = config.SaveTUIConfig(m.config)
+			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
-		// T018: Contrast cycling (placeholder for later implementation)
+		// T018: Contrast cycling
 		case "c":
 			m.config.Contrast = NextContrastLevel(m.config.Contrast)
 			m.contrast = GetContrastLevel(m.config.Contrast)
-			_ = config.SaveTUIConfig(m.config)
+			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
 		// Help toggle (T038: ? key handler)
@@ -206,13 +207,7 @@ func (m Model) View() string {
 func (m Model) formatPostForTUI(post *Post) []string {
 	var lines []string
 
-	t, err := post.GetCreatedTime()
-	var timeStr string
-	if err != nil {
-		timeStr = "??:??"
-	} else {
-		timeStr = t.Local().Format("15:04")
-	}
+	timeStr := formatTimestamp(post)
 
 	// Only show timestamp if different from previous
 	var timeColumn string
@@ -223,37 +218,32 @@ func (m Model) formatPostForTUI(post *Post) []string {
 		timeColumn = "     " // 5 spaces
 	}
 
-	// Right-align identity
-	authorLen := len(post.Author)
+	// Right-align identity using shared layout calculation
+	authorLayout := CalculateAuthorLayout(len(post.Author), MinAuthorColumnWidth)
+
 	padding := ""
-	authorColWidth := authorLen
-	if authorLen < MinAuthorColumnWidth {
-		padding = fmt.Sprintf("%*s", MinAuthorColumnWidth-authorLen, "")
-		authorColWidth = MinAuthorColumnWidth
+	if authorLayout.Padding > 0 {
+		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
 	}
 
 	identity := m.styleAuthor(post.Author)
 	authorRig := padding + identity
 
-	// Calculate actual content start position and available width
-	contentStart := TimeColumnWidth + 1 + authorColWidth + 2
+	// Calculate content layout
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
-	contentWidth := termWidth - contentStart - 1
-	if contentWidth < MinContentWidth {
-		contentWidth = MinContentWidth
-	}
+	contentLayout := CalculateContentLayout(TimeColumnWidth, authorLayout.ColWidth, termWidth, MinContentWidth)
 
 	// Wrap content
-	contentLines := wrapText(post.Content, contentWidth)
+	contentLines := wrapText(post.Content, contentLayout.Width)
 	for i, line := range contentLines {
 		highlightedLine := HighlightAll(line, true) // Always enable color in TUI
 		if i == 0 {
 			lines = append(lines, fmt.Sprintf("%s %s  %s", timeColumn, authorRig, highlightedLine))
 		} else {
-			indent := fmt.Sprintf("%*s", contentStart, "")
+			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
 			lines = append(lines, fmt.Sprintf("%s%s", indent, highlightedLine))
 		}
 	}
@@ -265,51 +255,38 @@ func (m Model) formatPostForTUI(post *Post) []string {
 func (m Model) formatReplyForTUI(_ *Post, reply *Post) []string {
 	var lines []string
 
-	replyTime, err := reply.GetCreatedTime()
-	var replyTimeStr string
-	if err != nil {
-		replyTimeStr = "??:??"
-	} else {
-		replyTimeStr = replyTime.Local().Format("15:04")
-	}
-
-	timestamp := m.styleTimestamp(replyTimeStr)
+	timestamp := m.styleTimestamp(formatTimestamp(reply))
 
 	// Reply prefix: "  └─ " = 5 chars
 	const replyPrefix = 5
 
-	// Right-align identity (slightly smaller minimum width for indent)
-	authorLen := len(reply.Author)
+	// Right-align identity using shared layout calculation
 	minReplyAuthorWidth := MinAuthorColumnWidth - 3
+	authorLayout := CalculateAuthorLayout(len(reply.Author), minReplyAuthorWidth)
+
 	padding := ""
-	authorColWidth := authorLen
-	if authorLen < minReplyAuthorWidth {
-		padding = fmt.Sprintf("%*s", minReplyAuthorWidth-authorLen, "")
-		authorColWidth = minReplyAuthorWidth
+	if authorLayout.Padding > 0 {
+		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
 	}
 
 	identity := m.styleAuthor(reply.Author)
 	authorRig := padding + identity
 
-	// Calculate actual content start position and available width
-	contentStart := replyPrefix + TimeColumnWidth + 1 + authorColWidth + 2
+	// Calculate content layout
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
-	contentWidth := termWidth - contentStart - 1
-	if contentWidth < MinContentWidth {
-		contentWidth = MinContentWidth
-	}
+	contentLayout := CalculateContentLayout(replyPrefix+TimeColumnWidth, authorLayout.ColWidth, termWidth, MinContentWidth)
 
 	// Wrap content
-	contentLines := wrapText(reply.Content, contentWidth)
+	contentLines := wrapText(reply.Content, contentLayout.Width)
 	for i, line := range contentLines {
 		highlightedLine := HighlightAll(line, true)
 		if i == 0 {
 			lines = append(lines, fmt.Sprintf("  └─ %s %s  %s", timestamp, authorRig, highlightedLine))
 		} else {
-			indent := fmt.Sprintf("%*s", contentStart, "")
+			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
 			lines = append(lines, fmt.Sprintf("%s%s", indent, highlightedLine))
 		}
 	}
@@ -331,6 +308,11 @@ func (m Model) styleAuthor(author string) string {
 // renderStatusBar creates the right-aligned status bar
 func (m Model) renderStatusBar() string {
 	statusText := "q:quit  r:refresh  t:theme  c:contrast  ?:help"
+
+	// Show error briefly if save failed
+	if m.err != nil {
+		statusText = "config save failed  " + statusText
+	}
 
 	// Right-align within terminal width
 	padding := ""
@@ -370,13 +352,13 @@ func (m Model) renderHelpOverlay() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.Foreground).
 		Padding(1, 2).
-		Width(35)
+		Width(helpBoxInnerWidth)
 
 	styledBox := helpStyle.Render(helpContent.String())
 
 	// Center the overlay on screen
 	boxHeight := strings.Count(styledBox, "\n") + 1
-	boxWidth := 35 + 4 // +4 for padding and borders
+	boxWidth := helpBoxInnerWidth + helpBoxPadding
 	topPadding := (m.height - boxHeight) / 2
 	leftPadding := (m.width - boxWidth) / 2
 

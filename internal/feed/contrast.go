@@ -1,5 +1,8 @@
 package feed
 
+// DefaultContrastName is the default contrast level when none is specified
+const DefaultContrastName = "medium"
+
 // ContrastLevel defines styling rules for identity display.
 type ContrastLevel struct {
 	// Name is the identifier for the contrast level (e.g., "high", "medium", "low")

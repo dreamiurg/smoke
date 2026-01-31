@@ -39,9 +39,7 @@ var AuthorPalette = []string{
 // AuthorColor returns a deterministic color for the given author name.
 // The same author always gets the same color.
 func AuthorColor(author string) string {
-	h := fnv.New32a()
-	h.Write([]byte(author))
-	idx := h.Sum32() % uint32(len(AuthorPalette))
+	idx := hashString(author) % len(AuthorPalette)
 	return AuthorPalette[idx]
 }
 
@@ -128,7 +126,7 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 
 	// Build agent style using theme colors
 	agentStyle := lipgloss.NewStyle().
-		Foreground(theme.AgentColors[hashAgentName(agent)%len(theme.AgentColors)])
+		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)])
 
 	if contrast.AgentBold {
 		agentStyle = agentStyle.Bold(true)
@@ -144,7 +142,7 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 	projectStyle := lipgloss.NewStyle()
 	if contrast.ProjectColored {
 		// Color the project with a secondary theme color
-		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashAgentName(project)+1)%len(theme.AgentColors)])
+		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
 	} else {
 		// Dim the project
 		projectStyle = projectStyle.Foreground(theme.Dim)
@@ -155,9 +153,10 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 	return styledAgent + "@" + styledProject
 }
 
-// hashAgentName computes a deterministic hash for agent name coloring.
-func hashAgentName(agent string) int {
+// hashString computes a deterministic hash for consistent coloring.
+// Used by both CLI and TUI for author/agent name color selection.
+func hashString(s string) int {
 	h := fnv.New32a()
-	h.Write([]byte(agent))
+	h.Write([]byte(s))
 	return int(h.Sum32())
 }

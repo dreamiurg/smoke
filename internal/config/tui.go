@@ -16,6 +16,12 @@ type TUIConfig struct {
 // TUIConfigFile is the name of the TUI config file
 const TUIConfigFile = "tui.yaml"
 
+// Default values - must match feed.DefaultThemeName and feed.DefaultContrastName
+const (
+	defaultTheme    = "tomorrow-night"
+	defaultContrast = "medium"
+)
+
 // GetTUIConfigPath returns the path to the tui.yaml file
 func GetTUIConfigPath() (string, error) {
 	configDir, err := GetConfigDir()
@@ -53,10 +59,10 @@ func LoadTUIConfig() *TUIConfig {
 
 	// Apply defaults for empty fields
 	if cfg.Theme == "" {
-		cfg.Theme = "tomorrow-night"
+		cfg.Theme = defaultTheme
 	}
 	if cfg.Contrast == "" {
-		cfg.Contrast = "medium"
+		cfg.Contrast = defaultContrast
 	}
 
 	return &cfg
@@ -80,7 +86,7 @@ func SaveTUIConfig(cfg *TUIConfig) error {
 // defaultTUIConfig returns the default TUI configuration.
 func defaultTUIConfig() *TUIConfig {
 	return &TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
+		Theme:    defaultTheme,
+		Contrast: defaultContrast,
 	}
 }

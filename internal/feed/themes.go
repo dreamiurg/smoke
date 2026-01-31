@@ -2,6 +2,9 @@ package feed
 
 import "github.com/charmbracelet/lipgloss"
 
+// DefaultThemeName is the default theme when none is specified
+const DefaultThemeName = "tomorrow-night"
+
 // Theme defines a color palette for the TUI.
 type Theme struct {
 	// Name is the identifier for the theme (e.g., "tomorrow-night")

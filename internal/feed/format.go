@@ -149,6 +149,44 @@ const MinContentWidth = 30
 // lastTimestamp tracks the previous timestamp to avoid repetition
 var lastTimestamp string
 
+// AuthorLayout contains calculated layout for author column
+type AuthorLayout struct {
+	Padding  int // Number of spaces to prepend for right-alignment
+	ColWidth int // Total column width
+}
+
+// CalculateAuthorLayout computes author column layout with right-alignment.
+// Returns padding and total column width based on author length and minimum width.
+func CalculateAuthorLayout(authorLen, minWidth int) AuthorLayout {
+	if authorLen < minWidth {
+		return AuthorLayout{
+			Padding:  minWidth - authorLen,
+			ColWidth: minWidth,
+		}
+	}
+	return AuthorLayout{
+		Padding:  0,
+		ColWidth: authorLen,
+	}
+}
+
+// ContentLayout contains calculated layout for content area
+type ContentLayout struct {
+	Start int // Column where content starts
+	Width int // Available width for content
+}
+
+// CalculateContentLayout computes content area dimensions.
+// Format: [time][space][padding+author][space 2][content]
+func CalculateContentLayout(prefixWidth, authorColWidth, termWidth, minWidth int) ContentLayout {
+	start := prefixWidth + 1 + authorColWidth + 2
+	width := termWidth - start - 1 // -1 for safety margin
+	if width < minWidth {
+		width = minWidth
+	}
+	return ContentLayout{Start: start, Width: width}
+}
+
 // ResetTimestamp resets the timestamp tracking (call at start of feed)
 func ResetTimestamp() {
 	lastTimestamp = ""
@@ -179,29 +217,21 @@ func formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
 
 	// Build identity display with right-alignment
 	// Author field contains full identity: agent-adjective-animal@project
-	authorLen := len(post.Author)
+	authorLayout := CalculateAuthorLayout(len(post.Author), MinAuthorColumnWidth)
 
-	// Right-align: add padding before identity (only if shorter than minimum)
 	padding := ""
-	authorColWidth := authorLen
-	if authorLen < MinAuthorColumnWidth {
-		padding = fmt.Sprintf("%*s", MinAuthorColumnWidth-authorLen, "")
-		authorColWidth = MinAuthorColumnWidth
+	if authorLayout.Padding > 0 {
+		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
 	}
 
 	identity := cw.AuthorColorize(post.Author)
 	authorRig := padding + identity
 
 	// Calculate actual content start position and available width
-	// Format: [time 5][space 1][padding+author][space 2][content]
-	contentStart := TimeColumnWidth + 1 + authorColWidth + 2
-	contentWidth := termWidth - contentStart - 1 // -1 for safety margin
-	if contentWidth < MinContentWidth {
-		contentWidth = MinContentWidth
-	}
+	contentLayout := CalculateContentLayout(TimeColumnWidth, authorLayout.ColWidth, termWidth, MinContentWidth)
 
 	// Wrap content if needed
-	contentLines := wrapText(post.Content, contentWidth)
+	contentLines := wrapText(post.Content, contentLayout.Width)
 	for i, line := range contentLines {
 		highlightedLine := HighlightAll(line, cw.ColorEnabled)
 		if i == 0 {
@@ -209,7 +239,7 @@ func formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
 			_, _ = fmt.Fprintf(w, "%s %s  %s\n", timeColumn, authorRig, highlightedLine)
 		} else {
 			// Continuation lines: indent to align with content
-			indent := fmt.Sprintf("%*s", contentStart, "")
+			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
 			_, _ = fmt.Fprintf(w, "%s%s\n", indent, highlightedLine)
 		}
 	}
@@ -262,30 +292,22 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth i
 	const replyPrefix = 5
 
 	// Build identity display - slightly smaller minimum width for reply indent
-	authorLen := len(reply.Author)
 	minReplyAuthorWidth := MinAuthorColumnWidth - 3
+	authorLayout := CalculateAuthorLayout(len(reply.Author), minReplyAuthorWidth)
 
-	// Right-align
 	padding := ""
-	authorColWidth := authorLen
-	if authorLen < minReplyAuthorWidth {
-		padding = fmt.Sprintf("%*s", minReplyAuthorWidth-authorLen, "")
-		authorColWidth = minReplyAuthorWidth
+	if authorLayout.Padding > 0 {
+		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
 	}
 
 	identity := cw.AuthorColorize(reply.Author)
 	authorRig := padding + identity
 
 	// Calculate actual content start position and available width
-	// Format: [prefix 5][time 5][space 1][padding+author][space 2][content]
-	contentStart := replyPrefix + TimeColumnWidth + 1 + authorColWidth + 2
-	contentWidth := termWidth - contentStart - 1
-	if contentWidth < MinContentWidth {
-		contentWidth = MinContentWidth
-	}
+	contentLayout := CalculateContentLayout(replyPrefix+TimeColumnWidth, authorLayout.ColWidth, termWidth, MinContentWidth)
 
 	// Wrap content if needed
-	contentLines := wrapText(reply.Content, contentWidth)
+	contentLines := wrapText(reply.Content, contentLayout.Width)
 	for i, line := range contentLines {
 		highlightedLine := HighlightAll(line, cw.ColorEnabled)
 		if i == 0 {
@@ -293,7 +315,7 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth i
 			_, _ = fmt.Fprintf(w, "  └─ %s %s  %s\n", timestamp, authorRig, highlightedLine)
 		} else {
 			// Continuation lines: indent to align with content
-			indent := fmt.Sprintf("%*s", contentStart, "")
+			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
 			_, _ = fmt.Fprintf(w, "%s%s\n", indent, highlightedLine)
 		}
 	}
