@@ -42,50 +42,50 @@ func runReply(_ *cobra.Command, args []string) error {
 	// Check if smoke is initialized
 	initialized, err := config.IsSmokeInitialized()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 	if !initialized {
-		return fmt.Errorf("error: %w", feed.ErrNotInitialized)
+		return config.ErrNotInitialized
 	}
 
 	// Validate parent ID format
 	if !feed.ValidateID(parentID) {
-		return fmt.Errorf("error: invalid post ID format: %s", parentID)
+		return fmt.Errorf("invalid post ID format: %s", parentID)
 	}
 
 	// Get store
 	store, err := feed.NewStore()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	// Check if parent post exists
 	exists, err := store.Exists(parentID)
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 	if !exists {
-		return fmt.Errorf("error: post %s not found", parentID)
+		return fmt.Errorf("post %s not found", parentID)
 	}
 
 	// Get identity
 	identity, err := config.GetIdentityWithOverride(replyAuthor)
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	// Create reply
 	reply, err := feed.NewReply(identity.String(), identity.Project, identity.Suffix, message, parentID)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
-			return fmt.Errorf("error: message exceeds 280 characters (got %d)", len(message))
+			return fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
 		}
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	// Store reply
 	if err := store.Append(reply); err != nil {
-		return fmt.Errorf("error: failed to save reply: %w", err)
+		return fmt.Errorf("failed to save reply: %w", err)
 	}
 
 	// Output confirmation

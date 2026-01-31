@@ -60,15 +60,15 @@ func runFeed(_ *cobra.Command, _ []string) error {
 	// Check if smoke is initialized
 	initialized, err := config.IsSmokeInitialized()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 	if !initialized {
-		return fmt.Errorf("error: %w", feed.ErrNotInitialized)
+		return config.ErrNotInitialized
 	}
 
 	store, err := feed.NewStore()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	if feedTail {
@@ -82,7 +82,7 @@ func runNormalFeed(store *feed.Store) error {
 	// Read all posts
 	posts, err := store.ReadAll()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	total := len(posts)
@@ -135,7 +135,7 @@ func runTailMode(store *feed.Store) error {
 	// Initial read
 	posts, err := store.ReadAll()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 	lastCount = len(posts)
 

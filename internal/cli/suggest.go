@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"math/rand"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -84,8 +83,7 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 	}
 
 	// Pick a random prompt from the selected category
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	prompt := prompts[rng.Intn(len(prompts))]
+	prompt := prompts[rand.Intn(len(prompts))]
 
 	fmt.Println(prompt)
 	return nil

@@ -41,35 +41,35 @@ func runPost(_ *cobra.Command, args []string) error {
 	// Check if smoke is initialized
 	initialized, err := config.IsSmokeInitialized()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 	if !initialized {
-		return fmt.Errorf("error: %w", feed.ErrNotInitialized)
+		return config.ErrNotInitialized
 	}
 
 	// Get identity
 	identity, err := config.GetIdentityWithOverride(postAuthor)
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	// Create post
 	post, err := feed.NewPost(identity.String(), identity.Project, identity.Suffix, message)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
-			return fmt.Errorf("error: message exceeds 280 characters (got %d)", len(message))
+			return fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
 		}
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	// Store post
 	store, err := feed.NewStore()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return err
 	}
 
 	if err := store.Append(post); err != nil {
-		return fmt.Errorf("error: failed to save post: %w", err)
+		return fmt.Errorf("failed to save post: %w", err)
 	}
 
 	// Output confirmation

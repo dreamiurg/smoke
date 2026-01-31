@@ -12,9 +12,6 @@ import (
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
-// ErrNotInitialized is returned when smoke is not initialized
-var ErrNotInitialized = errors.New("smoke not initialized. Run 'smoke init' first")
-
 // ErrPostNotFound is returned when a post is not found
 var ErrPostNotFound = errors.New("post not found")
 
@@ -50,7 +47,7 @@ func (s *Store) Append(post *Post) error {
 
 	// Check if feed file exists
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
-		return ErrNotInitialized
+		return config.ErrNotInitialized
 	}
 
 	// Open file for appending
@@ -77,7 +74,7 @@ func (s *Store) Append(post *Post) error {
 func (s *Store) ReadAll() ([]*Post, error) {
 	// Check if feed file exists
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
-		return nil, ErrNotInitialized
+		return nil, config.ErrNotInitialized
 	}
 
 	f, err := os.Open(s.path)

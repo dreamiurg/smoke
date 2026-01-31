@@ -120,9 +120,9 @@ func TestEnsureInitialized(t *testing.T) {
 	defer os.Setenv("SMOKE_FEED", oldSmokeFeed)
 
 	// Should return error when not initialized
-	err := EnsureInitialized()
+	err := ensureInitialized()
 	if err != ErrNotInitialized {
-		t.Errorf("EnsureInitialized() = %v, want ErrNotInitialized", err)
+		t.Errorf("ensureInitialized() = %v, want ErrNotInitialized", err)
 	}
 
 	// Initialize
@@ -131,8 +131,8 @@ func TestEnsureInitialized(t *testing.T) {
 	os.WriteFile(filepath.Join(smokeDir, "feed.jsonl"), []byte{}, 0644)
 
 	// Should return nil when initialized
-	err = EnsureInitialized()
+	err = ensureInitialized()
 	if err != nil {
-		t.Errorf("EnsureInitialized() = %v, want nil", err)
+		t.Errorf("ensureInitialized() = %v, want nil", err)
 	}
 }

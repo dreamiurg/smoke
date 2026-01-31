@@ -145,16 +145,19 @@ func ResetTimestamp() {
 	lastTimestamp = ""
 }
 
+// formatTimestamp returns the timestamp string for a post, or "??:??" on error
+func formatTimestamp(post *Post) string {
+	t, err := post.GetCreatedTime()
+	if err != nil {
+		return "??:??"
+	}
+	return t.Local().Format("15:04")
+}
+
 // formatCompact formats a post with right-aligned author@project and smart timestamps
 // Format: 14:32  author@project  content (timestamp only shown when it changes)
 func formatCompact(w io.Writer, post *Post, cw *ColorWriter) {
-	t, err := post.GetCreatedTime()
-	var timeStr string
-	if err != nil {
-		timeStr = "??:??"
-	} else {
-		timeStr = t.Local().Format("15:04")
-	}
+	timeStr := formatTimestamp(post)
 
 	// Only show timestamp if different from previous
 	var timeColumn string
@@ -209,8 +212,11 @@ func wrapText(text string, maxWidth int) []string {
 			breakPoint--
 		}
 		if breakPoint == 0 {
-			// No space found, force break at maxWidth
+			// No space found, force break at maxWidth (but don't exceed remaining length)
 			breakPoint = maxWidth
+			if breakPoint > len(remaining) {
+				breakPoint = len(remaining)
+			}
 		}
 
 		lines = append(lines, remaining[:breakPoint])
@@ -230,16 +236,8 @@ func wrapText(text string, maxWidth int) []string {
 
 // formatReply formats a reply with indent (parent already shown in thread)
 func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter) {
-	replyTime, err := reply.GetCreatedTime()
-	var replyTimeStr string
-	if err != nil {
-		replyTimeStr = "??:??"
-	} else {
-		replyTimeStr = replyTime.Local().Format("15:04")
-	}
-
 	// For replies, always show timestamp (they're responses, timing matters)
-	timestamp := cw.Dim(replyTimeStr)
+	timestamp := cw.Dim(formatTimestamp(reply))
 
 	// Build identity display - slightly smaller width for reply indent
 	visibleLen := len(reply.Author)

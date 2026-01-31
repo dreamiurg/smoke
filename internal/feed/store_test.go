@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/dreamiurg/smoke/internal/config"
 )
 
 func setupTestStore(t *testing.T) (*Store, string) {
@@ -79,7 +81,7 @@ func TestStoreAppendNotInitialized(t *testing.T) {
 	}
 
 	err := store.Append(post)
-	if err != ErrNotInitialized {
+	if err != config.ErrNotInitialized {
 		t.Errorf("Append() error = %v, want ErrNotInitialized", err)
 	}
 }
@@ -141,7 +143,7 @@ func TestStoreReadAll(t *testing.T) {
 	// Test reading from non-existent file
 	nonExistentStore := NewStoreWithPath(filepath.Join(t.TempDir(), "nonexistent.jsonl"))
 	_, err = nonExistentStore.ReadAll()
-	if err != ErrNotInitialized {
+	if err != config.ErrNotInitialized {
 		t.Errorf("ReadAll() error = %v, want ErrNotInitialized", err)
 	}
 }
