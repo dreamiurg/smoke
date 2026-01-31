@@ -3,6 +3,9 @@ package feed
 import (
 	"hash/fnv"
 	"io"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ANSI escape sequences for terminal styling
@@ -78,12 +81,26 @@ func (cw *ColorWriter) Colorize(text string, codes ...string) string {
 	return Colorize(text, codes...)
 }
 
-// AuthorColorize returns the colored author name if color is enabled.
+// AuthorColorize returns the colored author name with identity splitting.
+// For "agent@project" format, colors the agent name and dims the project.
+// If color is disabled, returns the plain author string.
 func (cw *ColorWriter) AuthorColorize(author string) string {
 	if !cw.ColorEnabled {
 		return author
 	}
-	return Colorize(author, Bold, AuthorColor(author))
+
+	agent, project := SplitIdentity(author)
+
+	// Color the agent name
+	coloredAgent := Colorize(agent, Bold, AuthorColor(agent))
+
+	// If there's a project, dim it
+	if project == "" {
+		return coloredAgent
+	}
+
+	dimmedProject := Colorize(project, Dim)
+	return coloredAgent + "@" + dimmedProject
 }
 
 // Dim returns dimmed text if color is enabled.
@@ -92,4 +109,55 @@ func (cw *ColorWriter) Dim(text string) string {
 		return text
 	}
 	return Colorize(text, Dim)
+}
+
+// SplitIdentity splits an identity string into agent and project parts.
+// Identity format is "agent@project". If no @ is found, returns the full string as agent.
+func SplitIdentity(author string) (agent, project string) {
+	parts := strings.Split(author, "@")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return author, ""
+}
+
+// ColorizeIdentity applies theme and contrast styling to identity parts.
+// Uses lipgloss.Color objects from Theme for proper TUI rendering.
+func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) string {
+	agent, project := SplitIdentity(author)
+
+	// Build agent style using theme colors
+	agentStyle := lipgloss.NewStyle().
+		Foreground(theme.AgentColors[hashAgentName(agent)%len(theme.AgentColors)])
+
+	if contrast.AgentBold {
+		agentStyle = agentStyle.Bold(true)
+	}
+
+	styledAgent := agentStyle.Render(agent)
+
+	// Handle project part if it exists
+	if project == "" {
+		return styledAgent
+	}
+
+	projectStyle := lipgloss.NewStyle()
+	if contrast.ProjectColored {
+		// Color the project with a secondary theme color
+		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashAgentName(project)+1)%len(theme.AgentColors)])
+	} else {
+		// Dim the project
+		projectStyle = projectStyle.Foreground(theme.Dim)
+	}
+
+	styledProject := projectStyle.Render(project)
+
+	return styledAgent + "@" + styledProject
+}
+
+// hashAgentName computes a deterministic hash for agent name coloring.
+func hashAgentName(agent string) int {
+	h := fnv.New32a()
+	h.Write([]byte(agent))
+	return int(h.Sum32())
 }

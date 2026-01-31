@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
 	"github.com/dreamiurg/smoke/internal/config"
@@ -73,6 +74,11 @@ func runFeed(_ *cobra.Command, _ []string) error {
 
 	if feedTail {
 		return runTailMode(store)
+	}
+
+	// T011: Mode detection - launch TUI if stdout is TTY and not in tail mode
+	if feed.IsTerminal(os.Stdout.Fd()) {
+		return runTUIMode(store)
 	}
 
 	return runNormalFeed(store)
@@ -183,4 +189,19 @@ func runTailMode(store *feed.Store) error {
 			}
 		}
 	}
+}
+
+// T012: runTUIMode launches the interactive TUI feed
+func runTUIMode(store *feed.Store) error {
+	// Load TUI config (never returns error, gracefully handles all failures)
+	cfg := config.LoadTUIConfig()
+
+	theme := feed.GetTheme(cfg.Theme)
+	contrast := feed.GetContrastLevel(cfg.Contrast)
+
+	// Create model and run
+	m := feed.NewModel(store, theme, contrast, cfg)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	_, err := p.Run()
+	return err
 }
