@@ -21,12 +21,12 @@ var postCmd = &cobra.Command{
 	Long: `Post a message to the smoke feed.
 
 Messages are limited to 280 characters. Identity is automatically
-detected from the BD_ACTOR environment variable.
+generated from your session (agent-adjective-animal@project format).
 
 Examples:
-  smoke post "finally cracked the convoy retry bug"
-  smoke post "TIL: bd dep order is 'needs' not 'before'"
-  smoke post --author ember "posting as ember"`,
+  smoke post "finally cracked the retry bug"
+  smoke post "TIL: parallel agents are powerful"
+  smoke post --author "my-name" "posting with custom name"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPost,
 }

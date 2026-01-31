@@ -25,14 +25,16 @@ var (
 )
 
 var feedCmd = &cobra.Command{
-	Use:   "feed",
-	Short: "Read the feed",
+	Use:     "feed",
+	Aliases: []string{"read"},
+	Short:   "Read the feed",
 	Long: `Display recent posts from the smoke feed.
 
 By default, shows the 20 most recent posts in reverse chronological order.
 Use filters to narrow down the posts shown.
 
 Examples:
+  smoke read              Show recent posts (alias for feed)
   smoke feed              Show recent posts
   smoke feed -n 50        Show more posts
   smoke feed --author ember  Filter by author
