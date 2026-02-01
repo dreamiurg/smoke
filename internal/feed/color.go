@@ -122,10 +122,12 @@ func SplitIdentity(author string) (agent, project string) {
 
 // colorizeIdentityParts applies theme and contrast styling to agent and project components.
 // This is the core styling logic used by ColorizeIdentity.
+// Includes background on all styles to avoid black gaps in TUI rendering.
 func colorizeIdentityParts(agent, project string, theme *Theme, contrast *ContrastLevel) string {
-	// Build agent style using theme colors
+	// Build agent style using theme colors (include background to avoid black gaps)
 	agentStyle := lipgloss.NewStyle().
-		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)])
+		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)]).
+		Background(theme.Background)
 
 	if contrast.AgentBold {
 		agentStyle = agentStyle.Bold(true)
@@ -138,7 +140,10 @@ func colorizeIdentityParts(agent, project string, theme *Theme, contrast *Contra
 		return styledAgent
 	}
 
-	projectStyle := lipgloss.NewStyle()
+	// Style for the "@" separator
+	atStyle := lipgloss.NewStyle().Background(theme.Background)
+
+	projectStyle := lipgloss.NewStyle().Background(theme.Background)
 	if contrast.ProjectColored {
 		// Color the project with a secondary theme color
 		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
@@ -149,7 +154,7 @@ func colorizeIdentityParts(agent, project string, theme *Theme, contrast *Contra
 
 	styledProject := projectStyle.Render(project)
 
-	return styledAgent + "@" + styledProject
+	return styledAgent + atStyle.Render("@") + styledProject
 }
 
 // ColorizeIdentity applies theme and contrast styling to a full identity string.

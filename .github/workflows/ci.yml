@@ -101,3 +101,20 @@ jobs:
         with:
           name: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
           path: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  # Summary job for branch protection - required because matrix jobs create
+  # individual checks like "Build (darwin, amd64)" but protection rules need
+  # a single "Build" check to require.
+  build-complete:
+    name: Build
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check build matrix status
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "Build matrix failed"
+            exit 1
+          fi
+          echo "All builds completed successfully"

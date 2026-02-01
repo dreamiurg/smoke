@@ -100,7 +100,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 		if initDryRun {
 			fmt.Printf("%sWould %s\n", prefix, action)
 		} else {
-			if mkdirErr := os.MkdirAll(configDir, 0755); mkdirErr != nil {
+			if mkdirErr := os.MkdirAll(configDir, 0700); mkdirErr != nil {
 				return fmt.Errorf("creating config directory: %w", mkdirErr)
 			}
 			fmt.Printf("Created directory: %s\n", configDir)
@@ -120,7 +120,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 		if initDryRun {
 			fmt.Printf("%sWould %s\n", prefix, action)
 		} else {
-			f, openErr := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0644)
+			f, openErr := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0600)
 			if openErr != nil {
 				return fmt.Errorf("creating feed file: %w", openErr)
 			}
@@ -158,7 +158,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 			fmt.Printf("%sWould %s\n", prefix, action)
 		} else {
 			defaultConfig := "# Smoke configuration\n# See: smoke explain\n"
-			if writeErr := os.WriteFile(configPath, []byte(defaultConfig), 0644); writeErr != nil {
+			if writeErr := os.WriteFile(configPath, []byte(defaultConfig), 0600); writeErr != nil {
 				return fmt.Errorf("creating config file: %w", writeErr)
 			}
 			fmt.Printf("Created file: %s\n", configPath)
