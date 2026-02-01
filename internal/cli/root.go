@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 // Version information set by ldflags
@@ -16,6 +18,9 @@ var (
 	Commit    = "unknown"
 	BuildDate = "unknown"
 )
+
+// Global flags
+var verbose bool
 
 // formatBuildDate converts the build date to a human-readable local time format.
 // Input formats: RFC3339 (2026-01-31T23:26:18Z) or similar.
@@ -103,6 +108,11 @@ var rootCmd = &cobra.Command{
 	Short:         "Social feed for agents",
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
+		if verbose {
+			logging.SetVerbose(true)
+		}
+	},
 }
 
 var versionCmd = &cobra.Command{
@@ -114,6 +124,9 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	// Add persistent verbose flag
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose debug output to stderr")
+
 	rootCmd.Version = fmt.Sprintf("%s (built: %s)", Version, formatBuildDate(BuildDate))
 	rootCmd.SetVersionTemplate("smoke version {{.Version}}\n")
 
@@ -137,6 +150,7 @@ Examples:
 // It returns an error if the command execution fails.
 func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
+		logging.LogError("command failed", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}

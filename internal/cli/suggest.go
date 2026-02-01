@@ -12,6 +12,7 @@ import (
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
 	"github.com/dreamiurg/smoke/internal/identity/templates"
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 var (
@@ -48,9 +49,12 @@ func init() {
 	rootCmd.AddCommand(suggestCmd)
 }
 
-func runSuggest(_ *cobra.Command, _ []string) error {
+func runSuggest(_ *cobra.Command, args []string) error {
+	logging.LogCommand("suggest", args)
+
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
+		logging.LogError("smoke not initialized", err)
 		return err
 	}
 

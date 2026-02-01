@@ -13,6 +13,9 @@ const (
 
 	// DefaultTUIConfigFile is the name of the TUI config file
 	DefaultTUIConfigFile = "tui.yaml"
+
+	// DefaultLogFile is the name of the log file
+	DefaultLogFile = "smoke.log"
 )
 
 // Default TUI configuration values
