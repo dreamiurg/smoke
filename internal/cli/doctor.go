@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -41,6 +42,12 @@ const (
 	StatusFail
 )
 
+// FixResult contains the result of a fix operation
+type FixResult struct {
+	BackupPath  string // Path to backup file, empty if no backup created
+	Description string // Human-readable description of what was fixed
+}
+
 // Color aliases for doctor output (using feed package constants)
 const (
 	colorReset  = feed.Reset
@@ -59,9 +66,9 @@ type Check struct {
 	Name    string
 	Status  CheckStatus
 	Message string
-	Detail  string       // Optional additional info
-	CanFix  bool         // Whether --fix can repair this
-	Fix     func() error // Fix function if CanFix is true
+	Detail  string                     // Optional additional info
+	CanFix  bool                       // Whether --fix can repair this
+	Fix     func() (*FixResult, error) // Fix function if CanFix is true
 }
 
 // Helper functions for creating Check structs
@@ -77,7 +84,7 @@ func warnCheck(name, msg, detail string) Check {
 }
 
 // failCheck creates a failing check with the given name, message, detail, and optional fix
-func failCheck(name, msg, detail string, canFix bool, fix func() error) Check {
+func failCheck(name, msg, detail string, canFix bool, fix func() (*FixResult, error)) Check {
 	return Check{Name: name, Status: StatusFail, Message: msg, Detail: detail, CanFix: canFix, Fix: fix}
 }
 
@@ -253,35 +260,44 @@ func exitWithCode(code int) {
 }
 
 // fixConfigDir creates the config directory
-func fixConfigDir() error {
+func fixConfigDir() (*FixResult, error) {
 	configDir, err := config.GetConfigDir()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return os.MkdirAll(configDir, 0755)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return nil, err
+	}
+	return &FixResult{Description: "Created config directory"}, nil
 }
 
 // fixFeedFile creates an empty feed file
-func fixFeedFile() error {
+func fixFeedFile() (*FixResult, error) {
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	f, err := os.Create(feedPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+	return &FixResult{Description: "Created empty feed file"}, nil
 }
 
 // fixConfigFile creates a default config file
-func fixConfigFile() error {
+func fixConfigFile() (*FixResult, error) {
 	configPath, err := config.GetConfigPath()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defaultConfig := "# Smoke configuration\n# See: smoke explain\n"
-	return os.WriteFile(configPath, []byte(defaultConfig), 0600)
+	if err := os.WriteFile(configPath, []byte(defaultConfig), 0600); err != nil {
+		return nil, err
+	}
+	return &FixResult{Description: "Created default config file"}, nil
 }
 
 // applyFixes attempts to fix all fixable issues
@@ -295,11 +311,21 @@ func applyFixes(categories []Category, dryRun bool) (int, error) {
 				if dryRun {
 					fmt.Printf("Would fix: %s\n", check.Name)
 				} else {
-					if err := check.Fix(); err != nil {
+					result, err := check.Fix()
+					if err != nil {
 						fmt.Printf("Failed to fix %s: %v\n", check.Name, err)
 						continue
 					}
-					fmt.Printf("Fixed: %s\n", check.Name)
+					// Print backup path first if one was created
+					if result != nil && result.BackupPath != "" {
+						fmt.Printf("Backed up to: %s\n", result.BackupPath)
+					}
+					// Print what was fixed with description
+					if result != nil && result.Description != "" {
+						fmt.Printf("Fixed: %s (%s)\n", check.Name, result.Description)
+					} else {
+						fmt.Printf("Fixed: %s\n", check.Name)
+					}
 				}
 				fixCount++
 			}
@@ -453,7 +479,7 @@ func performTUIConfigCheck() Check {
 				Message: "deprecated 'style' field (should be 'layout')",
 				Detail:  "Run 'smoke doctor --fix' to migrate to new field name",
 				CanFix:  true,
-				Fix: func() error {
+				Fix: func() (*FixResult, error) {
 					return fixTUIConfigStyleToLayout(tuiPath)
 				},
 			}
@@ -463,17 +489,47 @@ func performTUIConfigCheck() Check {
 	return passCheck(name, tuiPath)
 }
 
-// fixTUIConfigStyleToLayout migrates tui.yaml from "style" to "layout" field
-func fixTUIConfigStyleToLayout(tuiPath string) error {
+// backupTUIConfig creates a timestamped backup of tui.yaml if it exists.
+// Returns the backup path if created, empty string if file doesn't exist.
+func backupTUIConfig(tuiPath string) (string, error) {
+	// Check if file exists
+	if _, err := os.Stat(tuiPath); os.IsNotExist(err) {
+		return "", nil
+	}
+
 	data, err := os.ReadFile(tuiPath)
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	// Create timestamped backup filename
+	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	backupPath := fmt.Sprintf("%s.bak.%s", tuiPath, timestamp)
+
+	if err := os.WriteFile(backupPath, data, 0600); err != nil {
+		return "", err
+	}
+
+	return backupPath, nil
+}
+
+// fixTUIConfigStyleToLayout migrates tui.yaml from "style" to "layout" field
+func fixTUIConfigStyleToLayout(tuiPath string) (*FixResult, error) {
+	// Create backup before modifying
+	backupPath, err := backupTUIConfig(tuiPath)
+	if err != nil {
+		return nil, fmt.Errorf("backup tui config: %w", err)
+	}
+
+	data, err := os.ReadFile(tuiPath)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse as generic map
 	var parsed map[string]interface{}
 	if err = yaml.Unmarshal(data, &parsed); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Migrate style -> layout
@@ -487,10 +543,18 @@ func fixTUIConfigStyleToLayout(tuiPath string) error {
 	// Write back
 	newData, err := yaml.Marshal(parsed)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return os.WriteFile(tuiPath, newData, 0600)
+	if err := os.WriteFile(tuiPath, newData, 0600); err != nil {
+		return nil, err
+	}
+
+	result := &FixResult{
+		Description: "Migrated 'style' field to 'layout'",
+		BackupPath:  backupPath,
+	}
+	return result, nil
 }
 
 // performConfigFileCheck verifies config.yaml exists and is valid YAML

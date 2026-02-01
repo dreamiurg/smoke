@@ -387,8 +387,15 @@ func TestFixConfigDir(t *testing.T) {
 	}
 
 	// Fix should create it
-	if err := fixConfigDir(); err != nil {
+	result, err := fixConfigDir()
+	if err != nil {
 		t.Fatalf("fixConfigDir() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("fixConfigDir() should return non-nil FixResult")
+	}
+	if result.Description == "" {
+		t.Error("fixConfigDir() FixResult should have a description")
 	}
 
 	// Verify it was created
@@ -416,8 +423,15 @@ func TestFixFeedFile(t *testing.T) {
 	}
 
 	// Fix should create it
-	if err := fixFeedFile(); err != nil {
+	result, err := fixFeedFile()
+	if err != nil {
 		t.Fatalf("fixFeedFile() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("fixFeedFile() should return non-nil FixResult")
+	}
+	if result.Description == "" {
+		t.Error("fixFeedFile() FixResult should have a description")
 	}
 
 	// Verify it was created
@@ -445,8 +459,15 @@ func TestFixConfigFile(t *testing.T) {
 	}
 
 	// Fix should create it
-	if err := fixConfigFile(); err != nil {
+	result, err := fixConfigFile()
+	if err != nil {
 		t.Fatalf("fixConfigFile() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("fixConfigFile() should return non-nil FixResult")
+	}
+	if result.Description == "" {
+		t.Error("fixConfigFile() FixResult should have a description")
 	}
 
 	// Verify it was created with valid content
@@ -489,7 +510,7 @@ func TestApplyFixes(t *testing.T) {
 			name: "one fix needed",
 			categories: []Category{
 				{Checks: []Check{
-					{Status: StatusFail, CanFix: true, Fix: func() error { return nil }},
+					{Status: StatusFail, CanFix: true, Fix: func() (*FixResult, error) { return &FixResult{Description: "test"}, nil }},
 				}},
 			},
 			dryRun:        false,
@@ -500,8 +521,8 @@ func TestApplyFixes(t *testing.T) {
 			name: "multiple fixes needed",
 			categories: []Category{
 				{Checks: []Check{
-					{Status: StatusFail, CanFix: true, Fix: func() error { return nil }},
-					{Status: StatusWarn, CanFix: true, Fix: func() error { return nil }},
+					{Status: StatusFail, CanFix: true, Fix: func() (*FixResult, error) { return &FixResult{Description: "test"}, nil }},
+					{Status: StatusWarn, CanFix: true, Fix: func() (*FixResult, error) { return &FixResult{Description: "test"}, nil }},
 				}},
 			},
 			dryRun:        false,
@@ -512,9 +533,9 @@ func TestApplyFixes(t *testing.T) {
 			name: "dry run mode",
 			categories: []Category{
 				{Checks: []Check{
-					{Status: StatusFail, CanFix: true, Fix: func() error {
+					{Status: StatusFail, CanFix: true, Fix: func() (*FixResult, error) {
 						t.Error("Fix should not be called in dry-run mode")
-						return nil
+						return nil, nil
 					}},
 				}},
 			},
@@ -526,7 +547,7 @@ func TestApplyFixes(t *testing.T) {
 			categories: []Category{
 				{Checks: []Check{
 					{Status: StatusFail, CanFix: false},
-					{Status: StatusFail, CanFix: true, Fix: func() error { return nil }},
+					{Status: StatusFail, CanFix: true, Fix: func() (*FixResult, error) { return &FixResult{Description: "test"}, nil }},
 				}},
 			},
 			dryRun:       false,
@@ -536,9 +557,9 @@ func TestApplyFixes(t *testing.T) {
 			name: "skip passing checks even if fixable",
 			categories: []Category{
 				{Checks: []Check{
-					{Status: StatusPass, CanFix: true, Fix: func() error {
+					{Status: StatusPass, CanFix: true, Fix: func() (*FixResult, error) {
 						t.Error("Fix should not be called for passing checks")
-						return nil
+						return nil, nil
 					}},
 				}},
 			},
@@ -577,8 +598,8 @@ func TestApplyFixes(t *testing.T) {
 func TestApplyFixes_ErrorHandling(t *testing.T) {
 	categories := []Category{
 		{Checks: []Check{
-			{Status: StatusFail, CanFix: true, Name: "Bad Check", Fix: func() error {
-				return os.ErrPermission
+			{Status: StatusFail, CanFix: true, Name: "Bad Check", Fix: func() (*FixResult, error) {
+				return nil, os.ErrPermission
 			}},
 		}},
 	}
@@ -765,7 +786,7 @@ func TestFixConfigDir_Error(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 
-	err := fixConfigDir()
+	_, err := fixConfigDir()
 	if err == nil {
 		t.Error("fixConfigDir() should return error when HOME is not set")
 	}
@@ -776,7 +797,7 @@ func TestFixFeedFile_Error(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 
-	err := fixFeedFile()
+	_, err := fixFeedFile()
 	if err == nil {
 		t.Error("fixFeedFile() should return error when HOME is not set")
 	}
@@ -787,7 +808,7 @@ func TestFixConfigFile_Error(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 
-	err := fixConfigFile()
+	_, err := fixConfigFile()
 	if err == nil {
 		t.Error("fixConfigFile() should return error when HOME is not set")
 	}
@@ -823,5 +844,258 @@ func TestCheckFeedFile_CustomPath(t *testing.T) {
 	}
 	if !strings.Contains(check.Message, customFeed) {
 		t.Errorf("performFeedFileCheck().Message should contain custom path %q, got %q", customFeed, check.Message)
+	}
+}
+
+func TestFixTUIConfigStyleToLayout_BackupCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	tuiPath := filepath.Join(tmpDir, "tui.yaml")
+
+	// Create a tui.yaml file with deprecated "style" field
+	originalContent := "style: compact\nother: value\n"
+	if err := os.WriteFile(tuiPath, []byte(originalContent), 0600); err != nil {
+		t.Fatalf("Failed to create tui.yaml: %v", err)
+	}
+
+	// Call fixTUIConfigStyleToLayout
+	result, err := fixTUIConfigStyleToLayout(tuiPath)
+	if err != nil {
+		t.Fatalf("fixTUIConfigStyleToLayout() returned error: %v", err)
+	}
+
+	// Verify backup was created
+	if result == nil {
+		t.Fatal("fixTUIConfigStyleToLayout() returned nil result")
+	}
+	if result.BackupPath == "" {
+		t.Error("fixTUIConfigStyleToLayout() BackupPath should not be empty")
+	}
+
+	// Verify backup file exists
+	if _, statErr := os.Stat(result.BackupPath); os.IsNotExist(statErr) {
+		t.Errorf("Backup file does not exist at %q", result.BackupPath)
+	}
+
+	// Verify backup contains original content
+	backupContent, readErr := os.ReadFile(result.BackupPath)
+	if readErr != nil {
+		t.Fatalf("Failed to read backup file: %v", readErr)
+	}
+	if string(backupContent) != originalContent {
+		t.Errorf("Backup content mismatch.\nWant: %q\nGot: %q", originalContent, string(backupContent))
+	}
+
+	// Verify backup filename includes ".bak." pattern
+	if !strings.Contains(result.BackupPath, ".bak.") {
+		t.Errorf("Backup path should contain '.bak.' pattern, got %q", result.BackupPath)
+	}
+
+	// Verify description is set
+	if result.Description == "" {
+		t.Error("fixTUIConfigStyleToLayout() Description should not be empty")
+	}
+}
+
+func TestFixTUIConfigStyleToLayout_MigrationContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	tuiPath := filepath.Join(tmpDir, "tui.yaml")
+
+	// Create a tui.yaml file with deprecated "style" field
+	originalContent := "style: compact\nother: value\n"
+	if err := os.WriteFile(tuiPath, []byte(originalContent), 0600); err != nil {
+		t.Fatalf("Failed to create tui.yaml: %v", err)
+	}
+
+	// Call fixTUIConfigStyleToLayout
+	result, err := fixTUIConfigStyleToLayout(tuiPath)
+	if err != nil {
+		t.Fatalf("fixTUIConfigStyleToLayout() returned error: %v", err)
+	}
+
+	// Verify the original file was migrated (style -> layout)
+	newContent, err := os.ReadFile(tuiPath)
+	if err != nil {
+		t.Fatalf("Failed to read migrated tui.yaml: %v", err)
+	}
+
+	// Parse to verify structure
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal(newContent, &parsed); err != nil {
+		t.Fatalf("Migrated content is not valid YAML: %v", err)
+	}
+
+	// Verify "style" field is gone and "layout" exists
+	if _, hasStyle := parsed["style"]; hasStyle {
+		t.Error("Migrated file should not contain 'style' field")
+	}
+	if layout, hasLayout := parsed["layout"]; !hasLayout {
+		t.Error("Migrated file should contain 'layout' field")
+	} else if layout != "compact" {
+		t.Errorf("'layout' field should have value 'compact', got %v", layout)
+	}
+
+	// Verify description mentions the migration
+	if !strings.Contains(result.Description, "style") || !strings.Contains(result.Description, "layout") {
+		t.Errorf("Description should mention style->layout migration, got %q", result.Description)
+	}
+}
+
+func TestApplyFixes_PrintsBackupPath(t *testing.T) {
+	backupPath := "/tmp/test.bak.2024-01-01T12-00-00"
+	categories := []Category{
+		{
+			Name: "Test",
+			Checks: []Check{
+				{
+					Name:    "Test Check",
+					Status:  StatusFail,
+					CanFix:  true,
+					Message: "Test message",
+					Fix: func() (*FixResult, error) {
+						return &FixResult{
+							BackupPath:  backupPath,
+							Description: "test fix",
+						}, nil
+					},
+				},
+			},
+		},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	tmpR, tmpW, _ := os.Pipe()
+	os.Stdout = tmpW
+
+	fixCount, err := applyFixes(categories, false)
+
+	tmpW.Close()
+	os.Stdout = oldStdout
+
+	// Read captured output
+	var buf bytes.Buffer
+	buf.ReadFrom(tmpR)
+	output := buf.String()
+
+	if err != nil {
+		t.Fatalf("applyFixes() returned error: %v", err)
+	}
+	if fixCount != 1 {
+		t.Errorf("applyFixes() fixCount = %d, want 1", fixCount)
+	}
+
+	// Verify backup path is printed
+	if !strings.Contains(output, "Backed up to:") {
+		t.Error("applyFixes() should print 'Backed up to:' when BackupPath is set")
+	}
+	if !strings.Contains(output, backupPath) {
+		t.Errorf("applyFixes() should print the backup path %q, got output: %s", backupPath, output)
+	}
+}
+
+func TestApplyFixes_PrintsDescriptionInParentheses(t *testing.T) {
+	description := "migrated style to layout"
+	categories := []Category{
+		{
+			Name: "Test",
+			Checks: []Check{
+				{
+					Name:    "Test Check",
+					Status:  StatusWarn,
+					CanFix:  true,
+					Message: "Test message",
+					Fix: func() (*FixResult, error) {
+						return &FixResult{
+							Description: description,
+						}, nil
+					},
+				},
+			},
+		},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	tmpR, tmpW, _ := os.Pipe()
+	os.Stdout = tmpW
+
+	fixCount, err := applyFixes(categories, false)
+
+	tmpW.Close()
+	os.Stdout = oldStdout
+
+	// Read captured output
+	var buf bytes.Buffer
+	buf.ReadFrom(tmpR)
+	output := buf.String()
+
+	if err != nil {
+		t.Fatalf("applyFixes() returned error: %v", err)
+	}
+	if fixCount != 1 {
+		t.Errorf("applyFixes() fixCount = %d, want 1", fixCount)
+	}
+
+	// Verify description is printed in the correct format
+	expectedFormat := "Fixed: Test Check (" + description + ")"
+	if !strings.Contains(output, expectedFormat) {
+		t.Errorf("applyFixes() should print format %q, got output: %s", expectedFormat, output)
+	}
+}
+
+func TestApplyFixes_PrintsBackupPathAndDescription(t *testing.T) {
+	backupPath := "/tmp/backup.bak.2024-01-01T12-00-00"
+	description := "test description"
+	categories := []Category{
+		{
+			Name: "Test",
+			Checks: []Check{
+				{
+					Name:    "Test Check",
+					Status:  StatusFail,
+					CanFix:  true,
+					Message: "Test message",
+					Fix: func() (*FixResult, error) {
+						return &FixResult{
+							BackupPath:  backupPath,
+							Description: description,
+						}, nil
+					},
+				},
+			},
+		},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	tmpR, tmpW, _ := os.Pipe()
+	os.Stdout = tmpW
+
+	fixCount, err := applyFixes(categories, false)
+
+	tmpW.Close()
+	os.Stdout = oldStdout
+
+	// Read captured output
+	var buf bytes.Buffer
+	buf.ReadFrom(tmpR)
+	output := buf.String()
+
+	if err != nil {
+		t.Fatalf("applyFixes() returned error: %v", err)
+	}
+	if fixCount != 1 {
+		t.Errorf("applyFixes() fixCount = %d, want 1", fixCount)
+	}
+
+	// Verify both backup path and description are printed
+	if !strings.Contains(output, "Backed up to:") {
+		t.Error("applyFixes() should print backup path")
+	}
+	if !strings.Contains(output, backupPath) {
+		t.Errorf("applyFixes() should contain backup path %q", backupPath)
+	}
+	if !strings.Contains(output, "Fixed: Test Check ("+description+")") {
+		t.Errorf("applyFixes() should print description in parentheses")
 	}
 }
