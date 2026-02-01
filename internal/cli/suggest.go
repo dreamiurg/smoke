@@ -49,8 +49,6 @@ func init() {
 }
 
 func runSuggest(_ *cobra.Command, _ []string) error {
-	// TODO(T025): Handle empty feed gracefully
-
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
 		return err
