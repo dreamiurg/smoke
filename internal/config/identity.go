@@ -142,9 +142,20 @@ func detectAgent() string {
 }
 
 // getSessionSeed returns a stable seed for the current session.
-// Tries TERM_SESSION_ID and WINDOWID first, then falls back to PPID.
+// When running under Claude Code, uses PPID for per-session identity.
+// Otherwise tries TERM_SESSION_ID and WINDOWID, then falls back to PPID.
 func getSessionSeed() string {
-	// Check most reliable session identifiers
+	// If running under Claude Code, use PPID for per-session identity.
+	// Each Claude Code session has a unique PID, so smoke gets a fresh
+	// identity per conversation even in the same terminal.
+	if os.Getenv("CLAUDECODE") == "1" {
+		ppid := os.Getppid()
+		if ppid > 0 {
+			return fmt.Sprintf("claude-ppid-%d", ppid)
+		}
+	}
+
+	// Check terminal session identifiers
 	if seed := os.Getenv("TERM_SESSION_ID"); seed != "" {
 		return seed
 	}
