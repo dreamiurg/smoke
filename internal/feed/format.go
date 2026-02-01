@@ -283,6 +283,51 @@ func wrapText(text string, maxWidth int) []string {
 	return lines
 }
 
+// wrapTextFirstLineShorter wraps text with a shorter first line width
+// Used for dense layout where first line has a prefix but continuations wrap to column 0
+func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) []string {
+	if len(text) <= firstLineWidth {
+		return []string{text}
+	}
+
+	var lines []string
+	remaining := text
+	currentWidth := firstLineWidth
+
+	for len(remaining) > currentWidth {
+		// Find last space within currentWidth
+		breakPoint := currentWidth
+		if breakPoint > len(remaining) {
+			breakPoint = len(remaining)
+		}
+		for breakPoint > 0 && remaining[breakPoint] != ' ' {
+			breakPoint--
+		}
+		if breakPoint == 0 {
+			// No space found, force break
+			breakPoint = currentWidth
+			if breakPoint > len(remaining) {
+				breakPoint = len(remaining)
+			}
+		}
+
+		lines = append(lines, remaining[:breakPoint])
+		remaining = remaining[breakPoint:]
+		// Skip leading space on next line
+		for len(remaining) > 0 && remaining[0] == ' ' {
+			remaining = remaining[1:]
+		}
+		// After first line, use subsequent width
+		currentWidth = subsequentWidth
+	}
+
+	if len(remaining) > 0 {
+		lines = append(lines, remaining)
+	}
+
+	return lines
+}
+
 // formatReply formats a reply with indent (parent already shown in thread)
 func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth int) {
 	// For replies, always show timestamp (they're responses, timing matters)

@@ -186,6 +186,16 @@ func NextTheme(current string) string {
 	return AllThemes[0].Name
 }
 
+// PrevTheme returns the name of the previous theme for reverse cycling.
+func PrevTheme(current string) string {
+	for i, t := range AllThemes {
+		if t.Name == current {
+			return AllThemes[(i-1+len(AllThemes))%len(AllThemes)].Name
+		}
+	}
+	return AllThemes[0].Name
+}
+
 // Foreground returns the Text color for backward compatibility
 func (t *Theme) Foreground() lipgloss.AdaptiveColor {
 	return t.Text

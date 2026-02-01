@@ -54,6 +54,16 @@ func NextLayout(current string) string {
 	return AllLayouts[0].Name
 }
 
+// PrevLayout returns the name of the previous layout for reverse cycling.
+func PrevLayout(current string) string {
+	for i, l := range AllLayouts {
+		if l.Name == current {
+			return AllLayouts[(i-1+len(AllLayouts))%len(AllLayouts)].Name
+		}
+	}
+	return AllLayouts[0].Name
+}
+
 // Backward compatibility aliases
 var AllStyles = AllLayouts
 

@@ -67,3 +67,13 @@ func NextContrastLevel(current string) string {
 	// If not found, return first contrast level
 	return AllContrastLevels[0].Name
 }
+
+// PrevContrastLevel returns the name of the previous contrast level for reverse cycling.
+func PrevContrastLevel(current string) string {
+	for i, cl := range AllContrastLevels {
+		if cl.Name == current {
+			return AllContrastLevels[(i-1+len(AllContrastLevels))%len(AllContrastLevels)].Name
+		}
+	}
+	return AllContrastLevels[0].Name
+}

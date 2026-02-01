@@ -482,7 +482,7 @@ func TestRenderStatusBar(t *testing.T) {
 	if result == "" {
 		t.Error("renderStatusBar() should return status bar")
 	}
-	if !strings.Contains(result, "(l) layout:") {
+	if !strings.Contains(result, "(l)ayout:") {
 		t.Error("renderStatusBar() should show layout keybinding")
 	}
 }
@@ -510,8 +510,8 @@ func TestRenderHeader(t *testing.T) {
 	if result == "" {
 		t.Error("renderHeader() should return header bar")
 	}
-	if !strings.Contains(result, "SMOKE") {
-		t.Error("renderHeader() should show SMOKE title")
+	if !strings.Contains(result, "smoke") {
+		t.Error("renderHeader() should show smoke title")
 	}
 }
 

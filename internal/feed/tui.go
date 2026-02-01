@@ -25,6 +25,7 @@ type Model struct {
 	layout      *LayoutStyle
 	showHelp    bool
 	autoRefresh bool
+	newestOnTop bool // Sort order: true=newest first, false=oldest first
 	width       int
 	height      int
 	store       *Store
@@ -52,6 +53,7 @@ func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *Layou
 		contrast:    contrast,
 		layout:      layout,
 		autoRefresh: cfg.AutoRefresh,
+		newestOnTop: cfg.NewestOnTop,
 		store:       store,
 		config:      cfg,
 		version:     version,
@@ -114,8 +116,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case "s":
+			// Toggle sort order
+			m.newestOnTop = !m.newestOnTop
+			m.config.NewestOnTop = m.newestOnTop
+			m.err = config.SaveTUIConfig(m.config)
+			return m, nil
+
 		case "l":
 			m.config.Layout = NextLayout(m.config.Layout)
+			m.layout = GetLayout(m.config.Layout)
+			m.err = config.SaveTUIConfig(m.config)
+			return m, nil
+
+		case "L":
+			m.config.Layout = PrevLayout(m.config.Layout)
 			m.layout = GetLayout(m.config.Layout)
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
@@ -126,8 +141,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
+		case "T":
+			m.config.Theme = PrevTheme(m.config.Theme)
+			m.theme = GetTheme(m.config.Theme)
+			m.err = config.SaveTUIConfig(m.config)
+			return m, nil
+
 		case "c":
 			m.config.Contrast = NextContrastLevel(m.config.Contrast)
+			m.contrast = GetContrastLevel(m.config.Contrast)
+			m.err = config.SaveTUIConfig(m.config)
+			return m, nil
+
+		case "C":
+			m.config.Contrast = PrevContrastLevel(m.config.Contrast)
 			m.contrast = GetContrastLevel(m.config.Contrast)
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
@@ -188,21 +215,21 @@ func (m Model) renderHeader() string {
 	// Calculate stats
 	stats := ComputeStats(m.posts)
 
-	// Format version
-	versionStr := "SMOKE"
+	// Format version badge
+	versionStr := "[smoke]"
 	if m.version != "" {
-		versionStr = fmt.Sprintf("SMOKE v%s", m.version)
+		versionStr = fmt.Sprintf("[smoke v%s]", m.version)
 	}
 
-	// Format stats
-	statsStr := fmt.Sprintf("Posts: %d • Agents: %d • Projects: %d",
+	// Format stats: N posts | M agents | P projects
+	statsStr := fmt.Sprintf("%d posts | %d agents | %d projects",
 		stats.PostCount, stats.AgentCount, stats.ProjectCount)
 
-	// Format clock in locale format
-	clockStr := time.Now().Local().Format("15:04")
+	// Format clock in brackets
+	clockStr := fmt.Sprintf("[%s]", time.Now().Local().Format("15:04"))
 
 	// Build header: version + stats on left, clock on right
-	leftContent := versionStr + "  " + statsStr
+	leftContent := versionStr + " " + statsStr
 	rightContent := clockStr
 
 	// Calculate spacing
@@ -230,18 +257,24 @@ func (m Model) renderStatusBar() string {
 		autoStr = "ON"
 	}
 
+	sortStr := "old→new"
+	if m.newestOnTop {
+		sortStr = "new→old"
+	}
+
 	layoutName := "comfy"
 	if m.layout != nil {
 		layoutName = m.layout.Name
 	}
 
 	parts := []string{
-		fmt.Sprintf("(a) auto: %s", autoStr),
-		fmt.Sprintf("(l) layout: %s", layoutName),
-		fmt.Sprintf("(t) theme: %s", m.theme.Name),
-		fmt.Sprintf("(c) contrast: %s", m.contrast.Name),
+		fmt.Sprintf("(a)uto: %s", autoStr),
+		fmt.Sprintf("(s)ort: %s", sortStr),
+		fmt.Sprintf("(l)ayout: %s", layoutName),
+		fmt.Sprintf("(t)heme: %s", m.theme.Name),
+		fmt.Sprintf("(c)ontrast: %s", m.contrast.Name),
 		"(?) help",
-		"(q) quit",
+		"(q)uit",
 	}
 
 	statusText := strings.Join(parts, "  ")
@@ -268,6 +301,16 @@ func (m Model) renderContent(availableHeight int) string {
 		content.WriteString("No posts yet. Exit TUI (q) and try: smoke post \"hello world\"\n")
 	} else {
 		threads := buildThreads(m.posts)
+
+		// Reverse thread order if newestOnTop is true
+		// Default (newestOnTop=false): oldest at top, newest at bottom
+		// newestOnTop=true: newest at top, oldest at bottom
+		if m.newestOnTop {
+			for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
+				threads[i], threads[j] = threads[j], threads[i]
+			}
+		}
+
 		lineCount := 0
 
 		for i, thread := range threads {
@@ -344,6 +387,7 @@ func (m Model) formatReply(reply *Post) []string {
 
 // formatPostDense: Most compact - single line with everything inline
 // Format: HH:MM author@project: message...
+// Continuation lines wrap to column 0 (no alignment padding)
 func (m Model) formatPostDense(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
@@ -354,13 +398,16 @@ func (m Model) formatPostDense(post *Post) []string {
 	identity := m.styleIdentity(post)
 	prefix := fmt.Sprintf("%s %s: ", timeStr, identity)
 	// Calculate raw prefix length (without ANSI codes)
-	prefixLen := len(formatTimestamp(post)) + 1 + len(post.Author) + 1 + len(post.Suffix) + 2
+	prefixLen := len(formatTimestamp(post)) + 1 + len(post.Author) + 2 // "HH:MM author: "
 
-	contentWidth := termWidth - prefixLen
-	if contentWidth < MinContentWidth {
-		contentWidth = MinContentWidth
+	// First line has less space due to prefix
+	firstLineWidth := termWidth - prefixLen
+	if firstLineWidth < MinContentWidth {
+		firstLineWidth = MinContentWidth
 	}
-	contentLines := wrapText(post.Content, contentWidth)
+
+	// Continuation lines use full width (wrap to column 0)
+	contentLines := wrapTextFirstLineShorter(post.Content, firstLineWidth, termWidth)
 
 	lines := make([]string, 0, len(contentLines))
 	for i, line := range contentLines {
@@ -368,7 +415,8 @@ func (m Model) formatPostDense(post *Post) []string {
 		if i == 0 {
 			lines = append(lines, prefix+highlighted)
 		} else {
-			lines = append(lines, strings.Repeat(" ", prefixLen)+highlighted)
+			// No padding - wrap to column 0
+			lines = append(lines, highlighted)
 		}
 	}
 
@@ -449,7 +497,9 @@ func (m Model) styleAuthor(author string) string {
 
 // styleIdentity formats and styles author@project
 func (m Model) styleIdentity(post *Post) string {
-	return ColorizeFullIdentity(post.Author, post.Suffix, m.theme, m.contrast)
+	// post.Author already contains @project (e.g., "claude-rich-crane@smoke")
+	// Use ColorizeIdentity which splits it properly, not ColorizeFullIdentity
+	return ColorizeIdentity(post.Author, m.theme, m.contrast)
 }
 
 // renderHelpOverlay creates a centered help overlay
@@ -457,6 +507,11 @@ func (m Model) renderHelpOverlay() string {
 	autoStr := "OFF"
 	if m.autoRefresh {
 		autoStr = "ON"
+	}
+
+	sortStr := "old→new"
+	if m.newestOnTop {
+		sortStr = "new→old"
 	}
 
 	layoutName := "Comfy"
@@ -468,15 +523,17 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("\n")
 	helpContent.WriteString("          Smoke Feed\n")
 	helpContent.WriteString("\n")
-	helpContent.WriteString("   q    Quit\n")
-	helpContent.WriteString("   a    Toggle auto-refresh\n")
-	helpContent.WriteString("   l    Cycle layout\n")
-	helpContent.WriteString("   t    Cycle theme\n")
-	helpContent.WriteString("   c    Cycle contrast\n")
-	helpContent.WriteString("   r    Refresh now\n")
-	helpContent.WriteString("   ?    Close this help\n")
+	helpContent.WriteString("   q      Quit\n")
+	helpContent.WriteString("   a      Toggle auto-refresh\n")
+	helpContent.WriteString("   s      Toggle sort order\n")
+	helpContent.WriteString("   l/L    Cycle layout (fwd/back)\n")
+	helpContent.WriteString("   t/T    Cycle theme (fwd/back)\n")
+	helpContent.WriteString("   c/C    Cycle contrast (fwd/back)\n")
+	helpContent.WriteString("   r      Refresh now\n")
+	helpContent.WriteString("   ?      Close this help\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString(fmt.Sprintf("   Auto: %s\n", autoStr))
+	helpContent.WriteString(fmt.Sprintf("   Sort: %s\n", sortStr))
 	helpContent.WriteString(fmt.Sprintf("   Layout: %s\n", layoutName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
 	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
