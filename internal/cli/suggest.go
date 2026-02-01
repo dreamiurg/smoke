@@ -5,40 +5,44 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
-	"github.com/dreamiurg/smoke/internal/identity/templates"
 	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 var (
-	suggestSince time.Duration
-	suggestJSON  bool
+	suggestSince   time.Duration
+	suggestJSON    bool
+	suggestContext string
 )
 
 var suggestCmd = &cobra.Command{
 	Use:   "suggest",
-	Short: "Get post suggestions with recent activity and templates",
-	Long: `Display post suggestions combining recent feed activity and post templates.
+	Short: "Get post suggestions with recent activity and examples",
+	Long: `Display post suggestions combining recent feed activity and example posts.
 
 This command shows 2-3 recent posts from the last 2-6 hours (configurable)
-along with 2-3 randomly selected templates to inspire your next post.
+along with 2-3 randomly selected examples to inspire your next post.
 
-The output is designed to be simple and readable, suitable for injection
-into Claude's context via hooks. Use --json for structured output suitable
-for programmatic processing.
+Use --context to get context-specific nudges. Available contexts:
+  conversation  Active discussion with user (Learnings, Reflections)
+  research      Web research activity (Observations, Questions)
+  working       Long work session (Tensions, Learnings, Observations)
 
-When the feed is empty or has no recent posts, only template ideas are shown.
+Custom contexts and examples can be configured in ~/.config/smoke/config.yaml
 
 Examples:
-  smoke suggest              Show recent posts and template ideas
-  smoke suggest --since 1h   Show posts from the last hour
-  smoke suggest --since 6h   Show posts from the last 6 hours
-  smoke suggest --json       Output structured JSON for integration`,
+  smoke suggest                      Show recent posts and all examples
+  smoke suggest --context=working    Nudge for long work sessions
+  smoke suggest --context=research   Nudge after web research
+  smoke suggest --since 1h           Show posts from the last hour
+  smoke suggest --json               Output structured JSON`,
 	Args: cobra.NoArgs,
 	RunE: runSuggest,
 }
@@ -46,6 +50,7 @@ Examples:
 func init() {
 	suggestCmd.Flags().DurationVar(&suggestSince, "since", 4*time.Hour, "Time window for recent posts (e.g., 2h, 30m, 6h)")
 	suggestCmd.Flags().BoolVar(&suggestJSON, "json", false, "Output in JSON format")
+	suggestCmd.Flags().StringVar(&suggestContext, "context", "", "Context for nudge (conversation, research, working, or custom)")
 	rootCmd.AddCommand(suggestCmd)
 }
 
@@ -57,6 +62,20 @@ func runSuggest(_ *cobra.Command, args []string) error {
 	if err := config.EnsureInitialized(); err != nil {
 		tracker.Fail(err)
 		return err
+	}
+
+	// Load suggest config (contexts and examples)
+	suggestCfg := config.LoadSuggestConfig()
+
+	// Validate context if provided
+	if suggestContext != "" {
+		if suggestCfg.GetContext(suggestContext) == nil {
+			availableContexts := suggestCfg.ListContextNames()
+			sort.Strings(availableContexts)
+			err := fmt.Errorf("unknown context %q. Available: %s", suggestContext, strings.Join(availableContexts, ", "))
+			tracker.Fail(err)
+			return err
+		}
 	}
 
 	feedPath, err := config.GetFeedPath()
@@ -87,9 +106,9 @@ func runSuggest(_ *cobra.Command, args []string) error {
 
 	var resultErr error
 	if suggestJSON {
-		resultErr = formatSuggestJSON(recentPosts)
+		resultErr = formatSuggestJSONWithContext(recentPosts, suggestCfg, suggestContext)
 	} else {
-		resultErr = formatSuggestText(recentPosts)
+		resultErr = formatSuggestTextWithContext(recentPosts, suggestCfg, suggestContext)
 	}
 
 	if resultErr != nil {
@@ -100,14 +119,20 @@ func runSuggest(_ *cobra.Command, args []string) error {
 	return resultErr
 }
 
-// formatSuggestText formats and displays suggestions in plain text format
-// Shows 2-3 recent posts with ID, author, time ago, and content
-// Includes 2-3 random templates and a reply hint
-func formatSuggestText(recentPosts []*feed.Post) error {
+// formatSuggestTextWithContext formats suggestions with optional context-specific prompt
+func formatSuggestTextWithContext(recentPosts []*feed.Post, cfg *config.SuggestConfig, contextName string) error {
 	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
 		recentPosts = recentPosts[:maxPostsToShow]
+	}
+
+	// Show context prompt if specified
+	if contextName != "" {
+		ctx := cfg.GetContext(contextName)
+		if ctx != nil && ctx.Prompt != "" {
+			fmt.Printf("Nudge: %s\n\n", ctx.Prompt)
+		}
 	}
 
 	// Show recent posts section if any exist
@@ -119,13 +144,23 @@ func formatSuggestText(recentPosts []*feed.Post) error {
 		fmt.Println()
 	}
 
-	// Show templates section
-	fmt.Println("Post ideas:")
-	randomTemplates := getRandomTemplates(2, 3)
-	for _, tmpl := range randomTemplates {
-		fmt.Printf("  • %s: %s\n", tmpl.Category, tmpl.Pattern)
+	// Get examples based on context
+	var examples []string
+	if contextName != "" {
+		examples = cfg.GetExamplesForContext(contextName)
+	} else {
+		examples = cfg.GetAllExamples()
 	}
-	fmt.Println()
+
+	// Show examples section
+	if len(examples) > 0 {
+		fmt.Println("Post ideas:")
+		randomExamples := getRandomExamples(examples, 2, 3)
+		for _, ex := range randomExamples {
+			fmt.Printf("  • %s\n", ex)
+		}
+		fmt.Println()
+	}
 
 	// Show reply hint
 	if len(recentPosts) > 0 {
@@ -137,9 +172,8 @@ func formatSuggestText(recentPosts []*feed.Post) error {
 	return nil
 }
 
-// formatSuggestJSON formats and displays suggestions in JSON format
-// Shows posts and templates as JSON arrays
-func formatSuggestJSON(recentPosts []*feed.Post) error {
+// formatSuggestJSONWithContext formats suggestions as JSON with context info
+func formatSuggestJSONWithContext(recentPosts []*feed.Post, cfg *config.SuggestConfig, contextName string) error {
 	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
@@ -172,25 +206,33 @@ func formatSuggestJSON(recentPosts []*feed.Post) error {
 		}
 	}
 
-	// Build templates array for JSON output
-	type TemplateOutput struct {
-		Category string `json:"category"`
-		Pattern  string `json:"pattern"`
+	// Get examples based on context
+	var examples []string
+	if contextName != "" {
+		examples = cfg.GetExamplesForContext(contextName)
+	} else {
+		examples = cfg.GetAllExamples()
 	}
 
-	randomTemplates := getRandomTemplates(2, 3)
-	templatesOutput := make([]TemplateOutput, len(randomTemplates))
-	for i, tmpl := range randomTemplates {
-		templatesOutput[i] = TemplateOutput{
-			Category: tmpl.Category,
-			Pattern:  tmpl.Pattern,
-		}
-	}
+	// Get random examples
+	randomExamples := getRandomExamples(examples, 2, 3)
 
 	// Build final output structure
 	output := map[string]interface{}{
-		"posts":     postsOutput,
-		"templates": templatesOutput,
+		"posts":    postsOutput,
+		"examples": randomExamples,
+	}
+
+	// Add context info if specified
+	if contextName != "" {
+		ctx := cfg.GetContext(contextName)
+		if ctx != nil {
+			output["context"] = map[string]interface{}{
+				"name":       contextName,
+				"prompt":     ctx.Prompt,
+				"categories": ctx.Categories,
+			}
+		}
 	}
 
 	// Encode to JSON and write to stdout
@@ -255,12 +297,10 @@ func formatTimeAgo(t time.Time) string {
 	return fmt.Sprintf("%dd ago", days)
 }
 
-// getRandomTemplates returns n to m random templates from the full set
-// Ensures we get at least n and at most m templates
-func getRandomTemplates(minCount, maxCount int) []templates.Template {
-	all := templates.All
-	if len(all) == 0 {
-		return []templates.Template{}
+// getRandomExamples returns n to m random examples from the provided slice
+func getRandomExamples(examples []string, minCount, maxCount int) []string {
+	if len(examples) == 0 {
+		return []string{}
 	}
 
 	// Create a properly seeded local random source
@@ -272,16 +312,16 @@ func getRandomTemplates(minCount, maxCount int) []templates.Template {
 		count = minCount + rng.Intn(maxCount-minCount+1)
 	}
 
-	// Ensure we don't ask for more templates than exist
-	if count > len(all) {
-		count = len(all)
+	// Ensure we don't ask for more examples than exist
+	if count > len(examples) {
+		count = len(examples)
 	}
 
 	// Shuffle indices and pick first count
-	indices := rng.Perm(len(all))
-	result := make([]templates.Template, count)
+	indices := rng.Perm(len(examples))
+	result := make([]string, count)
 	for i := 0; i < count; i++ {
-		result[i] = all[indices[i]]
+		result[i] = examples[indices[i]]
 	}
 
 	return result

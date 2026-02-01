@@ -72,23 +72,14 @@ func TestSuggestShowsTemplates(t *testing.T) {
 		t.Fatalf("smoke suggest failed: %v", err)
 	}
 
-	// Even with empty feed, suggest should show template ideas
-	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Post ideas") &&
-		!strings.Contains(stdout, "template") && !strings.Contains(stdout, "Template") {
-		t.Errorf("suggest output missing template suggestions: %s", stdout)
+	// Even with empty feed, suggest should show example ideas
+	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Post ideas") {
+		t.Errorf("suggest output missing example suggestions: %s", stdout)
 	}
 
-	// Verify it contains one of the known template categories
-	categories := []string{"Observations", "Questions", "Tensions", "Learnings", "Reflections"}
-	foundCategory := false
-	for _, category := range categories {
-		if strings.Contains(stdout, category) {
-			foundCategory = true
-			break
-		}
-	}
-	if !foundCategory {
-		t.Errorf("suggest output missing template categories: %s", stdout)
+	// Verify it contains example patterns (bullet points with sample post text)
+	if !strings.Contains(stdout, "•") {
+		t.Errorf("suggest output missing example bullet points: %s", stdout)
 	}
 }
 
@@ -204,13 +195,13 @@ func TestSuggestJSONFlag(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v, output: %s", err, stdout)
 	}
 
-	// Verify structure has posts and templates arrays
+	// Verify structure has posts and examples arrays
 	if _, hasPosts := output["posts"]; !hasPosts {
 		t.Errorf("JSON output missing 'posts' key: %s", stdout)
 	}
 
-	if _, hasTemplates := output["templates"]; !hasTemplates {
-		t.Errorf("JSON output missing 'templates' key: %s", stdout)
+	if _, hasExamples := output["examples"]; !hasExamples {
+		t.Errorf("JSON output missing 'examples' key: %s", stdout)
 	}
 
 	// Verify posts array contains expected fields
@@ -251,13 +242,13 @@ func TestSuggestJSONEmptyFeed(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v, output: %s", err, stdout)
 	}
 
-	// Verify structure has posts and templates arrays
+	// Verify structure has posts and examples arrays
 	if _, hasPosts := output["posts"]; !hasPosts {
 		t.Errorf("JSON output missing 'posts' key: %s", stdout)
 	}
 
-	if _, hasTemplates := output["templates"]; !hasTemplates {
-		t.Errorf("JSON output missing 'templates' key: %s", stdout)
+	if _, hasExamples := output["examples"]; !hasExamples {
+		t.Errorf("JSON output missing 'examples' key: %s", stdout)
 	}
 
 	// Posts array should be empty (no posts within last 1 second)
@@ -267,10 +258,10 @@ func TestSuggestJSONEmptyFeed(t *testing.T) {
 		}
 	}
 
-	// Templates array should have 2-3 templates
-	if templates, ok := output["templates"].([]interface{}); ok {
-		if len(templates) < 2 || len(templates) > 3 {
-			t.Errorf("templates array should have 2-3 templates, got %d: %v", len(templates), templates)
+	// Examples array should have 2-3 examples
+	if examples, ok := output["examples"].([]interface{}); ok {
+		if len(examples) < 2 || len(examples) > 3 {
+			t.Errorf("examples array should have 2-3 examples, got %d: %v", len(examples), examples)
 		}
 	}
 }
@@ -521,24 +512,20 @@ func TestSuggestJSONWithMultiplePosts(t *testing.T) {
 		t.Errorf("posts is not an array: %v", output["posts"])
 	}
 
-	// Verify templates array has 2-3 items
-	if templates, ok := output["templates"].([]interface{}); ok {
-		if len(templates) < 2 || len(templates) > 3 {
-			t.Errorf("templates array should have 2-3 items, got %d: %v", len(templates), templates)
+	// Verify examples array has 2-3 items
+	if examples, ok := output["examples"].([]interface{}); ok {
+		if len(examples) < 2 || len(examples) > 3 {
+			t.Errorf("examples array should have 2-3 items, got %d: %v", len(examples), examples)
 		}
 
-		// Verify each template has required fields
-		for i, tmp := range templates {
-			tmpl := tmp.(map[string]interface{})
-			requiredFields := []string{"category", "pattern"}
-			for _, field := range requiredFields {
-				if _, hasField := tmpl[field]; !hasField {
-					t.Errorf("template[%d] missing required field '%s': %v", i, field, tmpl)
-				}
+		// Examples are now strings, not objects with category/pattern
+		for i, ex := range examples {
+			if _, ok := ex.(string); !ok {
+				t.Errorf("example[%d] should be a string: %v", i, ex)
 			}
 		}
 	} else {
-		t.Errorf("templates is not an array: %v", output["templates"])
+		t.Errorf("examples is not an array: %v", output["examples"])
 	}
 }
 
@@ -605,11 +592,10 @@ func TestSuggestTemplateVariety(t *testing.T) {
 		outputs = append(outputs, stdout)
 	}
 
-	// All runs should have templates
+	// All runs should have examples
 	for i, out := range outputs {
-		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "template") &&
-			!strings.Contains(out, "Observations") && !strings.Contains(out, "Questions") {
-			t.Errorf("suggest run %d missing template content: %s", i+1, out)
+		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "•") {
+			t.Errorf("suggest run %d missing example content: %s", i+1, out)
 		}
 	}
 }
