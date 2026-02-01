@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dreamiurg/smoke/internal/config"
 )
 
 func setupTestStore(t *testing.T) (*Store, string) {
@@ -328,7 +329,8 @@ func TestCountWithPosts(t *testing.T) {
 
 	// Add some posts with valid IDs
 	for i := 0; i < 5; i++ {
-		post, err := NewPost("test-author", "smoke", "test", fmt.Sprintf("post %d", i))
+		var post *Post
+		post, err = NewPost("test-author", "smoke", "test", fmt.Sprintf("post %d", i))
 		require.NoError(t, err)
 		err = store.Append(post)
 		require.NoError(t, err)

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dreamiurg/smoke/internal/feed"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dreamiurg/smoke/internal/feed"
 )
 
 func setupSmokeEnvWithPost(t *testing.T) (postID string, cleanup func()) {

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/log"
+
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
