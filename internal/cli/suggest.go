@@ -49,7 +49,6 @@ func init() {
 }
 
 func runSuggest(_ *cobra.Command, _ []string) error {
-	// TODO(T023): Add reply hint in output
 	// TODO(T025): Handle empty feed gracefully
 
 	// Check if smoke is initialized
