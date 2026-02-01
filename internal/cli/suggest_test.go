@@ -1,0 +1,166 @@
+package cli
+
+import (
+	"bytes"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/dreamiurg/smoke/internal/feed"
+)
+
+func TestFormatTimeAgo(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		time     time.Time
+		expected string
+	}{
+		{"just now", now.Add(-30 * time.Second), "just now"},
+		{"1 minute", now.Add(-1 * time.Minute), "1m ago"},
+		{"5 minutes", now.Add(-5 * time.Minute), "5m ago"},
+		{"59 minutes", now.Add(-59 * time.Minute), "59m ago"},
+		{"1 hour", now.Add(-1 * time.Hour), "1h ago"},
+		{"5 hours", now.Add(-5 * time.Hour), "5h ago"},
+		{"23 hours", now.Add(-23 * time.Hour), "23h ago"},
+		{"1 day", now.Add(-24 * time.Hour), "1d ago"},
+		{"3 days", now.Add(-72 * time.Hour), "3d ago"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatTimeAgo(tt.time)
+			if result != tt.expected {
+				t.Errorf("formatTimeAgo(%v) = %q, want %q", tt.time, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetRandomExamples(t *testing.T) {
+	t.Run("empty input returns empty slice", func(t *testing.T) {
+		result := getRandomExamples([]string{}, 2, 3)
+		if len(result) != 0 {
+			t.Errorf("expected empty slice, got %v", result)
+		}
+	})
+
+	t.Run("respects max count when examples are plentiful", func(t *testing.T) {
+		examples := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+		result := getRandomExamples(examples, 2, 3)
+		if len(result) < 2 || len(result) > 3 {
+			t.Errorf("expected 2-3 examples, got %d", len(result))
+		}
+	})
+
+	t.Run("returns all when fewer than minCount", func(t *testing.T) {
+		examples := []string{"only one"}
+		result := getRandomExamples(examples, 2, 3)
+		if len(result) != 1 {
+			t.Errorf("expected 1 example, got %d", len(result))
+		}
+		if result[0] != "only one" {
+			t.Errorf("expected 'only one', got %q", result[0])
+		}
+	})
+
+	t.Run("returns unique examples", func(t *testing.T) {
+		examples := []string{"a", "b", "c", "d", "e"}
+		for i := 0; i < 10; i++ { // Run multiple times to check for uniqueness
+			result := getRandomExamples(examples, 3, 3)
+			seen := make(map[string]bool)
+			for _, ex := range result {
+				if seen[ex] {
+					t.Errorf("duplicate example found: %q", ex)
+				}
+				seen[ex] = true
+			}
+		}
+	})
+}
+
+func TestFormatSuggestPost(t *testing.T) {
+	// Create a temp file to capture output
+	tmpFile, err := os.CreateTemp("", "suggest_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Create a test post
+	post := &feed.Post{
+		ID:        "smk-abc123",
+		Author:    "test@project",
+		Content:   "Test content for formatting",
+		CreatedAt: time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
+	}
+
+	// Format the post
+	formatSuggestPost(tmpFile, post)
+
+	// Read and verify output
+	tmpFile.Seek(0, 0)
+	var buf bytes.Buffer
+	buf.ReadFrom(tmpFile)
+	output := buf.String()
+
+	// Check that output contains expected elements
+	if !contains(output, "smk-abc123") {
+		t.Error("output missing post ID")
+	}
+	if !contains(output, "test@project") {
+		t.Error("output missing author")
+	}
+	if !contains(output, "Test content") {
+		t.Error("output missing content")
+	}
+	if !contains(output, "5m ago") {
+		t.Error("output missing time ago")
+	}
+}
+
+func TestFormatSuggestPostTruncatesLongContent(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "suggest_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Create a post with long content (>60 chars)
+	longContent := "This is a very long content string that should be truncated because it exceeds the preview width limit"
+	post := &feed.Post{
+		ID:        "smk-xyz789",
+		Author:    "test@project",
+		Content:   longContent,
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+
+	formatSuggestPost(tmpFile, post)
+
+	tmpFile.Seek(0, 0)
+	var buf bytes.Buffer
+	buf.ReadFrom(tmpFile)
+	output := buf.String()
+
+	// Should contain "..." indicating truncation
+	if !contains(output, "...") {
+		t.Error("long content should be truncated with '...'")
+	}
+	// Should not contain the full content
+	if contains(output, "preview width limit") {
+		t.Error("content should have been truncated")
+	}
+}
+
+// contains checks if substr is in s
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

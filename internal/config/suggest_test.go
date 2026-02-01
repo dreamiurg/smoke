@@ -113,6 +113,58 @@ func TestListContextNames(t *testing.T) {
 	}
 }
 
+func TestDefaultSuggestConfigYAML(t *testing.T) {
+	yaml := DefaultSuggestConfigYAML()
+
+	// Should not be empty
+	if yaml == "" {
+		t.Fatal("DefaultSuggestConfigYAML returned empty string")
+	}
+
+	// Should contain all three default contexts
+	contexts := []string{"conversation:", "research:", "working:"}
+	for _, ctx := range contexts {
+		if !contains(yaml, ctx) {
+			t.Errorf("YAML should contain context %q", ctx)
+		}
+	}
+
+	// Should contain all five categories
+	categories := []string{"Observations:", "Questions:", "Tensions:", "Learnings:", "Reflections:"}
+	for _, cat := range categories {
+		if !contains(yaml, cat) {
+			t.Errorf("YAML should contain category %q", cat)
+		}
+	}
+
+	// Should contain key structural elements
+	if !contains(yaml, "contexts:") {
+		t.Error("YAML should contain 'contexts:' section")
+	}
+	if !contains(yaml, "examples:") {
+		t.Error("YAML should contain 'examples:' section")
+	}
+	if !contains(yaml, "prompt:") {
+		t.Error("YAML should contain 'prompt:' fields")
+	}
+	if !contains(yaml, "categories:") {
+		t.Error("YAML should contain 'categories:' fields")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 func TestLoadSuggestConfigFromFile(t *testing.T) {
 	// Create a temp config file
 	tmpDir := t.TempDir()
