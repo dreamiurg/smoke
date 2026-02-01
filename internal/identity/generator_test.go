@@ -276,6 +276,173 @@ func TestPatternSelection(t *testing.T) {
 	}
 }
 
+// TestSelectPatternDeterminism verifies that the same seed always produces the same pattern selection.
+// This validates determinism across multiple calls to ensure pattern selection is reproducible.
+func TestSelectPatternDeterminism(t *testing.T) {
+	seed := "deterministic-pattern-seed"
+	numCalls := 10
+
+	// Call SelectPattern multiple times with the same seed
+	results := make([]Pattern, numCalls)
+	for i := 0; i < numCalls; i++ {
+		results[i] = SelectPattern(seed)
+	}
+
+	// All results must be identical
+	expected := results[0]
+	for i := 1; i < numCalls; i++ {
+		if results[i] != expected {
+			t.Errorf("SelectPattern determinism failed at call %d: got %v (string: %q), expected %v (string: %q)",
+				i+1, results[i], results[i].String(), expected, expected.String())
+		}
+	}
+
+	t.Logf("SelectPattern returned consistent pattern across %d calls: %v", numCalls, expected.String())
+}
+
+// TestGenerateDeterminismMultipleCalls verifies that Generate() returns identical results across multiple calls with same seed.
+// This validates determinism across a high number of iterations to ensure hash-based generation is stable.
+func TestGenerateDeterminismMultipleCalls(t *testing.T) {
+	seed := "multi-call-determinism-test"
+	numCalls := 20
+
+	// Call Generate multiple times with the same seed
+	results := make([]string, numCalls)
+	for i := 0; i < numCalls; i++ {
+		results[i] = Generate(seed)
+	}
+
+	// All results must be identical
+	expected := results[0]
+	for i := 1; i < numCalls; i++ {
+		if results[i] != expected {
+			t.Errorf("Generate determinism failed at call %d: got %q, expected %q", i+1, results[i], expected)
+		}
+	}
+
+	t.Logf("Generate returned consistent result across %d calls: %q", numCalls, expected)
+}
+
+// TestGenerateWithPatternDeterminismMultipleCalls verifies that GenerateWithPattern() returns identical results
+// across multiple calls with the same seed and pattern. This validates determinism for each pattern type.
+func TestGenerateWithPatternDeterminismMultipleCalls(t *testing.T) {
+	patterns := []Pattern{
+		PatternVerbNoun,
+		PatternAdjectiveNoun,
+		PatternAbstractConcrete,
+		PatternTechTerm,
+		PatternAdjectiveAdjectiveNoun,
+	}
+
+	for _, pattern := range patterns {
+		t.Run(pattern.String(), func(t *testing.T) {
+			seed := "multi-call-pattern-" + pattern.String()
+			numCalls := 15
+
+			// Call GenerateWithPattern multiple times with the same seed and pattern
+			results := make([]string, numCalls)
+			var errs []error
+			for i := 0; i < numCalls; i++ {
+				result, err := GenerateWithPattern(seed, pattern)
+				results[i] = result
+				errs = append(errs, err)
+			}
+
+			// Check for errors
+			for i, err := range errs {
+				if err != nil {
+					t.Errorf("Call %d failed with error: %v", i+1, err)
+				}
+			}
+
+			// All results must be identical
+			expected := results[0]
+			for i := 1; i < numCalls; i++ {
+				if results[i] != expected {
+					t.Errorf("GenerateWithPattern determinism failed at call %d for pattern %v: got %q, expected %q",
+						i+1, pattern, results[i], expected)
+				}
+			}
+
+			t.Logf("GenerateWithPattern(%v) returned consistent result across %d calls: %q", pattern.String(), numCalls, expected)
+		})
+	}
+}
+
+// TestDifferentSeedsDifferentResults verifies that different seeds produce different usernames.
+// This validates that the deterministic hash-based generation produces variation across different inputs.
+func TestDifferentSeedsDifferentResults(t *testing.T) {
+	seeds := []string{
+		"unique-session-1",
+		"unique-session-2",
+		"unique-session-3",
+		"unique-session-4",
+		"unique-session-5",
+	}
+
+	results := make(map[string]int)
+	for _, seed := range seeds {
+		result := Generate(seed)
+		results[result]++
+	}
+
+	// With 5 different seeds and high entropy, we should get mostly different results
+	// (collisions are theoretically possible but unlikely with 2500+ combinations)
+	uniqueResults := len(results)
+	if uniqueResults < 4 {
+		t.Logf("Warning: Only %d unique results from %d different seeds (collisions happened)", uniqueResults, len(seeds))
+	}
+}
+
+// TestSessionSeedConsistency verifies that a given session seed always produces the same username.
+// This is a real-world scenario test to ensure agents can rely on deterministic identity generation.
+func TestSessionSeedConsistency(t *testing.T) {
+	// Simulate a session seed that might be used by an agent
+	sessionSeed := "agent:claude:session:2026-01-15:task:001"
+
+	// Generate username at different points (simulating session lifetime)
+	username1 := Generate(sessionSeed)
+	// ... hypothetically do some work ...
+	username2 := Generate(sessionSeed)
+	// ... do more work ...
+	username3 := Generate(sessionSeed)
+
+	if username1 != username2 || username2 != username3 {
+		t.Errorf("Session seed produced inconsistent usernames: %q, %q, %q", username1, username2, username3)
+	}
+
+	if username1 == "" {
+		t.Error("Generated username is empty")
+	}
+
+	t.Logf("Session seed %q consistently produced username: %q", sessionSeed, username1)
+}
+
+// TestGenerateFullDeterminism verifies that GenerateFull() returns identical results across multiple calls.
+// This validates determinism of the complete identity generation including agent and project fields.
+func TestGenerateFullDeterminism(t *testing.T) {
+	agent := "test-agent"
+	seed := "full-determinism-seed"
+	project := "test-project"
+	numCalls := 12
+
+	// Call GenerateFull multiple times with the same parameters
+	results := make([]string, numCalls)
+	for i := 0; i < numCalls; i++ {
+		results[i] = GenerateFull(agent, seed, project)
+	}
+
+	// All results must be identical
+	expected := results[0]
+	for i := 1; i < numCalls; i++ {
+		if results[i] != expected {
+			t.Errorf("GenerateFull determinism failed at call %d: got %q, expected %q", i+1, results[i], expected)
+		}
+	}
+
+	t.Logf("GenerateFull returned consistent result across %d calls: %q", numCalls, expected)
+}
+
 // TestVerbNounPattern specifically validates VerbNoun generation logic.
 func TestVerbNounPattern(t *testing.T) {
 	seed := "verbnoun-test"

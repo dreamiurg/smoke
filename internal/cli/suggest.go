@@ -2,12 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/identity/templates"
 )
 
 var (
@@ -45,7 +48,6 @@ func init() {
 }
 
 func runSuggest(_ *cobra.Command, _ []string) error {
-	// TODO(T021): Implement text formatting for suggestions
 	// TODO(T022): Implement JSON formatting for suggestions
 	// TODO(T023): Add reply hint in output
 	// TODO(T025): Handle empty feed gracefully
@@ -73,12 +75,142 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// TODO(T021-T025): Format and output suggestions
-	// For now, just show a placeholder message with debug info
-	fmt.Printf("Suggest command skeleton ready\n")
-	fmt.Printf("Time window: %v\n", suggestSince)
-	fmt.Printf("Recent posts found: %d\n", len(recentPosts))
-	fmt.Printf("JSON output: %v\n", suggestJSON)
+	if suggestJSON {
+		// TODO(T022): Implement JSON formatting for suggestions
+		return formatSuggestJSON(recentPosts)
+	}
+
+	return formatSuggestText(recentPosts)
+}
+
+// formatSuggestText formats and displays suggestions in plain text format
+// Shows 2-3 recent posts with ID, author, time ago, and content
+// Includes 2-3 random templates and a reply hint
+func formatSuggestText(recentPosts []*feed.Post) error {
+	// Limit to 2-3 most recent posts
+	maxPostsToShow := 3
+	if len(recentPosts) > maxPostsToShow {
+		recentPosts = recentPosts[:maxPostsToShow]
+	}
+
+	// Show recent posts section if any exist
+	if len(recentPosts) > 0 {
+		fmt.Println("Recent activity:")
+		for _, post := range recentPosts {
+			formatSuggestPost(os.Stdout, post)
+		}
+		fmt.Println()
+	}
+
+	// Show templates section
+	fmt.Println("Post ideas:")
+	randomTemplates := getRandomTemplates(2, 3)
+	for _, tmpl := range randomTemplates {
+		fmt.Printf("  • %s: %s\n", tmpl.Category, tmpl.Pattern)
+	}
+	fmt.Println()
+
+	// Show reply hint
+	if len(recentPosts) > 0 {
+		fmt.Println("Reply to a post:")
+		fmt.Println("  smoke reply <id> 'your message'")
+		fmt.Println()
+	}
 
 	return nil
+}
+
+// formatSuggestJSON formats and displays suggestions in JSON format
+// Shows posts and templates as JSON arrays
+func formatSuggestJSON(recentPosts []*feed.Post) error {
+	// TODO(T022): Implement JSON formatting for suggestions
+	return fmt.Errorf("JSON output not yet implemented (see TODO T022)")
+}
+
+// formatSuggestPost formats a single post for the suggest output
+// Format: "smk-XXXXXX | author@project (Xm ago)"
+// Followed by the post content on the next line
+func formatSuggestPost(w *os.File, post *feed.Post) {
+	createdTime, err := post.GetCreatedTime()
+	if err != nil {
+		// Fallback if time parsing fails
+		createdTime = time.Now()
+	}
+
+	// Calculate "time ago" string
+	timeAgo := formatTimeAgo(createdTime)
+
+	// Format: smk-XXXXXX | author@project (timeAgo)
+	_, _ = fmt.Fprintf(w, "  %s | %s (%s)\n", post.ID, post.Author, timeAgo)
+
+	// Show the content on the next line, truncated if needed
+	contentPreviewWidth := 60
+	content := post.Content
+	if len(content) > contentPreviewWidth {
+		content = content[:contentPreviewWidth] + "..."
+	}
+	_, _ = fmt.Fprintf(w, "    %s\n", content)
+}
+
+// formatTimeAgo formats a time as a human-readable "X ago" string
+// Examples: "15m ago", "2h ago", "just now"
+func formatTimeAgo(t time.Time) string {
+	now := time.Now()
+	duration := now.Sub(t)
+
+	if duration < time.Minute {
+		return "just now"
+	}
+	if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1m ago"
+		}
+		return fmt.Sprintf("%dm ago", minutes)
+	}
+	if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1h ago"
+		}
+		return fmt.Sprintf("%dh ago", hours)
+	}
+
+	days := int(duration.Hours() / 24)
+	if days == 1 {
+		return "1d ago"
+	}
+	return fmt.Sprintf("%dd ago", days)
+}
+
+// getRandomTemplates returns n to m random templates from the full set
+// Ensures we get at least n and at most m templates
+func getRandomTemplates(minCount, maxCount int) []templates.Template {
+	all := templates.All
+	if len(all) == 0 {
+		return []templates.Template{}
+	}
+
+	// Create a properly seeded local random source
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Randomly decide count between minCount and maxCount
+	count := minCount
+	if maxCount > minCount {
+		count = minCount + rng.Intn(maxCount-minCount+1)
+	}
+
+	// Ensure we don't ask for more templates than exist
+	if count > len(all) {
+		count = len(all)
+	}
+
+	// Shuffle indices and pick first count
+	indices := rng.Perm(len(all))
+	result := make([]templates.Template, count)
+	for i := 0; i < count; i++ {
+		result[i] = all[indices[i]]
+	}
+
+	return result
 }
