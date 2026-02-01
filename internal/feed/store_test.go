@@ -9,8 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dreamiurg/smoke/internal/config"
 )
 
 func setupTestStore(t *testing.T) (*Store, string) {
@@ -76,7 +74,7 @@ func TestStoreAppendNotInitialized(t *testing.T) {
 	}
 
 	err := store.Append(post)
-	assert.Equal(t, config.ErrNotInitialized, err)
+	assert.Equal(t, ErrNotInitialized, err)
 }
 
 func TestStoreReadAll(t *testing.T) {
@@ -129,7 +127,7 @@ func TestStoreReadAll(t *testing.T) {
 	// Test reading from non-existent file
 	nonExistentStore := NewStoreWithPath(filepath.Join(t.TempDir(), "nonexistent.jsonl"))
 	_, err = nonExistentStore.ReadAll()
-	assert.Equal(t, config.ErrNotInitialized, err)
+	assert.Equal(t, ErrNotInitialized, err)
 }
 
 func TestStoreReadAllSkipsInvalidLines(t *testing.T) {
@@ -266,60 +264,6 @@ func TestStorePath(t *testing.T) {
 	store := NewStoreWithPath(feedPath)
 
 	assert.Equal(t, feedPath, store.Path())
-}
-
-func TestNewStore(t *testing.T) {
-	// Create a temporary directory and feed file
-	tmpDir := t.TempDir()
-	feedPath := filepath.Join(tmpDir, "feed.jsonl")
-
-	// Create the feed file
-	err := os.WriteFile(feedPath, []byte{}, 0644)
-	require.NoError(t, err)
-
-	// Set HOME to temp dir so path validation passes
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
-
-	// Set SMOKE_FEED environment variable to point to test feed
-	oldFeed := os.Getenv("SMOKE_FEED")
-	defer func() {
-		if oldFeed != "" {
-			os.Setenv("SMOKE_FEED", oldFeed)
-		} else {
-			os.Unsetenv("SMOKE_FEED")
-		}
-	}()
-
-	os.Setenv("SMOKE_FEED", feedPath)
-
-	// Create store with NewStore()
-	store, err := NewStore()
-	require.NoError(t, err)
-
-	// Verify store is not nil
-	assert.NotNil(t, store)
-
-	// Verify store has the correct path
-	assert.Equal(t, feedPath, store.Path())
-
-	// Verify store can perform basic operations
-	post := &Post{
-		ID:        "smk-abc123",
-		Author:    "ember",
-		Suffix:    "smoke",
-		Content:   "test post",
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
-	}
-
-	appendErr := store.Append(post)
-	assert.NoError(t, appendErr)
-
-	// Verify post was written
-	posts, readErr := store.ReadAll()
-	assert.NoError(t, readErr)
-	assert.Len(t, posts, 1)
 }
 
 func TestCountWithPosts(t *testing.T) {

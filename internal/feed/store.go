@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-
-	"github.com/dreamiurg/smoke/internal/config"
 )
 
 // ErrPostNotFound is returned when a post is not found
@@ -32,19 +30,24 @@ const (
 	ExampleSuffix      = "init"
 )
 
+// ErrNotInitialized is returned when the feed file doesn't exist
+var ErrNotInitialized = errors.New("feed not initialized")
+
+// PostStore defines the interface for post storage operations
+type PostStore interface {
+	Append(post *Post) error
+	ReadAll() ([]*Post, error)
+	ReadRecent(limit int) ([]*Post, error)
+	FindByID(id string) (*Post, error)
+	Exists(id string) (bool, error)
+	Count() (int, error)
+	Path() string
+}
+
 // Store handles reading and writing posts to the feed file
 type Store struct {
 	path string
 	mu   sync.Mutex
-}
-
-// NewStore creates a new store at the default feed path
-func NewStore() (*Store, error) {
-	path, err := config.GetFeedPath()
-	if err != nil {
-		return nil, err
-	}
-	return &Store{path: path}, nil
 }
 
 // NewStoreWithPath creates a new store at the specified path
@@ -68,7 +71,7 @@ func (s *Store) doAppend(post *Post) error {
 
 	// Check if feed file exists
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
-		return config.ErrNotInitialized
+		return ErrNotInitialized
 	}
 
 	// Open file for appending
@@ -119,7 +122,7 @@ func (s *Store) ReadAll() ([]*Post, error) {
 func (s *Store) doReadAll() ([]*Post, error) {
 	// Check if feed file exists
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
-		return nil, config.ErrNotInitialized
+		return nil, ErrNotInitialized
 	}
 
 	f, err := os.Open(s.path)

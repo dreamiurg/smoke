@@ -59,10 +59,11 @@ func runPost(_ *cobra.Command, args []string) error {
 	}
 
 	// Store post
-	store, err := feed.NewStore()
+	feedPath, err := config.GetFeedPath()
 	if err != nil {
 		return err
 	}
+	store := feed.NewStoreWithPath(feedPath)
 
 	if err := store.Append(post); err != nil {
 		return fmt.Errorf("failed to save post: %w", err)
