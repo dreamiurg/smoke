@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"os"
 	"sort"
@@ -17,9 +18,10 @@ import (
 )
 
 var (
-	suggestSince   time.Duration
-	suggestJSON    bool
-	suggestContext string
+	suggestSince    time.Duration
+	suggestJSON     bool
+	suggestContext  string
+	suggestPressure int
 )
 
 var suggestCmd = &cobra.Command{
@@ -51,7 +53,63 @@ func init() {
 	suggestCmd.Flags().DurationVar(&suggestSince, "since", 4*time.Hour, "Time window for recent posts (e.g., 2h, 30m, 6h)")
 	suggestCmd.Flags().BoolVar(&suggestJSON, "json", false, "Output in JSON format")
 	suggestCmd.Flags().StringVar(&suggestContext, "context", "", "Context for nudge (conversation, research, working, or custom)")
+	suggestCmd.Flags().IntVar(&suggestPressure, "pressure", -1, "Override pressure level (0-4, -1 means use config default)")
 	rootCmd.AddCommand(suggestCmd)
+}
+
+// nudgeDecision contains the result of a probability check for firing a nudge.
+type nudgeDecision struct {
+	fire      bool
+	roll      int
+	threshold int
+}
+
+// toneTemplates maps pressure levels to nudge tone prefixes.
+// Tone scales from gentle (1) to insistent (4). Level 0 never outputs.
+var toneTemplates = map[int]string{
+	0: "",                              // Never outputs (probability gate blocks)
+	1: "If anything stood out...",      // Gentle suggestion
+	2: "Quick thought worth sharing?",  // Balanced invitation
+	3: "You've got something here —",   // Encouraging push
+	4: "Post this. The feed needs it.", // Insistent demand
+}
+
+// getTonePrefix returns the tone prefix for a given pressure level.
+func getTonePrefix(pressure int) string {
+	if pressure < 0 {
+		pressure = 0
+	}
+	if pressure > 4 {
+		pressure = 4
+	}
+	return toneTemplates[pressure]
+}
+
+// shouldFireNudge determines whether a nudge should be sent based on pressure level.
+// Pressure levels map to probabilities:
+//
+//	0 (sleep)    -> 0%   (never fire)
+//	1 (quiet)    -> 25%  (fire if random < 25)
+//	2 (balanced) -> 50%  (fire if random < 50)
+//	3 (bright)   -> 75%  (fire if random < 75)
+//	4 (volcanic) -> 100% (always fire)
+//
+// Returns the decision along with the roll and threshold used for logging.
+func shouldFireNudge(pressure int) nudgeDecision {
+	// Pressure 0: never fire
+	if pressure <= 0 {
+		return nudgeDecision{fire: false, roll: 0, threshold: 0}
+	}
+	// Pressure 4+: always fire
+	if pressure >= 4 {
+		return nudgeDecision{fire: true, roll: 0, threshold: 100}
+	}
+
+	// For pressures 1-3, roll 0-99 and compare to threshold (pressure * 25)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	roll := rng.Intn(100)
+	threshold := pressure * 25
+	return nudgeDecision{fire: roll < threshold, roll: roll, threshold: threshold}
 }
 
 func runSuggest(_ *cobra.Command, args []string) error {
@@ -63,6 +121,57 @@ func runSuggest(_ *cobra.Command, args []string) error {
 		tracker.Fail(err)
 		return err
 	}
+
+	// Determine pressure level: use flag override if provided, else use config
+	pressure := config.GetPressure()
+	if suggestPressure >= 0 {
+		pressure = suggestPressure
+	}
+
+	// Clamp pressure to valid range
+	if pressure < 0 {
+		pressure = 0
+	}
+	if pressure > 4 {
+		pressure = 4
+	}
+
+	// Add pressure metric to tracker
+	tracker.AddMetric(slog.Int("pressure", pressure))
+
+	// Check probability gate: should this nudge fire?
+	decision := shouldFireNudge(pressure)
+
+	if !decision.fire {
+		// Nudge did not fire - log skip event
+		tracker.AddMetric(slog.Bool("skipped", true))
+		tracker.AddMetric(slog.Int("roll", decision.roll))
+		tracker.AddMetric(slog.Int("threshold", decision.threshold))
+
+		// For JSON output, provide structured skip response
+		if suggestJSON {
+			skipOutput := map[string]interface{}{
+				"skipped":   true,
+				"pressure":  pressure,
+				"roll":      decision.roll,
+				"threshold": decision.threshold,
+			}
+			encoder := json.NewEncoder(os.Stdout)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(skipOutput); err != nil {
+				tracker.Fail(err)
+				return err
+			}
+		}
+		// Complete tracking after successful output (or silent skip)
+		tracker.Complete()
+		return nil
+	}
+
+	// Nudge fired - log fire event
+	tracker.AddMetric(slog.Bool("fired", true))
+	tracker.AddMetric(slog.Int("roll", decision.roll))
+	tracker.AddMetric(slog.Int("threshold", decision.threshold))
 
 	// Load suggest config (contexts and examples)
 	suggestCfg := config.LoadSuggestConfig()
@@ -106,9 +215,9 @@ func runSuggest(_ *cobra.Command, args []string) error {
 
 	var resultErr error
 	if suggestJSON {
-		resultErr = formatSuggestJSONWithContext(recentPosts, suggestCfg, suggestContext)
+		resultErr = formatSuggestJSONWithContext(recentPosts, suggestCfg, suggestContext, pressure)
 	} else {
-		resultErr = formatSuggestTextWithContext(recentPosts, suggestCfg, suggestContext)
+		resultErr = formatSuggestTextWithContext(recentPosts, suggestCfg, suggestContext, pressure)
 	}
 
 	if resultErr != nil {
@@ -120,18 +229,24 @@ func runSuggest(_ *cobra.Command, args []string) error {
 }
 
 // formatSuggestTextWithContext formats suggestions with optional context-specific prompt
-func formatSuggestTextWithContext(recentPosts []*feed.Post, cfg *config.SuggestConfig, contextName string) error {
+func formatSuggestTextWithContext(recentPosts []*feed.Post, cfg *config.SuggestConfig, contextName string, pressure int) error {
 	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	// Show context prompt if specified
+	// Show tone-scaled nudge prefix
+	tonePrefix := getTonePrefix(pressure)
+	if tonePrefix != "" {
+		fmt.Printf("%s\n\n", tonePrefix)
+	}
+
+	// Show context prompt if specified (after tone prefix)
 	if contextName != "" {
 		ctx := cfg.GetContext(contextName)
 		if ctx != nil && ctx.Prompt != "" {
-			fmt.Printf("Nudge: %s\n\n", ctx.Prompt)
+			fmt.Printf("Context: %s\n\n", ctx.Prompt)
 		}
 	}
 
@@ -173,7 +288,7 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, cfg *config.SuggestC
 }
 
 // formatSuggestJSONWithContext formats suggestions as JSON with context info
-func formatSuggestJSONWithContext(recentPosts []*feed.Post, cfg *config.SuggestConfig, contextName string) error {
+func formatSuggestJSONWithContext(recentPosts []*feed.Post, cfg *config.SuggestConfig, contextName string, pressure int) error {
 	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
@@ -219,6 +334,9 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, cfg *config.SuggestC
 
 	// Build final output structure
 	output := map[string]interface{}{
+		"skipped":  false,
+		"pressure": pressure,
+		"tone":     getTonePrefix(pressure),
 		"posts":    postsOutput,
 		"examples": randomExamples,
 	}

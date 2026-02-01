@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,6 +79,13 @@ func (h *TestHelper) Cleanup() {
 
 func (h *TestHelper) SetIdentity(identity string) {
 	os.Setenv("SMOKE_NAME", identity)
+}
+
+// SetPressure writes the pressure level to config.yaml for deterministic test behavior
+func (h *TestHelper) SetPressure(pressure int) error {
+	configFile := filepath.Join(h.configDir, "config.yaml")
+	content := fmt.Sprintf("pressure: %d\n", pressure)
+	return os.WriteFile(configFile, []byte(content), 0644)
 }
 
 func (h *TestHelper) Run(args ...string) (string, string, error) {

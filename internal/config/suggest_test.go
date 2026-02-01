@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -245,5 +246,165 @@ examples:
 	}
 	if newCat[0] != "Example in new category" {
 		t.Errorf("NewCategory example = %q, want %q", newCat[0], "Example in new category")
+	}
+}
+
+func TestGetPressure(t *testing.T) {
+	// Create temp config dir with no config file
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
+	// Test default pressure when no config exists
+	pressure := GetPressure()
+	if pressure != DefaultPressure {
+		t.Errorf("GetPressure() = %d, want default %d", pressure, DefaultPressure)
+	}
+}
+
+func TestSetPressure(t *testing.T) {
+	// Create temp config dir
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override home dir
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
+	tests := []struct {
+		name     string
+		input    int
+		expected int
+	}{
+		{"valid minimum", 0, 0},
+		{"valid low", 1, 1},
+		{"valid middle", 2, 2},
+		{"valid high", 3, 3},
+		{"valid maximum", 4, 4},
+		{"clamp negative", -5, 0},
+		{"clamp too high", 10, 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetPressure(tt.input)
+			if err != nil {
+				t.Fatalf("SetPressure(%d) failed: %v", tt.input, err)
+			}
+
+			got := GetPressure()
+			if got != tt.expected {
+				t.Errorf("after SetPressure(%d), GetPressure() = %d, want %d", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetPressureLevel(t *testing.T) {
+	tests := []struct {
+		input     int
+		wantValue int
+		wantProb  int
+		wantEmoji string
+		wantLabel string
+	}{
+		{0, 0, 0, "💤", "sleep"},
+		{1, 1, 25, "🌙", "quiet"},
+		{2, 2, 50, "⛅", "balanced"},
+		{3, 3, 75, "☀️", "bright"},
+		{4, 4, 100, "🌋", "volcanic"},
+		// Test clamping
+		{-1, 0, 0, "💤", "sleep"},
+		{-10, 0, 0, "💤", "sleep"},
+		{5, 4, 100, "🌋", "volcanic"},
+		{100, 4, 100, "🌋", "volcanic"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("pressure_%d", tt.input), func(t *testing.T) {
+			level := GetPressureLevel(tt.input)
+			if level.Value != tt.wantValue {
+				t.Errorf("Value = %d, want %d", level.Value, tt.wantValue)
+			}
+			if level.Probability != tt.wantProb {
+				t.Errorf("Probability = %d, want %d", level.Probability, tt.wantProb)
+			}
+			if level.Emoji != tt.wantEmoji {
+				t.Errorf("Emoji = %q, want %q", level.Emoji, tt.wantEmoji)
+			}
+			if level.Label != tt.wantLabel {
+				t.Errorf("Label = %q, want %q", level.Label, tt.wantLabel)
+			}
+		})
+	}
+}
+
+func TestPressureLevelsCompleteness(t *testing.T) {
+	// Verify all 5 pressure levels are defined
+	if len(pressureLevels) != 5 {
+		t.Errorf("pressureLevels length = %d, want 5", len(pressureLevels))
+	}
+
+	// Verify each level has correct value index
+	for i, level := range pressureLevels {
+		if level.Value != i {
+			t.Errorf("pressureLevels[%d].Value = %d, want %d", i, level.Value, i)
+		}
+		if level.Emoji == "" {
+			t.Errorf("pressureLevels[%d].Emoji is empty", i)
+		}
+		if level.Label == "" {
+			t.Errorf("pressureLevels[%d].Label is empty", i)
+		}
+		if level.Probability < 0 || level.Probability > 100 {
+			t.Errorf("pressureLevels[%d].Probability = %d, want 0-100", i, level.Probability)
+		}
+	}
+}
+
+func TestSetPressurePersistence(t *testing.T) {
+	// Create temp config dir
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override home dir
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
+	// Set pressure to 3
+	if err := SetPressure(3); err != nil {
+		t.Fatalf("SetPressure(3) failed: %v", err)
+	}
+
+	// Verify it persists across config reloads
+	cfg := LoadSuggestConfig()
+	if cfg.Pressure == nil {
+		t.Fatal("after reload, Pressure is nil, want 3")
+	}
+	if *cfg.Pressure != 3 {
+		t.Errorf("after reload, Pressure = %d, want 3", *cfg.Pressure)
+	}
+
+	// Change to 1
+	if err := SetPressure(1); err != nil {
+		t.Fatalf("SetPressure(1) failed: %v", err)
+	}
+
+	// Verify update persists
+	cfg = LoadSuggestConfig()
+	if cfg.Pressure == nil {
+		t.Fatal("after second reload, Pressure is nil, want 1")
+	}
+	if *cfg.Pressure != 1 {
+		t.Errorf("after second reload, Pressure = %d, want 1", *cfg.Pressure)
 	}
 }

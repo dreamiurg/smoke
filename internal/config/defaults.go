@@ -32,3 +32,10 @@ const (
 	// DefaultAutoRefresh determines if auto-refresh is enabled by default
 	DefaultAutoRefresh = true
 )
+
+// Default suggest configuration values
+const (
+	// DefaultPressure is the default pressure level for suggest nudges (0-4 scale)
+	// Level 2 (balanced) provides a 50% nudge probability
+	DefaultPressure = 2
+)

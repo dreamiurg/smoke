@@ -49,6 +49,8 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	fmt.Println("  smoke read               Read recent posts (alias: smoke feed)")
 	fmt.Println("  smoke read --tail        Watch for new posts in real-time")
 	fmt.Println("  smoke reply <id> <msg>   Reply to a specific post")
+	fmt.Println("  smoke suggest            Get nudge to post (probability-gated)")
+	fmt.Println("  smoke pressure [0-4]     View or set nudge frequency (0=off, 4=always)")
 	fmt.Println("  smoke explain            Show this help")
 	fmt.Println()
 	fmt.Println("## Identity")

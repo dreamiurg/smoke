@@ -18,6 +18,11 @@ func TestSuggestShowsRecentPosts(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	// Set identity and post some test messages
 	h.SetIdentity("test_author")
 	if _, _, err := h.Run("post", "First test post about observations"); err != nil {
@@ -66,6 +71,11 @@ func TestSuggestShowsTemplates(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	// Run suggest without any posts
 	stdout, _, err := h.Run("suggest")
 	if err != nil {
@@ -92,6 +102,11 @@ func TestSuggestEmptyFeedShowsOnlyTemplates(t *testing.T) {
 	// Initialize smoke
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
 	}
 
 	// Run suggest with empty feed
@@ -128,6 +143,11 @@ func TestSuggestSinceFlag(t *testing.T) {
 	// Initialize smoke
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
 	}
 
 	h.SetIdentity("time_test_author")
@@ -174,6 +194,11 @@ func TestSuggestJSONFlag(t *testing.T) {
 	// Initialize smoke
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
 	}
 
 	h.SetIdentity("json_test_author")
@@ -229,6 +254,11 @@ func TestSuggestJSONEmptyFeed(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	// Run suggest with --json but with a time window that excludes all posts (1 second)
 	// This simulates an empty feed without deleting posts
 	stdout, stderr, err := h.Run("suggest", "--json", "--since", "1s")
@@ -276,6 +306,11 @@ func TestSuggestReplyHint(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	h.SetIdentity("reply_hint_author")
 
 	// Post a message
@@ -310,6 +345,11 @@ func TestSuggestPostIDFormat(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	h.SetIdentity("id_format_author")
 
 	// Post a message
@@ -338,6 +378,11 @@ func TestSuggestPostMetadata(t *testing.T) {
 	// Initialize smoke
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
 	}
 
 	h.SetIdentity("metadata_author")
@@ -393,6 +438,11 @@ func TestSuggestMultiplePosts(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	h.SetIdentity("multi_post_author")
 
 	// Create 5 posts to ensure suggest picks recent ones
@@ -435,6 +485,11 @@ func TestSuggestSinceFlagParseFormats(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	h.SetIdentity("since_format_author")
 
 	// Post a message
@@ -469,6 +524,11 @@ func TestSuggestJSONWithMultiplePosts(t *testing.T) {
 	// Initialize smoke
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
 	}
 
 	h.SetIdentity("json_multi_author")
@@ -539,6 +599,11 @@ func TestSuggestTextFormatReadability(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
+	}
+
 	h.SetIdentity("readability_author")
 
 	// Post a message
@@ -578,6 +643,11 @@ func TestSuggestTemplateVariety(t *testing.T) {
 	// Initialize smoke
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Set pressure to 4 (always fire) for deterministic test behavior
+	if err := h.SetPressure(4); err != nil {
+		t.Fatalf("failed to set pressure: %v", err)
 	}
 
 	// Run suggest multiple times to check for template variety
