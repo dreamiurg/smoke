@@ -22,6 +22,15 @@ linters:
         linters:
           - errcheck
           - gocritic
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    govet:
+      enable:
+        - shadow
+    misspell:
+      locale: US
 
 formatters:
   enable:
@@ -31,17 +40,8 @@ formatters:
     gofmt:
       simplify: true
     goimports:
-      local-prefixes: github.com/dreamiurg/smoke
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-  govet:
-    enable:
-      - shadow
-  misspell:
-    locale: US
+      local-prefixes:
+        - github.com/dreamiurg/smoke
 
 issues:
   max-issues-per-linter: 0
