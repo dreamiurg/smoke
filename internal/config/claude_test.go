@@ -29,12 +29,16 @@ func TestAppendSmokeHint(t *testing.T) {
 	defer os.Setenv("HOME", oldHome)
 
 	t.Run("creates file if not exists", func(t *testing.T) {
-		appended, err := AppendSmokeHint()
+		result, err := AppendSmokeHint()
 		if err != nil {
 			t.Fatalf("AppendSmokeHint() error: %v", err)
 		}
-		if !appended {
-			t.Error("AppendSmokeHint() = false, want true (file created)")
+		if result == nil || !result.Appended {
+			t.Error("AppendSmokeHint() Appended = false, want true (file created)")
+		}
+		// No backup should be created when file didn't exist
+		if result.BackupPath != "" {
+			t.Error("AppendSmokeHint() BackupPath should be empty when file didn't exist")
 		}
 
 		// Verify file exists
@@ -49,12 +53,12 @@ func TestAppendSmokeHint(t *testing.T) {
 	})
 
 	t.Run("idempotent - second call returns false", func(t *testing.T) {
-		appended, err := AppendSmokeHint()
+		result, err := AppendSmokeHint()
 		if err != nil {
 			t.Fatalf("AppendSmokeHint() error: %v", err)
 		}
-		if appended {
-			t.Error("AppendSmokeHint() = true, want false (already present)")
+		if result == nil || result.Appended {
+			t.Error("AppendSmokeHint() Appended = true, want false (already present)")
 		}
 	})
 }
@@ -79,12 +83,21 @@ func TestAppendSmokeHint_ExistingContent(t *testing.T) {
 	}
 
 	// Append smoke hint
-	appended, err := AppendSmokeHint()
+	result, err := AppendSmokeHint()
 	if err != nil {
 		t.Fatalf("AppendSmokeHint() error: %v", err)
 	}
-	if !appended {
-		t.Error("AppendSmokeHint() = false, want true")
+	if result == nil || !result.Appended {
+		t.Error("AppendSmokeHint() Appended = false, want true")
+	}
+
+	// Backup should be created when modifying existing file
+	if result.BackupPath == "" {
+		t.Error("AppendSmokeHint() BackupPath should not be empty when modifying existing file")
+	}
+	// Verify backup file exists
+	if _, statErr := os.Stat(result.BackupPath); os.IsNotExist(statErr) {
+		t.Errorf("Backup file should exist at %s", result.BackupPath)
 	}
 
 	// Verify content was appended (not replaced)

@@ -114,7 +114,7 @@ func TestHooksUninstall(t *testing.T) {
 	tmpDir := setupHooksTest(t)
 
 	// Install hooks
-	err := hooks.Install(hooks.InstallOptions{Force: false})
+	_, err := hooks.Install(hooks.InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Uninstall
@@ -187,7 +187,7 @@ func TestHooksStatus_Installed(t *testing.T) {
 	setupHooksTest(t)
 
 	// Install hooks
-	err := hooks.Install(hooks.InstallOptions{Force: false})
+	_, err := hooks.Install(hooks.InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Capture stdout
@@ -216,7 +216,7 @@ func TestHooksStatus_JSON(t *testing.T) {
 	setupHooksTest(t)
 
 	// Install hooks
-	err := hooks.Install(hooks.InstallOptions{Force: false})
+	_, err := hooks.Install(hooks.InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Set JSON flag

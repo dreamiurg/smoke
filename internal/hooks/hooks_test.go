@@ -46,7 +46,7 @@ func TestInstall_FreshSystem(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// Install hooks
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Verify scripts exist
@@ -90,11 +90,11 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// First install
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Second install (should be idempotent)
-	err = Install(InstallOptions{Force: false})
+	_, err = Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Verify status is installed
@@ -110,7 +110,7 @@ func TestInstall_ModifiedScripts(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// First install
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Modify a script
@@ -119,7 +119,7 @@ func TestInstall_ModifiedScripts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt reinstall without --force
-	err = Install(InstallOptions{Force: false})
+	_, err = Install(InstallOptions{Force: false})
 	assert.ErrorIs(t, err, ErrScriptsModified)
 }
 
@@ -130,7 +130,7 @@ func TestInstall_ForceOverwrite(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// First install
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Modify a script
@@ -139,7 +139,7 @@ func TestInstall_ForceOverwrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// Reinstall with --force
-	err = Install(InstallOptions{Force: true})
+	_, err = Install(InstallOptions{Force: true})
 	require.NoError(t, err)
 
 	// Verify script is restored
@@ -157,11 +157,11 @@ func TestUninstall_HooksPresent(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// Install hooks
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Uninstall
-	err = Uninstall()
+	_, err = Uninstall()
 	require.NoError(t, err)
 
 	// Verify scripts removed
@@ -231,11 +231,11 @@ func TestUninstall_PreservesOtherHooks(t *testing.T) {
 	require.NoError(t, err)
 
 	// Install smoke hooks
-	err = Install(InstallOptions{Force: false})
+	_, err = Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Uninstall smoke hooks
-	err = Uninstall()
+	_, err = Uninstall()
 	require.NoError(t, err)
 
 	// Verify other hook still exists
@@ -283,7 +283,7 @@ func TestGetStatus_Installed(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// Install hooks
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	status, err := GetStatus()
@@ -308,7 +308,7 @@ func TestGetStatus_Modified(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// Install hooks
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Modify a script
@@ -333,7 +333,7 @@ func TestGetStatus_PartiallyInstalled(t *testing.T) {
 	setTestPaths(hooksDir, settingsPath)
 
 	// Install hooks
-	err := Install(InstallOptions{Force: false})
+	_, err := Install(InstallOptions{Force: false})
 	require.NoError(t, err)
 
 	// Remove one script
