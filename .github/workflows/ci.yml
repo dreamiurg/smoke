@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Test
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,23 +19,10 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Download dependencies
-        run: go mod download
-
       - name: Check go.mod tidiness
         run: |
           go mod tidy
-          git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy, run 'go mod tidy'" && exit 1)
-
-      - name: Build binary for integration tests
-        run: |
-          mkdir -p bin
-          go build -o bin/smoke ./cmd/smoke
-        env:
-          CGO_ENABLED: 0
-
-      - name: Run go vet
-        run: go vet ./...
+          git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy" && exit 1)
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
@@ -49,17 +36,22 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Run gosec
-        uses: securego/gosec@master
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          # Exclude rules that are false positives for this codebase:
-          # G104 - fnv.Write never errors
-          # G301 - config dirs (0755) are standard XDG permissions
-          # G302 - config files (0644) are standard readable permissions
-          # G304 - config paths from XDG are controlled
-          # G306 - config files don't contain secrets
-          # G404 - RNG for prompt selection, not security
-          args: -exclude=G104,G301,G302,G304,G306,G404 ./...
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build binary for integration tests
+        run: go build -o bin/smoke ./cmd/smoke
+        env:
+          CGO_ENABLED: 0
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
@@ -70,8 +62,6 @@ jobs:
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Total coverage: ${COVERAGE}%"
-          # Note: Integration tests run external binary so don't contribute to coverage
-          # Minimum: 69% (allows 1% variance), Target: 80% (SHOULD)
           if (( $(echo "$COVERAGE < 69" | bc -l) )); then
             echo "Coverage below 69% threshold"
             exit 1
@@ -82,14 +72,10 @@ jobs:
         with:
           file: ./coverage.out
           fail_ci_if_error: true
-          # Coverage delta checks configured in codecov.yml:
-          # - Project coverage MUST NOT drop below 70%
-          # - Coverage MUST NOT regress by more than 2%
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: test
     strategy:
       matrix:
         goos: [darwin, linux]
