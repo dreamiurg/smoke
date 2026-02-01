@@ -88,8 +88,8 @@ func WriteConfigMap(config map[string]interface{}) error {
 
 	// Ensure parent directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	if mkdirErr := os.MkdirAll(dir, 0755); mkdirErr != nil {
+		return fmt.Errorf("failed to create config directory: %w", mkdirErr)
 	}
 
 	// Marshal to YAML
