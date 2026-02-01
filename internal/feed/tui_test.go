@@ -12,16 +12,33 @@ import (
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
+// testModel creates a test model with default theme, contrast, style, and config
+func testModel(store *Store) Model {
+	theme := GetTheme("dracula")
+	contrast := GetContrastLevel("medium")
+	style := GetStyle("header")
+	cfg := &config.TUIConfig{
+		Theme:       "dracula",
+		Contrast:    "medium",
+		Style:       "header",
+		AutoRefresh: true,
+	}
+	return NewModel(store, theme, contrast, style, cfg, "test")
+}
+
 func TestNewModel(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
+	theme := GetTheme("dracula")
 	contrast := GetContrastLevel("medium")
+	style := GetStyle("header")
 	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
+		Theme:       "dracula",
+		Contrast:    "medium",
+		Style:       "header",
+		AutoRefresh: true,
 	}
 
-	model := NewModel(store, theme, contrast, cfg)
+	model := NewModel(store, theme, contrast, style, cfg, "1.0.0")
 
 	if model.theme != theme {
 		t.Error("NewModel() did not set theme")
@@ -29,27 +46,29 @@ func TestNewModel(t *testing.T) {
 	if model.contrast != contrast {
 		t.Error("NewModel() did not set contrast")
 	}
+	if model.style != style {
+		t.Error("NewModel() did not set style")
+	}
 	if model.store != store {
 		t.Error("NewModel() did not set store")
 	}
 	if model.config != cfg {
 		t.Error("NewModel() did not set config")
 	}
+	if model.version != "1.0.0" {
+		t.Error("NewModel() did not set version")
+	}
 	if model.showHelp {
 		t.Error("NewModel() should initialize with showHelp=false")
+	}
+	if !model.autoRefresh {
+		t.Error("NewModel() should initialize autoRefresh from config")
 	}
 }
 
 func TestModelInit(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	cmd := model.Init()
 
 	if cmd == nil {
@@ -59,12 +78,6 @@ func TestModelInit(t *testing.T) {
 
 func TestModelUpdate_QuitKeys(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
 
 	tests := []struct {
 		name string
@@ -76,7 +89,7 @@ func TestModelUpdate_QuitKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModel(store, theme, contrast, cfg)
+			model := testModel(store)
 			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)}
 			if tt.key == "ctrl+c" {
 				msg = tea.KeyMsg{Type: tea.KeyCtrlC}
@@ -92,14 +105,7 @@ func TestModelUpdate_QuitKeys(t *testing.T) {
 
 func TestModelUpdate_RefreshKey(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")}
 
 	_, cmd := model.Update(msg)
@@ -110,14 +116,7 @@ func TestModelUpdate_RefreshKey(t *testing.T) {
 
 func TestModelUpdate_ThemeCycling(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	initialTheme := model.config.Theme
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")}
@@ -134,14 +133,7 @@ func TestModelUpdate_ThemeCycling(t *testing.T) {
 
 func TestModelUpdate_ContrastCycling(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	initialContrast := model.config.Contrast
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")}
@@ -156,16 +148,43 @@ func TestModelUpdate_ContrastCycling(t *testing.T) {
 	}
 }
 
+func TestModelUpdate_StyleCycling(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	initialStyle := model.config.Style
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.config.Style == initialStyle {
+		t.Error("Update(s) should cycle style")
+	}
+	if updatedModel.style.Name != updatedModel.config.Style {
+		t.Error("Update(s) should update model style to match config")
+	}
+}
+
+func TestModelUpdate_AutoRefreshToggle(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	initialAutoRefresh := model.autoRefresh
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.autoRefresh == initialAutoRefresh {
+		t.Error("Update(a) should toggle autoRefresh")
+	}
+	if updatedModel.config.AutoRefresh != updatedModel.autoRefresh {
+		t.Error("Update(a) should update config.AutoRefresh to match model")
+	}
+}
+
 func TestModelUpdate_HelpToggle(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 
 	// Toggle help on
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}
@@ -187,14 +206,7 @@ func TestModelUpdate_HelpToggle(t *testing.T) {
 
 func TestModelUpdate_HelpDismissOnAnyKey(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.showHelp = true
 
 	// Press any key other than quit
@@ -212,14 +224,7 @@ func TestModelUpdate_HelpDismissOnAnyKey(t *testing.T) {
 
 func TestModelUpdate_WindowResize(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 
 	msg := tea.WindowSizeMsg{Width: 120, Height: 40}
 	updated, _ := model.Update(msg)
@@ -235,20 +240,27 @@ func TestModelUpdate_WindowResize(t *testing.T) {
 
 func TestModelUpdate_TickMsg(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
+	model.autoRefresh = true
 
 	msg := tickMsg(time.Now())
 	_, cmd := model.Update(msg)
 
 	if cmd == nil {
-		t.Error("Update(tickMsg) should return load command for auto-refresh")
+		t.Error("Update(tickMsg) with autoRefresh=true should return load command")
+	}
+}
+
+func TestModelUpdate_TickMsgDisabled(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.autoRefresh = false
+
+	msg := tickMsg(time.Now())
+	_, cmd := model.Update(msg)
+
+	if cmd != nil {
+		t.Error("Update(tickMsg) with autoRefresh=false should return nil command")
 	}
 }
 
@@ -262,14 +274,7 @@ func TestModelUpdate_LoadPostsMsg(t *testing.T) {
 	}
 
 	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 
 	// Add a post to the store
 	post, _ := NewPost("test-author", "smoke", "test", "test content")
@@ -297,14 +302,7 @@ func TestModelUpdate_LoadPostsMsg(t *testing.T) {
 
 func TestModelView_Initializing(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	view := model.View()
 
 	if !strings.Contains(view, "Initializing") {
@@ -314,14 +312,7 @@ func TestModelView_Initializing(t *testing.T) {
 
 func TestModelView_NoPosts(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.height = 24
 
@@ -334,14 +325,7 @@ func TestModelView_NoPosts(t *testing.T) {
 
 func TestModelView_WithPosts(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.height = 24
 
@@ -358,14 +342,7 @@ func TestModelView_WithPosts(t *testing.T) {
 
 func TestModelView_HelpOverlay(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.height = 24
 	model.showHelp = true
@@ -383,16 +360,9 @@ func TestModelView_HelpOverlay(t *testing.T) {
 	}
 }
 
-func TestFormatPostForTUI(t *testing.T) {
+func TestModelFormatPost(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 
 	post := &Post{
@@ -404,28 +374,21 @@ func TestFormatPostForTUI(t *testing.T) {
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
 
-	lines := model.formatPostForTUI(post)
+	lines := model.formatPost(post)
 
 	if len(lines) == 0 {
-		t.Error("formatPostForTUI() should return at least one line")
+		t.Error("formatPost() should return at least one line")
 	}
 
 	combined := strings.Join(lines, "\n")
 	if !strings.Contains(combined, "hello world") {
-		t.Error("formatPostForTUI() should include post content")
+		t.Error("formatPost() should include post content")
 	}
 }
 
-func TestFormatPostForTUI_LongContent(t *testing.T) {
+func TestModelFormatPost_LongContent(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 
 	longContent := "This is a very long piece of content that should definitely wrap across multiple lines when displayed in the terminal interface because it exceeds the available width"
@@ -438,33 +401,17 @@ func TestFormatPostForTUI_LongContent(t *testing.T) {
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
 
-	lines := model.formatPostForTUI(post)
+	lines := model.formatPost(post)
 
 	if len(lines) <= 1 {
-		t.Error("formatPostForTUI() should wrap long content to multiple lines")
+		t.Error("formatPost() should wrap long content to multiple lines")
 	}
 }
 
-func TestFormatReplyForTUI(t *testing.T) {
+func TestModelFormatReply(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
-
-	parentPost := &Post{
-		ID:        "smk-parent",
-		Author:    "parent-author",
-		Project:   "smoke",
-		Suffix:    "parent",
-		Content:   "parent post",
-		CreatedAt: "2026-01-30T09:00:00Z",
-	}
 
 	replyPost := &Post{
 		ID:        "smk-reply",
@@ -476,73 +423,46 @@ func TestFormatReplyForTUI(t *testing.T) {
 		CreatedAt: "2026-01-30T09:05:00Z",
 	}
 
-	lines := model.formatReplyForTUI(parentPost, replyPost)
+	lines := model.formatReply(replyPost)
 
 	if len(lines) == 0 {
-		t.Error("formatReplyForTUI() should return at least one line")
+		t.Error("formatReply() should return at least one line")
 	}
 
 	combined := strings.Join(lines, "\n")
 	if !strings.Contains(combined, "reply content") {
-		t.Error("formatReplyForTUI() should include reply content")
+		t.Error("formatReply() should include reply content")
 	}
 	if !strings.Contains(combined, "└─") {
-		t.Error("formatReplyForTUI() should include reply tree prefix")
+		t.Error("formatReply() should include reply tree prefix")
 	}
 }
 
 func TestStyleTimestamp(t *testing.T) {
-	tmpDir := t.TempDir()
-	feedPath := tmpDir + "/feed.jsonl"
-	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
 
 	result := model.styleTimestamp("09:24")
 
 	if result == "" {
 		t.Error("styleTimestamp() should return styled text")
 	}
-	// Note: lipgloss may return plain text in test environment without TTY
-	// The function call itself is what we're testing, not the exact rendering
 }
 
 func TestStyleAuthor(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 
 	result := model.styleAuthor("test-author")
 
 	if result == "" {
 		t.Error("styleAuthor() should return styled text")
 	}
-	// Note: We can't easily test the exact styling without lipgloss internals,
-	// but we can verify it's not empty
 }
 
 func TestRenderStatusBar(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 
 	result := model.renderStatusBar()
@@ -550,20 +470,11 @@ func TestRenderStatusBar(t *testing.T) {
 	if result == "" {
 		t.Error("renderStatusBar() should return status bar")
 	}
-	// Status bar should contain help indicators (in some form, styled)
-	// We can't easily check styled content, but verify it's not empty
 }
 
 func TestRenderStatusBar_WithError(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.err = errors.New("config save failed")
 
@@ -574,16 +485,24 @@ func TestRenderStatusBar_WithError(t *testing.T) {
 	}
 }
 
+func TestRenderHeader(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+
+	result := model.renderHeader()
+
+	if result == "" {
+		t.Error("renderHeader() should return header bar")
+	}
+	if !strings.Contains(result, "SMOKE") {
+		t.Error("renderHeader() should show SMOKE title")
+	}
+}
+
 func TestRenderHelpOverlay(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.height = 24
 
@@ -601,26 +520,17 @@ func TestRenderHelpOverlay(t *testing.T) {
 	if !strings.Contains(result, "Contrast:") {
 		t.Error("renderHelpOverlay() should show current contrast")
 	}
-	if !strings.Contains(result, theme.DisplayName) {
-		t.Error("renderHelpOverlay() should show theme display name")
+	if !strings.Contains(result, "Auto:") {
+		t.Error("renderHelpOverlay() should show auto-refresh status")
 	}
-	if !strings.Contains(result, contrast.DisplayName) {
-		t.Error("renderHelpOverlay() should show contrast display name")
+	if !strings.Contains(result, "Style:") {
+		t.Error("renderHelpOverlay() should show style")
 	}
 }
 
 func TestRenderHelpOverlay_SmallWindow(t *testing.T) {
-	tmpDir := t.TempDir()
-	feedPath := tmpDir + "/feed.jsonl"
-	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
 	model.width = 40  // Small width
 	model.height = 10 // Small height
 
@@ -642,14 +552,7 @@ func TestModelView_WithManyPosts(t *testing.T) {
 	}
 
 	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.height = 10 // Small height to trigger truncation
 
@@ -683,14 +586,7 @@ func TestModelView_WithReplies(t *testing.T) {
 	}
 
 	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 	model.width = 80
 	model.height = 24
 
@@ -711,47 +607,9 @@ func TestModelView_WithReplies(t *testing.T) {
 	}
 }
 
-func TestModelUpdate_TickMsgAutoRefresh(t *testing.T) {
-	tmpDir := t.TempDir()
-	feedPath := tmpDir + "/feed.jsonl"
-
-	// Create empty feed file
-	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
-		t.Fatalf("Failed to create feed file: %v", err)
-	}
-
-	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
-
-	// Simulate a tick
-	msg := tickMsg(time.Now())
-	_, cmd := model.Update(msg)
-
-	// Should return a load command for auto-refresh
-	if cmd == nil {
-		t.Error("Update(tickMsg) should return a load command")
-	}
-}
-
 func TestModelUpdate_LoadPostsMsgWithError(t *testing.T) {
-	tmpDir := t.TempDir()
-	feedPath := tmpDir + "/feed.jsonl"
-	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
 
 	// Create a loadPostsMsg with an error
 	loadMsg := loadPostsMsg{
@@ -782,6 +640,20 @@ func TestTickCmd(t *testing.T) {
 	}
 }
 
+func TestClockTickCmd(t *testing.T) {
+	cmd := clockTickCmd()
+
+	if cmd == nil {
+		t.Error("clockTickCmd() should return a command")
+	}
+
+	// Execute the command to test the tick message creation
+	msg := cmd()
+	if _, ok := msg.(clockTickMsg); !ok {
+		t.Error("clockTickCmd() should return a command that produces clockTickMsg")
+	}
+}
+
 func TestLoadPostsCmd(t *testing.T) {
 	tmpDir := t.TempDir()
 	feedPath := tmpDir + "/feed.jsonl"
@@ -792,14 +664,7 @@ func TestLoadPostsCmd(t *testing.T) {
 	}
 
 	store := NewStoreWithPath(feedPath)
-	theme := GetTheme("tomorrow-night")
-	contrast := GetContrastLevel("medium")
-	cfg := &config.TUIConfig{
-		Theme:    "tomorrow-night",
-		Contrast: "medium",
-	}
-
-	model := NewModel(store, theme, contrast, cfg)
+	model := testModel(store)
 
 	msg := model.loadPostsCmd()
 
@@ -810,5 +675,53 @@ func TestLoadPostsCmd(t *testing.T) {
 
 	if loadMsg.err != nil {
 		t.Errorf("loadPostsCmd() with empty store should not error: %v", loadMsg.err)
+	}
+}
+
+func TestComputeStats(t *testing.T) {
+	posts := []*Post{
+		{Author: "agent1@project1"},
+		{Author: "agent2@project1"},
+		{Author: "agent1@project2"},
+		{Author: "agent3@project2"},
+	}
+
+	stats := ComputeStats(posts)
+
+	if stats.PostCount != 4 {
+		t.Errorf("ComputeStats().PostCount = %d, want 4", stats.PostCount)
+	}
+	if stats.AgentCount != 3 {
+		t.Errorf("ComputeStats().AgentCount = %d, want 3", stats.AgentCount)
+	}
+	if stats.ProjectCount != 2 {
+		t.Errorf("ComputeStats().ProjectCount = %d, want 2", stats.ProjectCount)
+	}
+}
+
+func TestComputeStats_NilPosts(t *testing.T) {
+	posts := []*Post{nil, {Author: "agent@project"}, nil}
+
+	stats := ComputeStats(posts)
+
+	if stats.PostCount != 3 {
+		t.Errorf("ComputeStats().PostCount = %d, want 3", stats.PostCount)
+	}
+	if stats.AgentCount != 1 {
+		t.Errorf("ComputeStats().AgentCount = %d, want 1", stats.AgentCount)
+	}
+}
+
+func TestComputeStats_Empty(t *testing.T) {
+	stats := ComputeStats(nil)
+
+	if stats.PostCount != 0 {
+		t.Errorf("ComputeStats(nil).PostCount = %d, want 0", stats.PostCount)
+	}
+	if stats.AgentCount != 0 {
+		t.Errorf("ComputeStats(nil).AgentCount = %d, want 0", stats.AgentCount)
+	}
+	if stats.ProjectCount != 0 {
+		t.Errorf("ComputeStats(nil).ProjectCount = %d, want 0", stats.ProjectCount)
 	}
 }
