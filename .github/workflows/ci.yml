@@ -97,7 +97,7 @@ jobs:
           go build -ldflags "-X github.com/dreamiurg/smoke/internal/cli.Version=ci-${{ github.sha }}" -o smoke-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/smoke
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
           path: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
