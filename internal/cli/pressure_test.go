@@ -24,9 +24,13 @@ func setupPressureEnv(t *testing.T) (cleanup func()) {
 
 	// Create smoke config
 	configDir := filepath.Join(tempDir, ".config", "smoke")
-	os.MkdirAll(configDir, 0755)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
 	feedPath := filepath.Join(configDir, "feed.jsonl")
-	os.WriteFile(feedPath, []byte{}, 0644)
+	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
+		t.Fatalf("failed to create feed file: %v", err)
+	}
 
 	return func() {
 		os.Setenv("HOME", origHome)
