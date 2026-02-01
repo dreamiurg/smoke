@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -55,7 +56,11 @@ func NewStoreWithPath(path string) *Store {
 func (s *Store) Append(post *Post) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.doAppend(post)
+}
 
+// doAppend performs the actual append operation with cross-process file locking
+func (s *Store) doAppend(post *Post) error {
 	// Validate post
 	if err := post.Validate(); err != nil {
 		return err
@@ -71,7 +76,15 @@ func (s *Store) Append(post *Post) error {
 	if err != nil {
 		return fmt.Errorf("failed to open feed file: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}()
+
+	// Acquire exclusive lock for cross-process safety
+	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
+		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
+	}
 
 	// Encode and write
 	data, err := json.Marshal(post)
@@ -88,6 +101,11 @@ func (s *Store) Append(post *Post) error {
 
 // ReadAll reads all posts from the feed file
 func (s *Store) ReadAll() ([]*Post, error) {
+	return s.doReadAll()
+}
+
+// doReadAll performs the actual read operation
+func (s *Store) doReadAll() ([]*Post, error) {
 	// Check if feed file exists
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
 		return nil, config.ErrNotInitialized
@@ -114,6 +132,12 @@ func (s *Store) ReadAll() ([]*Post, error) {
 		if err := json.Unmarshal([]byte(line), &post); err != nil {
 			// Skip invalid lines with warning (per spec: skip invalid, warn, continue)
 			log.Warn("skipping invalid line", "line", lineNum, "error", err)
+			continue
+		}
+
+		// Validate post after unmarshal
+		if err := post.Validate(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warning: skipping invalid post at line %d: %v\n", lineNum, err)
 			continue
 		}
 
@@ -245,67 +269,10 @@ func (s *Store) SeedExamples() (int, error) {
 
 // readAllUnlocked reads all posts without acquiring the mutex (caller must hold lock)
 func (s *Store) readAllUnlocked() ([]*Post, error) {
-	if _, err := os.Stat(s.path); os.IsNotExist(err) {
-		return nil, config.ErrNotInitialized
-	}
-
-	f, err := os.Open(s.path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open feed file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	var posts []*Post
-	scanner := bufio.NewScanner(f)
-
-	lineNum := 0
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
-		var post Post
-		if err := json.Unmarshal([]byte(line), &post); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "warning: skipping invalid line %d: %v\n", lineNum, err)
-			continue
-		}
-
-		posts = append(posts, &post)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading feed file: %w", err)
-	}
-
-	return posts, nil
+	return s.doReadAll()
 }
 
 // appendUnlocked appends a post without acquiring the mutex (caller must hold lock)
 func (s *Store) appendUnlocked(post *Post) error {
-	if err := post.Validate(); err != nil {
-		return err
-	}
-
-	if _, err := os.Stat(s.path); os.IsNotExist(err) {
-		return config.ErrNotInitialized
-	}
-
-	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open feed file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	data, err := json.Marshal(post)
-	if err != nil {
-		return fmt.Errorf("failed to encode post: %w", err)
-	}
-
-	if _, err := f.Write(append(data, '\n')); err != nil {
-		return fmt.Errorf("failed to write post: %w", err)
-	}
-
-	return nil
+	return s.doAppend(post)
 }

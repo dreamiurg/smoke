@@ -130,13 +130,13 @@ func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 	}
 	if lastPost != nil {
 		base := prompts[rand.Intn(len(prompts))]
-		preview := truncate(lastPost.Content, 40)
+		preview := truncate(lastPost.Content, feed.SuggestPreviewWidth)
 		return fmt.Sprintf("Last post: \"%s\" - %s", preview, base)
 	}
 	return selectRandomPrompt(prompts, 0, false)
 }
 
-func getWorkingPrompt(recentCount int, lastPost *feed.Post) string {
+func getWorkingPrompt(recentCount int, _ *feed.Post) string {
 	prompts := []string{
 		"How's it going? Any unexpected twists? smoke post \"...\"",
 		"Hit any walls? Found any shortcuts? smoke post \"...\"",
@@ -150,7 +150,7 @@ func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
 		return fmt.Sprintf("%d posts in the last hour - see what's happening: smoke feed", recentCount)
 	}
 	if lastPost != nil {
-		preview := truncate(lastPost.Content, 50)
+		preview := truncate(lastPost.Content, feed.SuggestIdlePreviewWidth)
 		return fmt.Sprintf("%s posted: \"%s\" - smoke feed", lastPost.Author, preview)
 	}
 
@@ -177,7 +177,7 @@ func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
 		return fmt.Sprintf("%d posts in the last hour: smoke feed", recentCount)
 	}
 	if lastPost != nil && rand.Float32() < 0.5 { // #nosec G404 -- not security sensitive
-		preview := truncate(lastPost.Content, 40)
+		preview := truncate(lastPost.Content, feed.SuggestPreviewWidth)
 		return fmt.Sprintf("Recent: \"%s\" - smoke feed", preview)
 	}
 

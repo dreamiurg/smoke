@@ -146,8 +146,37 @@ const TimeColumnWidth = 5
 // MinContentWidth is the minimum content width before we stop trying to wrap nicely
 const MinContentWidth = 30
 
-// lastTimestamp tracks the previous timestamp to avoid repetition
-var lastTimestamp string
+// OnelineContentWidth is the maximum content length in oneline format
+const OnelineContentWidth = 60
+
+// OnelineTruncateLen is the truncation point for oneline content (OnelineContentWidth - 3 for "...")
+const OnelineTruncateLen = 57
+
+// SuggestPreviewWidth is the default width for truncating post previews in suggest command
+const SuggestPreviewWidth = 40
+
+// SuggestIdlePreviewWidth is the width for truncating post previews in idle suggest context
+const SuggestIdlePreviewWidth = 50
+
+// Formatter handles post formatting with state tracking for timestamp deduplication.
+// This is thread-safe for single-threaded use; create a new Formatter per goroutine if needed.
+type Formatter struct {
+	lastTimestamp string
+}
+
+// NewFormatter creates a new Formatter instance.
+func NewFormatter() *Formatter {
+	return &Formatter{}
+}
+
+// Reset clears the formatter state, resetting timestamp tracking.
+func (f *Formatter) Reset() {
+	f.lastTimestamp = ""
+}
+
+// defaultFormatter is used by package-level functions for backward compatibility.
+// Deprecated: Use NewFormatter() for thread-safe operation.
+var defaultFormatter = NewFormatter()
 
 // AuthorLayout contains calculated layout for author column
 type AuthorLayout struct {
@@ -187,9 +216,10 @@ func CalculateContentLayout(prefixWidth, authorColWidth, termWidth, minWidth int
 	return ContentLayout{Start: start, Width: width}
 }
 
-// ResetTimestamp resets the timestamp tracking (call at start of feed)
+// ResetTimestamp resets the timestamp tracking (call at start of feed).
+// Deprecated: Use Formatter.Reset() for thread-safe operation.
 func ResetTimestamp() {
-	lastTimestamp = ""
+	defaultFormatter.Reset()
 }
 
 // formatTimestamp returns the timestamp string for a post, or "??:??" on error
@@ -204,13 +234,19 @@ func formatTimestamp(post *Post) string {
 // formatCompact formats a post with right-aligned author@project and smart timestamps
 // Format: 14:32  author@project  content (timestamp only shown when it changes)
 func formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
+	defaultFormatter.formatCompact(w, post, cw, termWidth)
+}
+
+// formatCompact formats a post with right-aligned author@project and smart timestamps
+// Format: 14:32  author@project  content (timestamp only shown when it changes)
+func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
 	timeStr := formatTimestamp(post)
 
 	// Only show timestamp if different from previous
 	var timeColumn string
-	if timeStr != lastTimestamp {
+	if timeStr != f.lastTimestamp {
 		timeColumn = cw.Dim(timeStr)
-		lastTimestamp = timeStr
+		f.lastTimestamp = timeStr
 	} else {
 		timeColumn = "     " // 5 spaces to match timestamp width
 	}
@@ -369,8 +405,8 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth i
 func formatOneline(w io.Writer, post *Post, cw *ColorWriter) {
 	// Truncate content if needed for single line
 	content := post.Content
-	if len(content) > 60 {
-		content = content[:57] + "..."
+	if len(content) > OnelineContentWidth {
+		content = content[:OnelineTruncateLen] + "..."
 	}
 	// Apply highlighting
 	content = HighlightAll(content, cw.ColorEnabled)

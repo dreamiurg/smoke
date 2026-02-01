@@ -166,7 +166,7 @@ func TestGetFeedStats(t *testing.T) {
 				// Create posts with recent timestamps
 				now := time.Now()
 				post1 := feed.Post{
-					ID:        "test001",
+					ID:        "smk-ts0001",
 					Author:    "alice",
 					Project:   "test",
 					Suffix:    "test",
@@ -174,7 +174,7 @@ func TestGetFeedStats(t *testing.T) {
 					CreatedAt: now.Add(-10 * time.Minute).Format(time.RFC3339),
 				}
 				post2 := feed.Post{
-					ID:        "test002",
+					ID:        "smk-ts0002",
 					Author:    "bob",
 					Project:   "test",
 					Suffix:    "test",
@@ -182,7 +182,7 @@ func TestGetFeedStats(t *testing.T) {
 					CreatedAt: now.Add(-30 * time.Minute).Format(time.RFC3339),
 				}
 				post3 := feed.Post{
-					ID:        "test003",
+					ID:        "smk-ts0003",
 					Author:    "charlie",
 					Project:   "test",
 					Suffix:    "test",
@@ -218,7 +218,7 @@ func TestGetFeedStats(t *testing.T) {
 
 				now := time.Now()
 				post1 := feed.Post{
-					ID:        "test001",
+					ID:        "smk-ts0001",
 					Author:    "alice",
 					Project:   "test",
 					Suffix:    "test",
@@ -226,7 +226,7 @@ func TestGetFeedStats(t *testing.T) {
 					CreatedAt: now.Add(-10 * time.Minute).Format(time.RFC3339),
 				}
 				post2 := feed.Post{
-					ID:        "test002",
+					ID:        "smk-ts0002",
 					Author:    "bob",
 					Project:   "test",
 					Suffix:    "test",
@@ -260,7 +260,7 @@ func TestGetFeedStats(t *testing.T) {
 
 				now := time.Now()
 				post1 := feed.Post{
-					ID:        "test001",
+					ID:        "smk-ts0001",
 					Author:    "alice",
 					Project:   "test",
 					Suffix:    "test",

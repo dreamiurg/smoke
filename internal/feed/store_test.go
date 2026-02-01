@@ -150,7 +150,7 @@ func TestStoreReadAllSkipsInvalidLines(t *testing.T) {
 	f, err := os.OpenFile(feedPath, os.O_APPEND|os.O_WRONLY, 0644)
 	require.NoError(t, err)
 	f.WriteString("invalid json line\n")
-	f.WriteString("{\"id\":\"smk-def456\",\"author\":\"witness\",\"rig\":\"smoke\",\"content\":\"another valid\",\"created_at\":\"2026-01-30T10:00:00Z\"}\n")
+	f.WriteString("{\"id\":\"smk-def456\",\"author\":\"witness\",\"suffix\":\"smoke\",\"content\":\"another valid\",\"created_at\":\"2026-01-30T10:00:00Z\"}\n")
 	f.Close()
 
 	// Read all - should skip invalid line

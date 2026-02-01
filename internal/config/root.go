@@ -32,7 +32,8 @@ func GetConfigDir() (string, error) {
 func GetFeedPath() (string, error) {
 	// Check for explicit feed path override
 	if feedPath := os.Getenv("SMOKE_FEED"); feedPath != "" {
-		return feedPath, nil
+		// Sanitize path to prevent traversal
+		return filepath.Clean(feedPath), nil
 	}
 
 	configDir, err := GetConfigDir()

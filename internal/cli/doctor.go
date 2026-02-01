@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dreamiurg/smoke/internal/config"
+	"github.com/dreamiurg/smoke/internal/feed"
 )
 
 // isTerminal returns true if stdout is a terminal
@@ -39,14 +41,14 @@ const (
 	StatusFail
 )
 
-// ANSI color codes
+// Color aliases for doctor output (using feed package constants)
 const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-	colorCyan   = "\033[36m"
-	colorDim    = "\033[2m"
+	colorReset  = feed.Reset
+	colorRed    = feed.FgRed
+	colorGreen  = feed.FgGreen
+	colorYellow = feed.FgYellow
+	colorCyan   = feed.FgCyan
+	colorDim    = feed.Dim
 )
 
 // useColor determines if color output should be used
@@ -333,7 +335,7 @@ func checkConfigDir() Check {
 	}
 
 	// Check if writable by creating a temp file
-	testFile := configDir + "/.doctor-test"
+	testFile := filepath.Join(configDir, ".doctor-test")
 	f, err := os.Create(testFile)
 	if err != nil {
 		check.Status = StatusWarn
