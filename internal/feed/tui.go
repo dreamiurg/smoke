@@ -304,8 +304,8 @@ func (m Model) renderHeader() string {
 	statsStr := fmt.Sprintf("%d posts | %d agents | %d projects",
 		stats.PostCount, stats.AgentCount, stats.ProjectCount)
 
-	// Format clock in brackets
-	clockStr := fmt.Sprintf("[%s]", time.Now().Local().Format("15:04"))
+	// Format clock in brackets (locale-aware)
+	clockStr := fmt.Sprintf("[%s]", FormatTime(time.Now()))
 
 	// Build header: version + stats on left, clock on right
 	leftContent := versionStr + " " + statsStr
@@ -388,7 +388,23 @@ func (m Model) buildAllContentLines() []string {
 	}
 
 	var lines []string
+	var lastDay time.Time
 	for i, thread := range threads {
+		// Get post time for day separator
+		postTime, err := thread.post.GetCreatedTime()
+		if err == nil {
+			postDay := time.Date(postTime.Year(), postTime.Month(), postTime.Day(), 0, 0, 0, 0, postTime.Location())
+			// Check if we need a day separator
+			if lastDay.IsZero() || !postDay.Equal(lastDay) {
+				if i > 0 {
+					// Add blank line before separator (except for first post)
+					lines = append(lines, "")
+				}
+				lines = append(lines, m.formatDaySeparator(postTime))
+				lastDay = postDay
+			}
+		}
+
 		// Format main post
 		postLines := m.formatPost(thread.post)
 		lines = append(lines, postLines...)
@@ -399,13 +415,49 @@ func (m Model) buildAllContentLines() []string {
 			lines = append(lines, replyLines...)
 		}
 
-		// Blank line between threads
+		// Blank line between threads (within same day)
 		if i < len(threads)-1 {
 			lines = append(lines, "")
 		}
 	}
 
 	return lines
+}
+
+// formatDaySeparator creates a styled day separator line.
+// Format: "──── Today ────" centered with decorative lines
+func (m Model) formatDaySeparator(t time.Time) string {
+	label := DayLabel(t)
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+
+	// Build separator: "──── Label ────"
+	// Minimum width for label plus surrounding spaces and some decorative chars
+	minDecor := 4 // At least 4 dashes on each side
+	labelWithSpace := " " + label + " "
+	availableForDecor := termWidth - len(labelWithSpace)
+
+	var leftDecor, rightDecor string
+	if availableForDecor >= minDecor*2 {
+		decorLen := availableForDecor / 2
+		leftDecor = strings.Repeat("─", decorLen)
+		rightDecor = strings.Repeat("─", availableForDecor-decorLen)
+	} else {
+		// Terminal too narrow - just show label
+		leftDecor = "──"
+		rightDecor = "──"
+	}
+
+	separator := leftDecor + labelWithSpace + rightDecor
+
+	// Style with muted text color
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.TextMuted).
+		Background(m.theme.Background)
+
+	return style.Render(separator)
 }
 
 // maxScrollOffset returns the maximum scroll offset based on content size
