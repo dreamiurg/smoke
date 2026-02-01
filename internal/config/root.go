@@ -1,3 +1,5 @@
+// Package config provides configuration and initialization management for smoke.
+// It handles directory paths, feed storage, and smoke initialization state.
 package config
 
 import (
