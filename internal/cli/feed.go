@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -59,35 +60,70 @@ func init() {
 }
 
 func runFeed(_ *cobra.Command, args []string) error {
-	logging.LogCommand("feed", args)
+	// Start command tracking
+	tracker := logging.StartCommand("feed", args)
+
+	// Add mode indicator
+	mode := "normal"
+	if feedTail {
+		mode = "tail"
+	} else if feed.IsTerminal(os.Stdout.Fd()) {
+		mode = "tui"
+	}
+	tracker.AddMetric(slog.String("feed.mode", mode))
 
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
-		logging.LogError("smoke not initialized", err)
+		tracker.Fail(err)
 		return err
 	}
 
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
 	store := feed.NewStoreWithPath(feedPath)
 
+	// Get feed metrics for logging
+	if info, statErr := os.Stat(feedPath); statErr == nil {
+		posts, readErr := store.ReadAll()
+		if readErr == nil {
+			tracker.AddFeedMetrics(info.Size(), len(posts))
+		}
+	}
+
 	if feedTail {
-		return runTailMode(store)
+		err = runTailMode(store, tracker)
+		if err != nil {
+			tracker.Fail(err)
+		} else {
+			tracker.Complete()
+		}
+		return err
 	}
 
 	// Launch interactive TUI if stdout is a TTY (terminal), otherwise use plain text output.
-	// This provides a better user experience with navigation and formatting when the
-	// output is not being piped or redirected.
 	if feed.IsTerminal(os.Stdout.Fd()) {
-		return runTUIMode(store)
+		err = runTUIMode(store, tracker)
+		if err != nil {
+			tracker.Fail(err)
+		} else {
+			tracker.Complete()
+		}
+		return err
 	}
 
-	return runNormalFeed(store)
+	err = runNormalFeed(store, tracker)
+	if err != nil {
+		tracker.Fail(err)
+	} else {
+		tracker.Complete()
+	}
+	return err
 }
 
-func runNormalFeed(store *feed.Store) error {
+func runNormalFeed(store *feed.Store, _ *logging.CommandTracker) error {
 	// Read posts sorted by time (most recent first)
 	posts, err := store.ReadRecent(0) // 0 = no limit, just sorted
 	if err != nil {
@@ -122,7 +158,7 @@ func runNormalFeed(store *feed.Store) error {
 	return nil
 }
 
-func runTailMode(store *feed.Store) error {
+func runTailMode(store *feed.Store, _ *logging.CommandTracker) error {
 	// Print header
 	if !feedQuiet {
 		feed.FormatTailHeader(os.Stdout)
@@ -195,7 +231,7 @@ func runTailMode(store *feed.Store) error {
 }
 
 // runTUIMode launches the interactive TUI feed
-func runTUIMode(store *feed.Store) error {
+func runTUIMode(store *feed.Store, _ *logging.CommandTracker) error {
 	// Load TUI config (never returns error, gracefully handles all failures)
 	cfg := config.LoadTUIConfig()
 

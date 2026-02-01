@@ -50,16 +50,18 @@ func init() {
 }
 
 func runSuggest(_ *cobra.Command, args []string) error {
-	logging.LogCommand("suggest", args)
+	// Start command tracking
+	tracker := logging.StartCommand("suggest", args)
 
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
-		logging.LogError("smoke not initialized", err)
+		tracker.Fail(err)
 		return err
 	}
 
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
 	store := feed.NewStoreWithPath(feedPath)
@@ -67,21 +69,35 @@ func runSuggest(_ *cobra.Command, args []string) error {
 	// Read all posts
 	posts, err := store.ReadAll()
 	if err != nil {
+		tracker.Fail(err)
 		return err
+	}
+
+	// Get feed metrics for logging
+	if info, statErr := os.Stat(feedPath); statErr == nil {
+		tracker.AddFeedMetrics(info.Size(), len(posts))
 	}
 
 	// Filter recent posts using the --since window
 	recentPosts, err := feed.FilterRecent(posts, suggestSince)
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
 
+	var resultErr error
 	if suggestJSON {
-		// TODO(T022): Implement JSON formatting for suggestions
-		return formatSuggestJSON(recentPosts)
+		resultErr = formatSuggestJSON(recentPosts)
+	} else {
+		resultErr = formatSuggestText(recentPosts)
 	}
 
-	return formatSuggestText(recentPosts)
+	if resultErr != nil {
+		tracker.Fail(resultErr)
+	} else {
+		tracker.Complete()
+	}
+	return resultErr
 }
 
 // formatSuggestText formats and displays suggestions in plain text format
