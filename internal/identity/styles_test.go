@@ -30,6 +30,21 @@ func TestLowercase(t *testing.T) {
 			words:    []string{"Quantum", "SEEKER"},
 			expected: "quantumseeker",
 		},
+		{
+			name:     "nil slice",
+			words:    nil,
+			expected: "",
+		},
+		{
+			name:     "empty slice",
+			words:    []string{},
+			expected: "",
+		},
+		{
+			name:     "slice with empty strings",
+			words:    []string{"", ""},
+			expected: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -62,6 +77,21 @@ func TestSnakeCase(t *testing.T) {
 			name:     "three words",
 			words:    []string{"bright", "swift", "fox"},
 			expected: "bright_swift_fox",
+		},
+		{
+			name:     "nil slice",
+			words:    nil,
+			expected: "",
+		},
+		{
+			name:     "empty slice",
+			words:    []string{},
+			expected: "",
+		},
+		{
+			name:     "slice with empty strings",
+			words:    []string{"", ""},
+			expected: "_",
 		},
 	}
 
@@ -202,6 +232,21 @@ func TestKebabCase(t *testing.T) {
 			words:    []string{"bright", "swift", "fox"},
 			expected: "bright-swift-fox",
 		},
+		{
+			name:     "nil slice",
+			words:    nil,
+			expected: "",
+		},
+		{
+			name:     "empty slice",
+			words:    []string{},
+			expected: "",
+		},
+		{
+			name:     "slice with empty strings",
+			words:    []string{"", ""},
+			expected: "-",
+		},
 	}
 
 	for _, tt := range tests {
@@ -230,6 +275,21 @@ func TestWithNumber(t *testing.T) {
 			words:    []string{"telescoped"},
 			hasDigit: true,
 		},
+		{
+			name:     "three words",
+			words:    []string{"bright", "swift", "fox"},
+			hasDigit: true,
+		},
+		{
+			name:     "mixed case",
+			words:    []string{"Quantum", "SEEKER"},
+			hasDigit: true,
+		},
+		{
+			name:     "single uppercase word",
+			words:    []string{"A"},
+			hasDigit: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -242,6 +302,10 @@ func TestWithNumber(t *testing.T) {
 			lastChar := got[len(got)-1]
 			if lastChar < '0' || lastChar > '9' {
 				t.Errorf("WithNumber(%v) = %s, does not end with digit", tt.words, got)
+			}
+			// Verify the result starts with CamelCase prefix (at least 2 chars for digit)
+			if len(got) < 2 {
+				t.Errorf("WithNumber(%v) = %s, too short", tt.words, got)
 			}
 		})
 	}
