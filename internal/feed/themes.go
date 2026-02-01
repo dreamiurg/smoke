@@ -15,6 +15,8 @@ type Theme struct {
 	Text lipgloss.AdaptiveColor
 	// TextMuted is for timestamps and secondary text
 	TextMuted lipgloss.AdaptiveColor
+	// Background is the main content area background
+	Background lipgloss.AdaptiveColor
 	// BackgroundSecondary is for header/status bar backgrounds
 	BackgroundSecondary lipgloss.AdaptiveColor
 	// Accent is for highlights, version badge
@@ -34,6 +36,7 @@ var AllThemes = []Theme{
 		DisplayName:         "Dracula",
 		Text:                lipgloss.AdaptiveColor{Light: "#212121", Dark: "#f8f8f2"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#757575", Dark: "#6272a4"},
+		Background:          lipgloss.AdaptiveColor{Light: "#fafafa", Dark: "#282a36"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#e0e0e0", Dark: "#44475a"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#7e57c2", Dark: "#bd93f9"},
 		Error:               lipgloss.AdaptiveColor{Light: "#d32f2f", Dark: "#ff5555"},
@@ -51,6 +54,7 @@ var AllThemes = []Theme{
 		DisplayName:         "GitHub",
 		Text:                lipgloss.AdaptiveColor{Light: "#24292f", Dark: "#c9d1d9"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#57606a", Dark: "#8b949e"},
+		Background:          lipgloss.AdaptiveColor{Light: "#ffffff", Dark: "#0d1117"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#f6f8fa", Dark: "#161b22"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#0969da", Dark: "#58a6ff"},
 		Error:               lipgloss.AdaptiveColor{Light: "#cf222e", Dark: "#f85149"},
@@ -68,6 +72,7 @@ var AllThemes = []Theme{
 		DisplayName:         "Catppuccin",
 		Text:                lipgloss.AdaptiveColor{Light: "#4c4f69", Dark: "#cdd6f4"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#9ca0b0", Dark: "#6c7086"},
+		Background:          lipgloss.AdaptiveColor{Light: "#eff1f5", Dark: "#1e1e2e"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#e6e9ef", Dark: "#313244"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#1e66f5", Dark: "#89b4fa"},
 		Error:               lipgloss.AdaptiveColor{Light: "#d20f39", Dark: "#f38ba8"},
@@ -85,6 +90,7 @@ var AllThemes = []Theme{
 		DisplayName:         "Solarized",
 		Text:                lipgloss.AdaptiveColor{Light: "#657b83", Dark: "#839496"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#93a1a1", Dark: "#586e75"},
+		Background:          lipgloss.AdaptiveColor{Light: "#fdf6e3", Dark: "#002b36"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#eee8d5", Dark: "#073642"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#268bd2", Dark: "#268bd2"},
 		Error:               lipgloss.AdaptiveColor{Light: "#dc322f", Dark: "#dc322f"},
@@ -102,6 +108,7 @@ var AllThemes = []Theme{
 		DisplayName:         "Nord",
 		Text:                lipgloss.AdaptiveColor{Light: "#2e3440", Dark: "#eceff4"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#4c566a", Dark: "#d8dee9"},
+		Background:          lipgloss.AdaptiveColor{Light: "#eceff4", Dark: "#2e3440"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#e5e9f0", Dark: "#3b4252"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#5e81ac", Dark: "#88c0d0"},
 		Error:               lipgloss.AdaptiveColor{Light: "#bf616a", Dark: "#bf616a"},
@@ -119,6 +126,7 @@ var AllThemes = []Theme{
 		DisplayName:         "Gruvbox",
 		Text:                lipgloss.AdaptiveColor{Light: "#3c3836", Dark: "#ebdbb2"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#7c6f64", Dark: "#a89984"},
+		Background:          lipgloss.AdaptiveColor{Light: "#fbf1c7", Dark: "#282828"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#f2e5bc", Dark: "#3c3836"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#d65d0e", Dark: "#fe8019"},
 		Error:               lipgloss.AdaptiveColor{Light: "#cc241d", Dark: "#fb4934"},
@@ -136,6 +144,7 @@ var AllThemes = []Theme{
 		DisplayName:         "One Dark",
 		Text:                lipgloss.AdaptiveColor{Light: "#383a42", Dark: "#abb2bf"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#a0a1a7", Dark: "#5c6370"},
+		Background:          lipgloss.AdaptiveColor{Light: "#fafafa", Dark: "#282c34"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#f0f0f0", Dark: "#3e4451"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#4078f2", Dark: "#61afef"},
 		Error:               lipgloss.AdaptiveColor{Light: "#e45649", Dark: "#e06c75"},
@@ -153,6 +162,7 @@ var AllThemes = []Theme{
 		DisplayName:         "Tokyo Night",
 		Text:                lipgloss.AdaptiveColor{Light: "#343b58", Dark: "#c0caf5"},
 		TextMuted:           lipgloss.AdaptiveColor{Light: "#9699a3", Dark: "#565f89"},
+		Background:          lipgloss.AdaptiveColor{Light: "#e1e2e7", Dark: "#1a1b26"},
 		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#d5d6db", Dark: "#1f2335"},
 		Accent:              lipgloss.AdaptiveColor{Light: "#2e7de9", Dark: "#7aa2f7"},
 		Error:               lipgloss.AdaptiveColor{Light: "#f52a65", Dark: "#f7768e"},
