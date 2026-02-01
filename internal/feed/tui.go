@@ -201,28 +201,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
-		case "c":
-			m.config.Contrast = NextContrastLevel(m.config.Contrast)
-			m.contrast = GetContrastLevel(m.config.Contrast)
-			m.err = config.SaveTUIConfig(m.config)
-			return m, nil
-
-		case "C":
-			m.config.Contrast = PrevContrastLevel(m.config.Contrast)
-			m.contrast = GetContrastLevel(m.config.Contrast)
-			m.err = config.SaveTUIConfig(m.config)
+		case "c", "C":
+			// Reserved for copy menu (future task)
+			// Contrast cycling removed per spec 008 - contrast is fixed to "medium"
 			return m, nil
 
 		case "+", "=":
-			// Increase pressure, wrapping from 4 to 0
-			m.pressure = (m.pressure + 1) % 5
-			m.err = config.SetPressure(m.pressure)
+			// Increase pressure, clamping at max (like volume)
+			if m.pressure < 4 {
+				m.pressure++
+				m.err = config.SetPressure(m.pressure)
+			}
 			return m, nil
 
 		case "-":
-			// Decrease pressure, wrapping from 0 to 4
-			m.pressure = (m.pressure - 1 + 5) % 5
-			m.err = config.SetPressure(m.pressure)
+			// Decrease pressure, clamping at min (like volume)
+			if m.pressure > 0 {
+				m.pressure--
+				m.err = config.SetPressure(m.pressure)
+			}
 			return m, nil
 
 		case "?":
@@ -342,8 +339,8 @@ func (m Model) renderHeader() string {
 	leftContent := versionStr + " " + statsStr
 	rightContent := pressureStr + " " + clockStr
 
-	// Calculate spacing
-	spacing := m.width - len(leftContent) - len(rightContent)
+	// Calculate spacing using display width (handles emojis correctly)
+	spacing := m.width - lipgloss.Width(leftContent) - lipgloss.Width(rightContent)
 	if spacing < 1 {
 		spacing = 1
 	}
@@ -382,7 +379,6 @@ func (m Model) renderStatusBar() string {
 		fmt.Sprintf("(s)ort: %s", sortStr),
 		fmt.Sprintf("(l)ayout: %s", layoutName),
 		fmt.Sprintf("(t)heme: %s", m.theme.Name),
-		fmt.Sprintf("(c)ontrast: %s", m.contrast.Name),
 		"(?) help",
 		"(q)uit",
 	}
@@ -756,7 +752,6 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("   s      Toggle sort order\n")
 	helpContent.WriteString("   l/L    Cycle layout\n")
 	helpContent.WriteString("   t/T    Cycle theme\n")
-	helpContent.WriteString("   c/C    Cycle contrast\n")
 	helpContent.WriteString("   +/-    Adjust pressure\n")
 	helpContent.WriteString("   r      Refresh now\n")
 	helpContent.WriteString("   q      Quit\n")
@@ -767,7 +762,6 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString(fmt.Sprintf("   Sort: %s\n", sortStr))
 	helpContent.WriteString(fmt.Sprintf("   Layout: %s\n", layoutName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
-	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
 	pressureLevel := config.GetPressureLevel(m.pressure)
 	helpContent.WriteString(fmt.Sprintf("   Pressure: %s\n", pressureLevel.Label))
 	helpContent.WriteString("\n")

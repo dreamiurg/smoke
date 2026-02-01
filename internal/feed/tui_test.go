@@ -131,7 +131,8 @@ func TestModelUpdate_ThemeCycling(t *testing.T) {
 	}
 }
 
-func TestModelUpdate_ContrastCycling(t *testing.T) {
+func TestModelUpdate_ContrastCyclingRemoved(t *testing.T) {
+	// Contrast cycling was removed per spec 008 - c/C keys are now reserved for copy menu
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	initialContrast := model.config.Contrast
@@ -140,11 +141,9 @@ func TestModelUpdate_ContrastCycling(t *testing.T) {
 	updated, _ := model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.config.Contrast == initialContrast {
-		t.Error("Update(c) should cycle contrast")
-	}
-	if updatedModel.contrast.Name != updatedModel.config.Contrast {
-		t.Error("Update(c) should update model contrast to match config")
+	// c key should no longer cycle contrast - contrast stays fixed at "medium"
+	if updatedModel.config.Contrast != initialContrast {
+		t.Error("Update(c) should NOT cycle contrast anymore (reserved for copy menu)")
 	}
 }
 
@@ -532,9 +531,7 @@ func TestRenderHelpOverlay(t *testing.T) {
 	if !strings.Contains(result, "Theme:") {
 		t.Error("renderHelpOverlay() should show current theme")
 	}
-	if !strings.Contains(result, "Contrast:") {
-		t.Error("renderHelpOverlay() should show current contrast")
-	}
+	// Contrast display removed from help overlay per spec 008
 	if !strings.Contains(result, "Auto:") {
 		t.Error("renderHelpOverlay() should show auto-refresh status")
 	}
@@ -1234,8 +1231,8 @@ func TestModelUpdate_PressureDecrease(t *testing.T) {
 	}
 }
 
-// TestModelUpdate_PressureWrapAroundUp tests wrapping from 4 to 0
-func TestModelUpdate_PressureWrapAroundUp(t *testing.T) {
+// TestModelUpdate_PressureClampAtMax tests clamping at 4 (like volume)
+func TestModelUpdate_PressureClampAtMax(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.pressure = 4
@@ -1244,13 +1241,13 @@ func TestModelUpdate_PressureWrapAroundUp(t *testing.T) {
 	updated, _ := model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.pressure != 0 {
-		t.Errorf("Update(+) at level 4 should wrap to 0, got %d", updatedModel.pressure)
+	if updatedModel.pressure != 4 {
+		t.Errorf("Update(+) at level 4 should stay at 4, got %d", updatedModel.pressure)
 	}
 }
 
-// TestModelUpdate_PressureWrapAroundDown tests wrapping from 0 to 4
-func TestModelUpdate_PressureWrapAroundDown(t *testing.T) {
+// TestModelUpdate_PressureClampAtMin tests clamping at 0 (like volume)
+func TestModelUpdate_PressureClampAtMin(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.pressure = 0
@@ -1259,8 +1256,8 @@ func TestModelUpdate_PressureWrapAroundDown(t *testing.T) {
 	updated, _ := model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.pressure != 4 {
-		t.Errorf("Update(-) at level 0 should wrap to 4, got %d", updatedModel.pressure)
+	if updatedModel.pressure != 0 {
+		t.Errorf("Update(-) at level 0 should stay at 0, got %d", updatedModel.pressure)
 	}
 }
 

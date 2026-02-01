@@ -59,9 +59,9 @@ func LoadTUIConfig() *TUIConfig {
 	if cfg.Theme == "" {
 		cfg.Theme = DefaultTheme
 	}
-	if cfg.Contrast == "" {
-		cfg.Contrast = DefaultContrast
-	}
+	// Contrast is fixed to "medium" - cycling removed per spec 008
+	// Always set to DefaultContrast ("medium"), ignore any stored value
+	cfg.Contrast = DefaultContrast
 	if cfg.Layout == "" {
 		cfg.Layout = DefaultLayout
 	}

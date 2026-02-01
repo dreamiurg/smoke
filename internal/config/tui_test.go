@@ -92,8 +92,9 @@ func TestLoadTUIConfig_ExistingFile(t *testing.T) {
 		t.Errorf("Expected theme 'monokai', got %q", cfg.Theme)
 	}
 
-	if cfg.Contrast != "high" {
-		t.Errorf("Expected contrast 'high', got %q", cfg.Contrast)
+	// Contrast is always forced to "medium" per spec 008 (regardless of stored value)
+	if cfg.Contrast != DefaultContrast {
+		t.Errorf("Expected contrast to be forced to %q (spec 008), got %q", DefaultContrast, cfg.Contrast)
 	}
 }
 
@@ -348,7 +349,8 @@ func TestLoadTUIConfig_RoundTrip(t *testing.T) {
 		t.Errorf("Round-trip theme mismatch: saved %q, loaded %q", original.Theme, loaded.Theme)
 	}
 
-	if loaded.Contrast != original.Contrast {
-		t.Errorf("Round-trip contrast mismatch: saved %q, loaded %q", original.Contrast, loaded.Contrast)
+	// Contrast is always forced to "medium" per spec 008 (regardless of saved value)
+	if loaded.Contrast != DefaultContrast {
+		t.Errorf("Contrast should always be forced to %q (spec 008), got %q", DefaultContrast, loaded.Contrast)
 	}
 }
