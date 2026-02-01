@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -250,28 +251,27 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 }
 
 func TestDetectProject_InGitRepo(t *testing.T) {
-	// Save original directory
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(originalDir)
-
-	// Create a temporary directory to simulate a git repo
+	// Create a temporary directory with a real git repo (no remote)
 	tmpDir := t.TempDir()
 	gitDir := filepath.Join(tmpDir, "test-repo")
 	if err := os.MkdirAll(gitDir, 0755); err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// Create a .git directory marker
-	dotGit := filepath.Join(gitDir, ".git")
-	if err := os.MkdirAll(dotGit, 0755); err != nil {
-		t.Fatalf("Failed to create .git dir: %v", err)
+	// Initialize a real git repo (without remote, to test toplevel fallback)
+	cmd := exec.Command("git", "init")
+	cmd.Dir = gitDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
 	}
 
-	// Change to the git repo directory
-	if err := os.Chdir(gitDir); err != nil {
-		t.Fatalf("Failed to chdir: %v", err)
-	}
+	// Use t.Chdir (Go 1.24+) for safe directory change in tests
+	t.Chdir(gitDir)
+
+	// Clear GIT_DIR/GIT_WORK_TREE to ensure we're not picking up parent repo context
+	// This can happen during pre-commit hooks when git sets these env vars
+	t.Setenv("GIT_DIR", "")
+	t.Setenv("GIT_WORK_TREE", "")
 
 	project := detectProject()
 	if project != "test-repo" {

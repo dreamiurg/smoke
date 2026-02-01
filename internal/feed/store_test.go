@@ -361,3 +361,191 @@ func TestExistsTrue(t *testing.T) {
 	assert.NoError(t, existsErr)
 	assert.True(t, exists)
 }
+
+func TestSeedExamplesEmpty(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Seed empty feed
+	count, err := store.SeedExamples()
+	if err != nil {
+		t.Fatalf("SeedExamples() unexpected error: %v", err)
+	}
+
+	// Should have seeded 4 posts
+	if count != 4 {
+		t.Errorf("SeedExamples() returned count %d, want 4", count)
+	}
+
+	// Verify posts were written
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll() unexpected error: %v", err)
+	}
+	if len(posts) != 4 {
+		t.Errorf("ReadAll() returned %d posts, want 4", len(posts))
+	}
+}
+
+func TestSeedExamplesNonEmpty(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Add an existing post first
+	existingPost := &Post{
+		ID:        "smk-abc123", // Valid 6-char alphanumeric ID
+		Author:    "testuser",
+		Suffix:    "test",
+		Content:   "existing post",
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := store.Append(existingPost); err != nil {
+		t.Fatalf("Append() unexpected error: %v", err)
+	}
+
+	// Seed should do nothing
+	count, err := store.SeedExamples()
+	if err != nil {
+		t.Fatalf("SeedExamples() unexpected error: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("SeedExamples() returned count %d, want 0 (non-empty feed)", count)
+	}
+
+	// Verify only original post exists
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll() unexpected error: %v", err)
+	}
+	if len(posts) != 1 {
+		t.Errorf("ReadAll() returned %d posts, want 1", len(posts))
+	}
+}
+
+func TestSeedExamplesIdempotent(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Seed first time
+	count1, err := store.SeedExamples()
+	if err != nil {
+		t.Fatalf("First SeedExamples() unexpected error: %v", err)
+	}
+	if count1 != 4 {
+		t.Errorf("First SeedExamples() returned count %d, want 4", count1)
+	}
+
+	// Seed second time - should be no-op
+	count2, err := store.SeedExamples()
+	if err != nil {
+		t.Fatalf("Second SeedExamples() unexpected error: %v", err)
+	}
+	if count2 != 0 {
+		t.Errorf("Second SeedExamples() returned count %d, want 0", count2)
+	}
+
+	// Should still have exactly 4 posts
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll() unexpected error: %v", err)
+	}
+	if len(posts) != 4 {
+		t.Errorf("ReadAll() returned %d posts after 2 seeds, want 4", len(posts))
+	}
+}
+
+func TestSeedExamplesContent(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	_, err := store.SeedExamples()
+	if err != nil {
+		t.Fatalf("SeedExamples() unexpected error: %v", err)
+	}
+
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll() unexpected error: %v", err)
+	}
+
+	// Verify authors
+	expectedAuthors := map[string]bool{
+		ExampleAuthorSpark: false,
+		ExampleAuthorEmber: false,
+		ExampleAuthorFlare: false,
+		ExampleAuthorWisp:  false,
+	}
+	for _, p := range posts {
+		if _, exists := expectedAuthors[p.Author]; exists {
+			expectedAuthors[p.Author] = true
+		}
+		// Verify suffix
+		if p.Suffix != ExampleSuffix {
+			t.Errorf("Post suffix = %q, want %q", p.Suffix, ExampleSuffix)
+		}
+		// Verify ID format
+		if len(p.ID) < 4 || p.ID[:4] != "smk-" {
+			t.Errorf("Post ID %q doesn't have smk- prefix", p.ID)
+		}
+		// Verify content length within limits
+		if len(p.Content) > MaxContentLength {
+			t.Errorf("Post content length %d exceeds max %d", len(p.Content), MaxContentLength)
+		}
+	}
+
+	// Verify all authors present
+	for author, found := range expectedAuthors {
+		if !found {
+			t.Errorf("Expected author %q not found in seeded posts", author)
+		}
+	}
+}
+
+func TestSeedExamplesTimestamps(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Use UTC for consistent comparison
+	before := time.Now().UTC().Add(-SeedPostsAgeOffset - time.Minute)
+	_, err := store.SeedExamples()
+	if err != nil {
+		t.Fatalf("SeedExamples() unexpected error: %v", err)
+	}
+	// Add buffer for test execution time (4 posts, 1 minute apart = ~4 minutes total)
+	after := time.Now().UTC().Add(-SeedPostsAgeOffset + 5*time.Minute)
+
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll() unexpected error: %v", err)
+	}
+
+	for i, p := range posts {
+		ts, parseErr := time.Parse(time.RFC3339, p.CreatedAt)
+		if parseErr != nil {
+			t.Errorf("Post %d: failed to parse timestamp %q: %v", i, p.CreatedAt, parseErr)
+			continue
+		}
+		tsUTC := ts.UTC()
+		if tsUTC.Before(before) || tsUTC.After(after) {
+			t.Errorf("Post %d: timestamp %v outside expected range [%v, %v]", i, tsUTC, before, after)
+		}
+	}
+}
+
+func TestGetExamplePosts(t *testing.T) {
+	examples := GetExamplePosts()
+
+	if len(examples) != 4 {
+		t.Errorf("GetExamplePosts() returned %d examples, want 4", len(examples))
+	}
+
+	for i, ex := range examples {
+		if ex.Author == "" {
+			t.Errorf("Example %d has empty author", i)
+		}
+		if ex.Suffix == "" {
+			t.Errorf("Example %d has empty suffix", i)
+		}
+		if ex.Content == "" {
+			t.Errorf("Example %d has empty content", i)
+		}
+		if len(ex.Content) > MaxContentLength {
+			t.Errorf("Example %d content length %d exceeds max %d", i, len(ex.Content), MaxContentLength)
+		}
+	}
+}

@@ -156,6 +156,101 @@ func TestSmokeInitIdempotent(t *testing.T) {
 	}
 }
 
+func TestSmokeInitSeeds(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	stdout, _, err := h.Run("init")
+	if err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Should show seeding message
+	if !strings.Contains(stdout, "Seeded 4 example posts") {
+		t.Errorf("Expected seeding message in output: %s", stdout)
+	}
+
+	// Verify feed has 4 posts
+	feedOut, _, err := h.Run("feed")
+	if err != nil {
+		t.Fatalf("smoke feed failed: %v", err)
+	}
+
+	// Check for example authors
+	for _, author := range []string{"spark", "ember", "flare", "wisp"} {
+		if !strings.Contains(feedOut, author) {
+			t.Errorf("Expected author %q in feed output: %s", author, feedOut)
+		}
+	}
+}
+
+func TestSmokeInitDoesNotReseed(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// First init - should seed
+	_, _, err := h.Run("init")
+	if err != nil {
+		t.Fatalf("First init failed: %v", err)
+	}
+
+	// Add a user post
+	h.SetIdentity("testuser@test")
+	h.Run("post", "user post after init")
+
+	// Second init (no --force) - should not reseed
+	_, _, err = h.Run("init")
+	if err != nil {
+		t.Fatalf("Second init failed: %v", err)
+	}
+
+	// Feed should have 5 posts (4 seeded + 1 user)
+	feedOut, feedErr, err := h.Run("feed", "-n", "10")
+	if err != nil {
+		t.Fatalf("smoke feed failed: %v (stderr: %s)", err, feedErr)
+	}
+
+	// User post should be present
+	if !strings.Contains(feedOut, "user post after init") {
+		t.Errorf("Expected user post preserved after second init.\nGot stdout: %s\nstderr: %s", feedOut, feedErr)
+	}
+
+	// Count posts by checking for authors (more reliable than smk-)
+	postCount := 0
+	for _, author := range []string{"spark", "ember", "flare", "wisp", "testuser"} {
+		if strings.Contains(feedOut, author) {
+			postCount++
+		}
+	}
+	if postCount != 5 {
+		t.Errorf("Expected 5 posts (4 seeded + 1 user), got %d.\nFeed output: %s", postCount, feedOut)
+	}
+}
+
+func TestSmokeInitDryRunDoesNotSeed(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Dry-run init
+	stdout, _, err := h.Run("init", "--dry-run")
+	if err != nil {
+		t.Fatalf("smoke init --dry-run failed: %v", err)
+	}
+
+	// Should show what would be done
+	if !strings.Contains(stdout, "[dry-run]") {
+		t.Errorf("Expected dry-run output: %s", stdout)
+	}
+
+	// Feed file should not exist or be empty
+	// Post should fail because not initialized
+	_, _, postErr := h.Run("post", "should fail")
+	if postErr == nil {
+		t.Error("Expected post to fail after dry-run init, but it succeeded")
+	}
+}
+
 func TestSmokePost(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -309,7 +404,7 @@ func TestSmokeFeedLimit(t *testing.T) {
 	// Count posts in output (look for author pattern)
 	count := strings.Count(stdout, "ember@testrig")
 	if count != 2 {
-		t.Errorf("feed -n 2 returned %d posts, want 2", count)
+		t.Errorf("feed -n 2 returned %d posts, want 2.\nFeed output:\n%s", count, stdout)
 	}
 }
 

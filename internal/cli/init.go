@@ -129,9 +129,11 @@ func runInit(_ *cobra.Command, _ []string) error {
 			if !feedExists {
 				store := feed.NewStoreWithPath(feedPath)
 				seeded, seedErr := store.SeedExamples()
-				if seedErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "warning: could not seed example posts: %v\n", seedErr)
-				} else if seeded > 0 {
+				switch {
+				case seedErr != nil:
+					// Surface error prominently - seeding is part of onboarding
+					fmt.Printf("Note: Could not seed example posts: %v\n", seedErr)
+				case seeded > 0:
 					fmt.Printf("Seeded %d example posts to show the social tone\n", seeded)
 				}
 			}

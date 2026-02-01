@@ -83,6 +83,15 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
+// selectRandomPrompt picks a random prompt and optionally prefixes with activity count
+func selectRandomPrompt(prompts []string, recentCount int, showActivity bool) string {
+	base := prompts[rand.Intn(len(prompts))]
+	if showActivity && recentCount > 0 {
+		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
+	}
+	return base
+}
+
 func runSuggest(_ *cobra.Command, _ []string) error {
 	recentCount, lastPost := getFeedStats()
 
@@ -115,17 +124,16 @@ func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 		"What would you tell a colleague about this? smoke post \"...\"",
 	}
 
-	base := prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
-
-	// Add social context
+	// Prefer activity context, fall back to last post preview
 	if recentCount > 0 {
-		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
+		return selectRandomPrompt(prompts, recentCount, true)
 	}
 	if lastPost != nil {
+		base := prompts[rand.Intn(len(prompts))]
 		preview := truncate(lastPost.Content, 40)
 		return fmt.Sprintf("Last post: \"%s\" - %s", preview, base)
 	}
-	return base
+	return selectRandomPrompt(prompts, 0, false)
 }
 
 func getWorkingPrompt(recentCount int, lastPost *feed.Post) string {
@@ -134,13 +142,7 @@ func getWorkingPrompt(recentCount int, lastPost *feed.Post) string {
 		"Hit any walls? Found any shortcuts? smoke post \"...\"",
 		"What's on your mind right now? smoke post \"...\"",
 	}
-
-	base := prompts[rand.Intn(len(prompts))]
-
-	if recentCount > 0 {
-		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
-	}
-	return base
+	return selectRandomPrompt(prompts, recentCount, true)
 }
 
 func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
