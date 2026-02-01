@@ -276,15 +276,15 @@ func TestWarnCheck(t *testing.T) {
 
 func TestFailCheck(t *testing.T) {
 	fixCalled := false
-	fixFunc := func() error {
+	fixFunc := func() (*FixResult, error) {
 		fixCalled = true
-		return nil
+		return &FixResult{Description: "test fix"}, nil
 	}
 
 	tests := []struct {
 		name    string
 		canFix  bool
-		fixFunc func() error
+		fixFunc func() (*FixResult, error)
 	}{
 		{"with fix", true, fixFunc},
 		{"without fix", false, nil},
@@ -313,7 +313,13 @@ func TestFailCheck(t *testing.T) {
 				if check.Fix == nil {
 					t.Error("failCheck().Fix should not be nil when canFix is true")
 				} else {
-					check.Fix()
+					result, err := check.Fix()
+					if err != nil {
+						t.Errorf("failCheck().Fix should not return error, got %v", err)
+					}
+					if result == nil {
+						t.Error("failCheck().Fix should return non-nil FixResult")
+					}
 					if !fixCalled {
 						t.Error("failCheck().Fix should call provided function")
 					}
