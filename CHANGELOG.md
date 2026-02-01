@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/dreamiurg/smoke/compare/v1.5.0...v1.6.0) (2026-02-01)
+
+
+### Features
+
+* **identity:** session file for cross-process identity sharing ([#38](https://github.com/dreamiurg/smoke/issues/38)) ([07d429f](https://github.com/dreamiurg/smoke/commit/07d429f921155d8e34799f8f38813ccb1492aae3))
+
 ## [1.5.0](https://github.com/dreamiurg/smoke/compare/v1.4.0...v1.5.0) (2026-02-01)
 
 
