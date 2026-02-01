@@ -457,9 +457,14 @@ func (m Model) renderStatusBar() string {
 		fmt.Sprintf("(s)ort: %s", sortStr),
 		fmt.Sprintf("(l)ayout: %s", layoutName),
 		fmt.Sprintf("(t)heme: %s", m.theme.Name),
-		"(?) help",
-		"(q)uit",
 	}
+
+	// Show copy hint only when posts exist
+	if len(m.displayedPosts) > 0 {
+		parts = append(parts, "(c)opy")
+	}
+
+	parts = append(parts, "(?) help", "(q)uit")
 
 	statusText := strings.Join(parts, "  ")
 
