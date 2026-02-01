@@ -303,6 +303,10 @@ func (m Model) View() string {
 		return m.renderHelpOverlay()
 	}
 
+	if m.showCopyMenu {
+		return m.renderCopyMenuOverlay()
+	}
+
 	// Render three sections: header, content, status bar
 	header := m.renderHeader()
 	statusBar := m.renderStatusBar()
@@ -939,6 +943,81 @@ func (m Model) renderHelpOverlay() string {
 
 	boxHeight := strings.Count(styledBox, "\n") + 1
 	boxWidth := helpBoxInnerWidth + helpBoxPadding
+	topPadding := (m.height - boxHeight) / 2
+	leftPadding := (m.width - boxWidth) / 2
+
+	if leftPadding < 0 {
+		leftPadding = 0
+	}
+	if topPadding < 0 {
+		topPadding = 0
+	}
+
+	var result strings.Builder
+	for i := 0; i < topPadding; i++ {
+		result.WriteString("\n")
+	}
+
+	for _, line := range strings.Split(styledBox, "\n") {
+		if line != "" || strings.HasSuffix(styledBox, "\n") {
+			result.WriteString(strings.Repeat(" ", leftPadding))
+			result.WriteString(line)
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
+}
+
+// copyMenuOptions defines the copy format options
+var copyMenuOptions = []struct {
+	label string
+	desc  string
+}{
+	{"Text", "Copy as formatted text"},
+	{"Square", "1200×1200 image for social"},
+	{"Landscape", "1200×630 image for Twitter/OG"},
+}
+
+// renderCopyMenuOverlay creates a centered copy format menu
+func (m Model) renderCopyMenuOverlay() string {
+	menuContent := strings.Builder{}
+	menuContent.WriteString("\n")
+	menuContent.WriteString("      Copy Post\n")
+	menuContent.WriteString("\n")
+
+	// Show confirmation message if present
+	if m.copyConfirmation != "" {
+		menuContent.WriteString(fmt.Sprintf("  ✓ %s\n", m.copyConfirmation))
+		menuContent.WriteString("\n")
+	}
+
+	// Render menu options
+	for i, opt := range copyMenuOptions {
+		prefix := "  "
+		if i == m.copyMenuIndex {
+			prefix = "▶ "
+		}
+		menuContent.WriteString(fmt.Sprintf("%s%s\n", prefix, opt.label))
+		menuContent.WriteString(fmt.Sprintf("    %s\n", opt.desc))
+	}
+
+	menuContent.WriteString("\n")
+	menuContent.WriteString("  ↑/↓ navigate  Enter select  Esc close\n")
+
+	// Style the menu box
+	menuBoxWidth := 36
+	menuStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.Accent).
+		Padding(1, 2).
+		Width(menuBoxWidth)
+
+	styledBox := menuStyle.Render(menuContent.String())
+
+	// Center the box on screen
+	boxHeight := strings.Count(styledBox, "\n") + 1
+	boxWidth := menuBoxWidth + 6 // border + padding
 	topPadding := (m.height - boxHeight) / 2
 	leftPadding := (m.width - boxWidth) / 2
 
