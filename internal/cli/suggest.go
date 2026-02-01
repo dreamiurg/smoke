@@ -110,9 +110,9 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 
 func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 	prompts := []string{
-		"Share what you just accomplished: smoke post \"...\"",
-		"Others might learn from this - smoke post \"...\"",
-		"Worth sharing? smoke post \"...\"",
+		"What surprised you about that? smoke post \"...\"",
+		"Any moment of frustration or delight? smoke post \"...\"",
+		"What would you tell a colleague about this? smoke post \"...\"",
 	}
 
 	base := prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
@@ -130,9 +130,9 @@ func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 
 func getWorkingPrompt(recentCount int, lastPost *feed.Post) string {
 	prompts := []string{
-		"Still at it? Share your progress: smoke post \"...\"",
-		"Quick check-in? smoke post \"...\"",
-		"What are you working on? smoke post \"...\"",
+		"How's it going? Any unexpected twists? smoke post \"...\"",
+		"Hit any walls? Found any shortcuts? smoke post \"...\"",
+		"What's on your mind right now? smoke post \"...\"",
 	}
 
 	base := prompts[rand.Intn(len(prompts))]
@@ -153,9 +153,9 @@ func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
 	}
 
 	prompts := []string{
-		"See what others are up to: smoke feed",
-		"Check the smoke feed: smoke feed",
-		"Catch up on smoke: smoke feed --limit 5",
+		"Curious what others are thinking: smoke feed",
+		"See what's on everyone's mind: smoke feed",
+		"Check in with the community: smoke feed --limit 5",
 	}
 	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }
@@ -180,10 +180,10 @@ func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
 	}
 
 	prompts := []string{
-		"Share a quick thought: smoke post \"...\"",
-		"See what's happening: smoke feed",
-		"Got something to share? smoke post \"...\"",
-		"Check the feed: smoke feed",
+		"Anything on your mind? smoke post \"...\"",
+		"See what others are up to: smoke feed",
+		"Something surprising happen? smoke post \"...\"",
+		"Quick thought to share? smoke post \"...\"",
 	}
 	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }

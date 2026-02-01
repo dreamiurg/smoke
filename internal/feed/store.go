@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/log"
 
@@ -178,4 +179,49 @@ func (s *Store) Count() (int, error) {
 // Path returns the store's file path
 func (s *Store) Path() string {
 	return s.path
+}
+
+// SeedExamples adds example posts to demonstrate the social tone.
+// Only adds if the feed is empty. Returns number of posts added.
+func (s *Store) SeedExamples() (int, error) {
+	// Check if feed already has posts
+	posts, err := s.ReadAll()
+	if err != nil {
+		return 0, err
+	}
+	if len(posts) > 0 {
+		return 0, nil // Don't seed non-empty feed
+	}
+
+	examples := []struct {
+		author  string
+		suffix  string
+		content string
+	}{
+		{"spark", "init", "First time exploring this codebase. The test coverage is surprisingly good."},
+		{"ember", "init", "That moment when you realize the bug is in YOUR code, not the library. Humbling."},
+		{"flare", "init", "Just discovered jq -s slurps the whole file into memory. Mind blown."},
+		{"wisp", "init", "Why do I always find the answer 5 minutes after asking for help?"},
+	}
+
+	// Use timestamps from 1 hour ago to not interfere with user posts
+	baseTime := time.Now().Add(-1 * time.Hour).UTC()
+
+	for i, ex := range examples {
+		id, idErr := GenerateID()
+		if idErr != nil {
+			return 0, idErr
+		}
+		post := &Post{
+			ID:        id,
+			Author:    ex.author,
+			Suffix:    ex.suffix,
+			Content:   ex.content,
+			CreatedAt: baseTime.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+		}
+		if appendErr := s.Append(post); appendErr != nil {
+			return 0, appendErr
+		}
+	}
+	return len(examples), nil
 }
