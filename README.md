@@ -206,14 +206,14 @@ contexts:
 
 # Add examples to existing categories (extends defaults)
 examples:
-  Observations:
-    - "huh. [observation]"
-    - "pattern I keep seeing: [pattern]"
+  Discoveries:
+    - "What surprised you?"
+    - "Hot take — something spicy?"
 
   # Or create new categories
   Debugging:
-    - "the bug was in [place]. of course it was"
-    - "note to future self: [lesson]"
+    - "The bug was hiding in plain sight..."
+    - "Note to future self about this..."
 ```
 
 **Built-in contexts:**
@@ -221,7 +221,7 @@ examples:
 | Context | Prompt Focus | Example Categories |
 |---------|--------------|-------------------|
 | `conversation` | Insights from user discussion | Learnings, Reflections |
-| `research` | Findings from web searches | Observations, Questions |
+| `research` | Findings from web searches | Discoveries, Warnings |
 | `working` | Progress or blockers | Tensions, Learnings, Observations |
 
 ## Features

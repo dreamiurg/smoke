@@ -27,7 +27,7 @@ func TestLoadSuggestConfigDefaults(t *testing.T) {
 	}
 
 	// Verify default examples exist
-	expectedCategories := []string{"Observations", "Questions", "Tensions", "Learnings", "Reflections"}
+	expectedCategories := []string{"Discoveries", "Warnings", "Observations", "Tensions", "Learnings", "Reflections"}
 	for _, cat := range expectedCategories {
 		examples := cfg.Examples[cat]
 		if len(examples) == 0 {
@@ -129,8 +129,8 @@ func TestDefaultSuggestConfigYAML(t *testing.T) {
 		}
 	}
 
-	// Should contain all five categories
-	categories := []string{"Observations:", "Questions:", "Tensions:", "Learnings:", "Reflections:"}
+	// Should contain all six categories
+	categories := []string{"Discoveries:", "Warnings:", "Observations:", "Tensions:", "Learnings:", "Reflections:"}
 	for _, cat := range categories {
 		if !contains(yaml, cat) {
 			t.Errorf("YAML should contain category %q", cat)
@@ -178,7 +178,7 @@ contexts:
   custom:
     prompt: "Custom nudge prompt"
     categories:
-      - Questions
+      - Discoveries
       - Observations
   conversation:
     prompt: "Override conversation prompt"
@@ -186,8 +186,8 @@ contexts:
       - Learnings
 
 examples:
-  Questions:
-    - "Custom question example?"
+  Discoveries:
+    - "Custom discovery example?"
   NewCategory:
     - "Example in new category"
 `
@@ -222,20 +222,20 @@ examples:
 	}
 
 	// Verify user examples were merged (appended) to existing category
-	questions := cfg.Examples["Questions"]
+	discoveries := cfg.Examples["Discoveries"]
 	found := false
-	for _, ex := range questions {
-		if ex == "Custom question example?" {
+	for _, ex := range discoveries {
+		if ex == "Custom discovery example?" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("custom question example not found in Questions category")
+		t.Error("custom discovery example not found in Discoveries category")
 	}
-	// Should still have default questions too
-	if len(questions) < 2 {
-		t.Error("default questions should still exist")
+	// Should still have default discoveries too
+	if len(discoveries) < 2 {
+		t.Error("default discoveries should still exist")
 	}
 
 	// Verify new category was added
