@@ -110,6 +110,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle copy menu navigation when visible
+		if m.showCopyMenu {
+			switch msg.String() {
+			case "up", "k":
+				if m.copyMenuIndex > 0 {
+					m.copyMenuIndex--
+				}
+				return m, nil
+			case "down", "j":
+				if m.copyMenuIndex < len(copyMenuOptions)-1 {
+					m.copyMenuIndex++
+				}
+				return m, nil
+			case "enter":
+				// Will trigger copy action (handled in T4.x tasks)
+				// For now, just close the menu
+				m.showCopyMenu = false
+				return m, nil
+			case "esc", "q":
+				m.showCopyMenu = false
+				m.copyConfirmation = ""
+				return m, nil
+			}
+			// Ignore other keys while menu is open
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
