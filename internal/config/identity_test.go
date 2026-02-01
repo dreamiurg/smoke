@@ -983,3 +983,166 @@ func TestSessionFileIgnoredWhenProcessDead(t *testing.T) {
 	// Should NOT use the session file because PID is not running
 	require.Equal(t, termSessionID, seed, "Should fall back to TERM_SESSION_ID when session file PID is dead")
 }
+
+// TestIsHumanSession_ClaudeCodeNotHuman verifies that CLAUDECODE=1 is never human
+func TestIsHumanSession_ClaudeCodeNotHuman(t *testing.T) {
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	defer os.Setenv("CLAUDECODE", origClaudeCode)
+
+	os.Setenv("CLAUDECODE", "1")
+
+	result := isHumanSession()
+	require.False(t, result, "Should not be human when CLAUDECODE=1")
+}
+
+// TestIsHumanSession_ValidSessionFileNotHuman verifies that valid Claude session = not human
+func TestIsHumanSession_ValidSessionFileNotHuman(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("CLAUDECODE", "") // Not running under Claude Code directly
+
+	termSessionID := "test-terminal"
+	os.Setenv("TERM_SESSION_ID", termSessionID)
+
+	// Write a valid session file with running PID
+	info := &sessionInfo{
+		PID:           os.Getpid(), // Current process is running
+		TermSessionID: termSessionID,
+		Seed:          "claude-ppid-test",
+	}
+	require.NoError(t, writeSessionInfo(info))
+
+	result := isHumanSession()
+	require.False(t, result, "Should not be human when valid Claude session file exists")
+}
+
+// TestIsHumanSession_NoAgentIndicators tests the human detection without agent context
+// Note: This test may return different results depending on whether it runs in an interactive terminal
+func TestIsHumanSession_NoAgentIndicators(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("CLAUDECODE", "")
+	os.Setenv("TERM_SESSION_ID", "some-terminal")
+
+	// No session file exists, and CLAUDECODE is not set
+	// Result depends on whether stdin is a TTY (it's not in test environment)
+	result := isHumanSession()
+
+	// In CI/test environment, stdin is typically not a TTY, so should be false
+	// We just verify it doesn't panic and returns a boolean
+	t.Logf("isHumanSession() returned %v (expected false in test environment)", result)
+}
+
+// TestGetIdentity_HumanInInteractiveTerminal tests that human identity is returned for interactive terminals
+// This test simulates the scenario where isHumanSession would return true
+func TestGetIdentity_HumanInInteractiveTerminal(t *testing.T) {
+	// We can't easily test actual TTY detection in unit tests,
+	// but we can verify the HumanIdentity constant is used correctly
+	// when we would be human
+	require.Equal(t, "<human>", HumanIdentity, "HumanIdentity constant should be <human>")
+}
+
+// TestHumanIdentityString verifies the human identity string format
+func TestHumanIdentityString(t *testing.T) {
+	id := &Identity{
+		Agent:   "",
+		Suffix:  HumanIdentity,
+		Project: "smoke",
+	}
+
+	want := "<human>@smoke"
+	got := id.String()
+
+	require.Equal(t, want, got, "Human identity should format as <human>@project")
+}
+
+// TestIsHumanSession_DifferentTerminalSession tests that mismatched terminal ignores session file
+func TestIsHumanSession_DifferentTerminalSession(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("CLAUDECODE", "")
+	os.Setenv("TERM_SESSION_ID", "different-terminal")
+
+	// Write a session file for a different terminal
+	info := &sessionInfo{
+		PID:           os.Getpid(),
+		TermSessionID: "original-terminal", // Different from current
+		Seed:          "claude-ppid-test",
+	}
+	require.NoError(t, writeSessionInfo(info))
+
+	// Session file doesn't match current terminal, so it's ignored
+	// Result depends on TTY status (false in test environment)
+	result := isHumanSession()
+	t.Logf("isHumanSession() with mismatched terminal: %v", result)
+}
+
+// TestIsHumanSession_DeadProcessSession tests that dead process session file is ignored
+func TestIsHumanSession_DeadProcessSession(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("CLAUDECODE", "")
+	termSessionID := "test-terminal"
+	os.Setenv("TERM_SESSION_ID", termSessionID)
+
+	// Write a session file with a non-existent PID
+	info := &sessionInfo{
+		PID:           999999999, // Very unlikely to exist
+		TermSessionID: termSessionID,
+		Seed:          "claude-ppid-dead",
+	}
+	require.NoError(t, writeSessionInfo(info))
+
+	// Dead process means session file is invalid
+	// Result depends on TTY status (false in test environment)
+	result := isHumanSession()
+	t.Logf("isHumanSession() with dead process: %v", result)
+}

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/term"
+
 	"github.com/dreamiurg/smoke/internal/identity"
 )
 
@@ -89,6 +91,34 @@ func isPIDRunning(pid int) bool {
 // ErrNoIdentity is returned when identity cannot be determined
 var ErrNoIdentity = errors.New("cannot determine identity. Use --as flag or set SMOKE_AUTHOR")
 
+// HumanIdentity is the suffix used for human users in interactive terminals.
+const HumanIdentity = "<human>"
+
+// isHumanSession detects if the current session is an interactive human user.
+// Returns true if:
+// 1. Not running under Claude Code (CLAUDECODE != "1")
+// 2. No valid Claude session file exists for this terminal
+// 3. Stdin is an interactive terminal (TTY)
+func isHumanSession() bool {
+	// If running under Claude Code, definitely not human
+	if os.Getenv("CLAUDECODE") == "1" {
+		return false
+	}
+
+	// Check for a valid Claude session file (ccstatusline case)
+	termSessionID := os.Getenv("TERM_SESSION_ID")
+	if info := readSessionInfo(); info != nil {
+		// If session file matches terminal and Claude process is running,
+		// this could be ccstatusline or similar - treat as agent context
+		if info.TermSessionID == termSessionID && isPIDRunning(info.PID) {
+			return false
+		}
+	}
+
+	// Interactive terminal with no agent indicators = human
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
 // Identity represents the agent's identity for posting
 type Identity struct {
 	Agent   string // Agent type (e.g., "claude", "unknown")
@@ -138,9 +168,18 @@ func GetIdentity(override string) (*Identity, error) {
 	}
 
 	// Auto-detect identity
-	seed := getSessionSeed()
 	project := detectProject()
 
+	// Check if this is a human in an interactive terminal
+	if isHumanSession() {
+		return &Identity{
+			Agent:   "",
+			Suffix:  HumanIdentity,
+			Project: project,
+		}, nil
+	}
+
+	seed := getSessionSeed()
 	if seed == "" {
 		return nil, ErrNoIdentity
 	}
