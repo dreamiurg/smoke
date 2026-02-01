@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/hooks"
 )
 
 var (
@@ -86,6 +88,13 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if alreadyInitialized && !initForce {
 		fmt.Printf("Smoke is already initialized in %s\n", configDir)
 		fmt.Println("Use --force to reinitialize.")
+
+		// Check if hooks are missing and suggest installation
+		status, hookErr := hooks.GetStatus()
+		if hookErr == nil && status.State != hooks.StateInstalled {
+			fmt.Println("\nHooks not installed. Run: smoke hooks install")
+		}
+
 		return nil
 	}
 
@@ -186,6 +195,22 @@ func runInit(_ *cobra.Command, _ []string) error {
 		actions = append(actions, action)
 	default:
 		fmt.Printf("Skipped: %s (smoke hint already present)\n", claudePath)
+	}
+
+	// Install hooks (unless dry-run)
+	if !initDryRun {
+		hookErr := hooks.Install(hooks.InstallOptions{Force: false})
+		if hookErr != nil {
+			// Graceful degradation per FR-002: warn but don't fail init
+			if errors.Is(hookErr, hooks.ErrScriptsModified) {
+				fmt.Fprintf(os.Stderr, "\nNote: Hook scripts have been modified. Run 'smoke hooks install --force' to update.\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "\nNote: Could not install hooks: %v\n", hookErr)
+				fmt.Fprintf(os.Stderr, "  Run 'smoke hooks install' manually after fixing the issue.\n")
+			}
+		} else {
+			fmt.Printf("Hooks installed: ~/.claude/hooks/smoke-*.sh\n")
+		}
 	}
 
 	// Summary

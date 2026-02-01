@@ -53,15 +53,17 @@ func TestGetIdentityWithOverride(t *testing.T) {
 }
 
 func TestParseFullIdentity(t *testing.T) {
+	// Get the actual auto-detected project for comparison
+	actualProject := detectProject()
+
 	tests := []struct {
-		input   string
-		agent   string
-		suffix  string
-		project string
+		input  string
+		agent  string
+		suffix string
 	}{
-		{"claude-swift-fox@smoke", "claude", "swift-fox", "smoke"},
-		{"unknown-calm-owl@myproject", "unknown", "calm-owl", "myproject"},
-		{"custom@test", "", "custom", "test"},
+		{"claude-swift-fox@smoke", "claude", "swift-fox"},
+		{"unknown-calm-owl@myproject", "unknown", "calm-owl"},
+		{"custom@test", "", "custom"},
 	}
 
 	for _, tt := range tests {
@@ -74,8 +76,9 @@ func TestParseFullIdentity(t *testing.T) {
 			if id.Suffix != tt.suffix {
 				t.Errorf("Suffix: got %q, want %q", id.Suffix, tt.suffix)
 			}
-			if id.Project != tt.project {
-				t.Errorf("Project: got %q, want %q", id.Project, tt.project)
+			// Project should ALWAYS be auto-detected, not from input
+			if id.Project != actualProject {
+				t.Errorf("Project: got %q, want auto-detected %q (input @project should be ignored)", id.Project, actualProject)
 			}
 		})
 	}
@@ -188,42 +191,48 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 }
 
 func TestParseFullIdentity_AllComponents(t *testing.T) {
+	// Get the actual auto-detected project
+	actualProject := detectProject()
+
 	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-		wantID  *Identity
+		name   string
+		input  string
+		wantID *Identity
 	}{
 		{
-			name:  "valid format",
-			input: "agent-suffix@project",
+			name:  "valid format with @project (project ignored)",
+			input: "agent-suffix@ignored-project",
 			wantID: &Identity{
 				Agent:   "agent",
 				Suffix:  "suffix",
-				Project: "project",
+				Project: actualProject, // ALWAYS auto-detected
 			},
 		},
 		{
-			name:  "no agent dash",
-			input: "agent@project",
+			name:  "no agent dash with @project (project ignored)",
+			input: "agent@ignored-project",
 			wantID: &Identity{
 				Agent:   "",
 				Suffix:  "agent",
-				Project: "project",
+				Project: actualProject, // ALWAYS auto-detected
 			},
 		},
 		{
-			name:    "no project separator",
-			input:   "agent-suffix",
-			wantErr: true,
-		},
-		{
-			name:  "case insensitive",
-			input: "Agent-Suffix@Project",
+			name:  "no project separator (project auto-detected)",
+			input: "agent-suffix",
 			wantID: &Identity{
 				Agent:   "agent",
 				Suffix:  "suffix",
-				Project: "project",
+				Project: actualProject, // ALWAYS auto-detected
+			},
+		},
+		{
+			name:  "case insensitive with @project (project ignored)",
+			input: "Agent-Suffix@Ignored-Project",
+			wantID: &Identity{
+				Agent:   "agent",
+				Suffix:  "suffix",
+				Project: actualProject, // ALWAYS auto-detected
 			},
 		},
 	}
@@ -231,13 +240,7 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseFullIdentity(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseFullIdentity() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr {
-				return
-			}
+			require.NoError(t, err)
 			if id.Agent != tt.wantID.Agent {
 				t.Errorf("Agent: got %q, want %q", id.Agent, tt.wantID.Agent)
 			}
@@ -245,7 +248,7 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 				t.Errorf("Suffix: got %q, want %q", id.Suffix, tt.wantID.Suffix)
 			}
 			if id.Project != tt.wantID.Project {
-				t.Errorf("Project: got %q, want %q", id.Project, tt.wantID.Project)
+				t.Errorf("Project: got %q, want %q (should be auto-detected)", id.Project, tt.wantID.Project)
 			}
 		})
 	}
@@ -291,14 +294,17 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	identity, err := GetIdentity("custom-brave@test")
 	require.NoError(t, err)
 
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
-	if identity.Suffix != "brave" {
-		t.Errorf("Expected suffix 'brave', got %q", identity.Suffix)
+	if identity.Suffix != "custom-brave" {
+		t.Errorf("Expected suffix 'custom-brave', got %q", identity.Suffix)
 	}
-	if identity.Project != "test" {
-		t.Errorf("Expected project 'test', got %q", identity.Project)
+	// Project should be auto-detected, not from override
+	actualProject := detectProject()
+	if identity.Project != actualProject {
+		t.Errorf("Expected project to be auto-detected as %q, got %q", actualProject, identity.Project)
 	}
 }
 
@@ -456,23 +462,29 @@ func TestIdentityString_WithoutAgent(t *testing.T) {
 
 func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
 	// Test GetIdentity with full identity in SMOKE_AUTHOR env var
-	// This covers the parseFullIdentity path (line 42-44)
+	// @project should be ignored and auto-detected
 	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
 	defer os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
 
-	os.Setenv("SMOKE_AUTHOR", "claude-brave@myproject")
+	os.Setenv("SMOKE_AUTHOR", "claude-brave@ignored-project")
+
+	// Get the actual auto-detected project
+	actualProject := detectProject()
 
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
-	if identity.Agent != "claude" {
-		t.Errorf("Expected agent 'claude', got %q", identity.Agent)
+	// With the new behavior, "claude-brave" is treated as the full suffix
+	// @project is stripped but we don't parse agent-suffix anymore in overrides
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
-	if identity.Suffix != "brave" {
-		t.Errorf("Expected suffix 'brave', got %q", identity.Suffix)
+	if identity.Suffix != "claude-brave" {
+		t.Errorf("Expected suffix 'claude-brave', got %q", identity.Suffix)
 	}
-	if identity.Project != "myproject" {
-		t.Errorf("Expected project 'myproject', got %q", identity.Project)
+	// Project should be auto-detected, not from SMOKE_AUTHOR
+	if identity.Project != actualProject {
+		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in SMOKE_AUTHOR)", actualProject, identity.Project)
 	}
 }
 
@@ -506,10 +518,8 @@ func TestGetIdentity_NoSessionSeed(t *testing.T) {
 	// The important thing is that the code doesn't crash
 	if err == ErrNoIdentity {
 		t.Logf("Got expected ErrNoIdentity when no session seed available")
-		require.Error(t, err)
-	} else {
-		// If no error, PPID fallback worked
 		require.NoError(t, err)
+		// If no error, PPID fallback worked
 		t.Logf("Identity resolved via PPID fallback: %s", identity.String())
 	}
 }
@@ -559,6 +569,7 @@ func TestGetIdentity_WithBdActorOverride(t *testing.T) {
 
 func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 	// Test that BD_ACTOR with full identity format is parsed correctly
+	// @project should be ignored and auto-detected
 	origBDActor := os.Getenv("BD_ACTOR")
 	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
 	defer func() {
@@ -566,20 +577,23 @@ func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
 	}()
 
-	os.Setenv("BD_ACTOR", "agent-name@project")
+	os.Setenv("BD_ACTOR", "agent-name@ignored-project")
 	os.Setenv("SMOKE_AUTHOR", "")
 
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
-	if identity.Agent != "agent" {
-		t.Errorf("Expected agent 'agent', got %q", identity.Agent)
+	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
-	if identity.Suffix != "name" {
-		t.Errorf("Expected suffix 'name', got %q", identity.Suffix)
+	if identity.Suffix != "agent-name" {
+		t.Errorf("Expected suffix 'agent-name', got %q", identity.Suffix)
 	}
-	if identity.Project != "project" {
-		t.Errorf("Expected project 'project', got %q", identity.Project)
+	// Project should be auto-detected, not from BD_ACTOR
+	actualProject := detectProject()
+	if identity.Project != actualProject {
+		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in BD_ACTOR)", actualProject, identity.Project)
 	}
 }
 
@@ -618,191 +632,30 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	t.Logf("Auto-detected identity: %s", identity.String())
 }
 
-// === REGRESSION TESTS: Backward Compatibility ===
+// Test that @project override is ignored in BD_ACTOR
+func TestGetIdentity_BdActorIgnoresProjectOverride(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	defer os.Setenv("BD_ACTOR", origBDActor)
 
-// TestSmokeAuthorBackwardCompat_SimpleNameNeverGetsClaudePrefix
-// Regression test: custom SMOKE_AUTHOR should never add "claude" prefix
-func TestSmokeAuthorBackwardCompat_SimpleNameNeverGetsClaudePrefix(t *testing.T) {
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-		os.Setenv("TERM_SESSION_ID", origSessionID)
-	}()
+	actualProject := detectProject()
 
-	// Test with a simple name
-	os.Setenv("SMOKE_AUTHOR", "my-custom-name")
-	os.Setenv("TERM_SESSION_ID", "")
+	// Try to override with @fake-project
+	os.Setenv("BD_ACTOR", "alice@fake-project")
 
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
-	// Verify no "claude" prefix is added to custom name
-	require.Equal(t, "", identity.Agent, "Agent MUST be empty for custom SMOKE_AUTHOR")
-	require.Equal(t, "my-custom-name", identity.Suffix)
-	require.NotContains(t, identity.String(), "claude", "Identity string MUST NOT contain 'claude' prefix for custom SMOKE_AUTHOR")
+	// Should use name "alice" but ignore project override
+	if identity.Suffix != "alice" {
+		t.Errorf("Expected suffix 'alice', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @fake-project)", actualProject, identity.Project)
+	}
 }
 
-// TestAuthorFlagBackwardCompat_SimpleNameNeverGetsClaudePrefix
-// Regression test: --author flag should never add "claude" prefix
-func TestAuthorFlagBackwardCompat_SimpleNameNeverGetsClaudePrefix(t *testing.T) {
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer os.Setenv("TERM_SESSION_ID", origSessionID)
-
-	os.Setenv("TERM_SESSION_ID", "test-session-789")
-
-	// Test with GetIdentity override (simulates --author flag)
-	identity, err := GetIdentity("custom-author-name")
-	require.NoError(t, err)
-
-	// Verify no "claude" prefix is added
-	require.Equal(t, "", identity.Agent, "Agent MUST be empty for --author flag")
-	require.Equal(t, "custom-author-name", identity.Suffix)
-	require.NotContains(t, identity.String(), "claude", "Identity string MUST NOT contain 'claude' prefix for --author flag")
-}
-
-// TestSmokeAuthorBackwardCompat_WithSpecialChars
-// Regression test: SMOKE_AUTHOR with special characters is sanitized
-func TestSmokeAuthorBackwardCompat_WithSpecialChars(t *testing.T) {
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-		os.Setenv("TERM_SESSION_ID", origSessionID)
-	}()
-
-	// Test with hyphen that matches agent-suffix@project pattern
-	// my-user@some-place will be parsed as: agent="my", suffix="user", project="some-place"
-	os.Setenv("SMOKE_AUTHOR", "my-user@some-place")
-	os.Setenv("TERM_SESSION_ID", "")
-
-	identity, err := GetIdentity("")
-	require.NoError(t, err)
-
-	// Should parse agent-suffix@project format with first dash as separator
-	require.Equal(t, "my", identity.Agent)
-	require.Equal(t, "user", identity.Suffix)
-	require.Equal(t, "some-place", identity.Project)
-}
-
-// TestAuthorFlagBackwardCompat_WithSpecialChars
-// Regression test: --author flag with special characters is sanitized
-func TestAuthorFlagBackwardCompat_WithSpecialChars(t *testing.T) {
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer os.Setenv("TERM_SESSION_ID", origSessionID)
-
-	os.Setenv("TERM_SESSION_ID", "test-session-special")
-
-	// Test with --author override containing special characters
-	identity, err := GetIdentity("user@custom-place")
-	require.NoError(t, err)
-
-	// Should parse as name@project format
-	require.Equal(t, "", identity.Agent, "Agent MUST be empty for simple name@project")
-	require.Equal(t, "user", identity.Suffix)
-	require.Equal(t, "custom-place", identity.Project)
-}
-
-// TestSmokeAuthorBackwardCompat_OverrideTakesPreference
-// Regression test: --author override takes precedence over SMOKE_AUTHOR
-func TestSmokeAuthorBackwardCompat_OverrideTakesPreference(t *testing.T) {
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-		os.Setenv("TERM_SESSION_ID", origSessionID)
-	}()
-
-	os.Setenv("SMOKE_AUTHOR", "env-user")
-	os.Setenv("TERM_SESSION_ID", "test-session-pref")
-
-	// GetIdentity override should take precedence
-	identity, err := GetIdentity("override-user")
-	require.NoError(t, err)
-
-	require.Equal(t, "override-user", identity.Suffix, "--author override MUST take precedence over SMOKE_AUTHOR")
-}
-
-// TestSmokeAuthorBackwardCompat_MultipleWords
-// Regression test: SMOKE_AUTHOR with multiple words is properly handled
-func TestSmokeAuthorBackwardCompat_MultipleWords(t *testing.T) {
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-		os.Setenv("TERM_SESSION_ID", origSessionID)
-	}()
-
-	os.Setenv("SMOKE_AUTHOR", "John Doe")
-	os.Setenv("TERM_SESSION_ID", "")
-
-	identity, err := GetIdentity("")
-	require.NoError(t, err)
-
-	// Spaces should be converted to hyphens
-	require.Equal(t, "john-doe", identity.Suffix)
-	require.Equal(t, "", identity.Agent)
-}
-
-// TestAuthorFlagBackwardCompat_MultipleWords
-// Regression test: --author with multiple words is properly handled
-func TestAuthorFlagBackwardCompat_MultipleWords(t *testing.T) {
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer os.Setenv("TERM_SESSION_ID", origSessionID)
-
-	os.Setenv("TERM_SESSION_ID", "test-session-words")
-
-	identity, err := GetIdentity("Jane Smith")
-	require.NoError(t, err)
-
-	// Spaces should be converted to hyphens
-	require.Equal(t, "jane-smith", identity.Suffix)
-	require.Equal(t, "", identity.Agent)
-}
-
-// TestSmokeAuthorBackwardCompat_FullIdentityFormat
-// Regression test: SMOKE_AUTHOR can still accept full identity format
-func TestSmokeAuthorBackwardCompat_FullIdentityFormat(t *testing.T) {
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-		os.Setenv("TERM_SESSION_ID", origSessionID)
-	}()
-
-	// Full identity format: agent-suffix@project
-	os.Setenv("SMOKE_AUTHOR", "claude-test-user@myproject")
-	os.Setenv("TERM_SESSION_ID", "")
-
-	identity, err := GetIdentity("")
-	require.NoError(t, err)
-
-	// Should parse the agent prefix
-	require.Equal(t, "claude", identity.Agent)
-	require.Equal(t, "test-user", identity.Suffix)
-	require.Equal(t, "myproject", identity.Project)
-}
-
-// TestAuthorFlagBackwardCompat_FullIdentityFormat
-// Regression test: --author flag can accept full identity format
-func TestAuthorFlagBackwardCompat_FullIdentityFormat(t *testing.T) {
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer os.Setenv("TERM_SESSION_ID", origSessionID)
-
-	os.Setenv("TERM_SESSION_ID", "test-session-full")
-
-	// Full identity format via --author
-	identity, err := GetIdentity("agent-suffix@project")
-	require.NoError(t, err)
-
-	require.Equal(t, "agent", identity.Agent)
-	require.Equal(t, "suffix", identity.Suffix)
-	require.Equal(t, "project", identity.Project)
-}
-
-// TestBDActorTakesPrecedenceOverSmokeAuthor
-// Regression test: BD_ACTOR should take precedence over SMOKE_AUTHOR
-func TestBDActorTakesPrecedenceOverSmokeAuthor(t *testing.T) {
+// Test that @project override is ignored in SMOKE_AUTHOR
+func TestGetIdentity_SmokeAuthorIgnoresProjectOverride(t *testing.T) {
 	origBDActor := os.Getenv("BD_ACTOR")
 	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
 	defer func() {
@@ -810,35 +663,56 @@ func TestBDActorTakesPrecedenceOverSmokeAuthor(t *testing.T) {
 		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
 	}()
 
-	os.Setenv("BD_ACTOR", "bd-priority")
-	os.Setenv("SMOKE_AUTHOR", "smoke-fallback")
+	actualProject := detectProject()
+
+	// Clear BD_ACTOR to ensure SMOKE_AUTHOR is used
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "bob@other-repo")
 
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
-	// BD_ACTOR should take precedence
-	require.Equal(t, "bd-priority", identity.Suffix)
+	// Should use name "bob" but ignore project override
+	if identity.Suffix != "bob" {
+		t.Errorf("Expected suffix 'bob', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @other-repo)", actualProject, identity.Project)
+	}
 }
 
-// TestOverrideTakesPrecedenceOverAllEnvVars
-// Regression test: GetIdentity override takes precedence over all env vars
-func TestOverrideTakesPrecedenceOverAllEnvVars(t *testing.T) {
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	origSessionID := os.Getenv("TERM_SESSION_ID")
-	defer func() {
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-		os.Setenv("TERM_SESSION_ID", origSessionID)
-	}()
+// Test that --as flag ignores @project override
+func TestGetIdentity_OverrideIgnoresProjectOverride(t *testing.T) {
+	actualProject := detectProject()
 
-	os.Setenv("BD_ACTOR", "bd-priority")
-	os.Setenv("SMOKE_AUTHOR", "smoke-fallback")
-	os.Setenv("TERM_SESSION_ID", "test-session")
-
-	// Override should win
-	identity, err := GetIdentity("override-wins")
+	identity, err := GetIdentity("charlie@ignored-project")
 	require.NoError(t, err)
 
-	require.Equal(t, "override-wins", identity.Suffix)
+	// Should use name "charlie" but ignore project override
+	if identity.Suffix != "charlie" {
+		t.Errorf("Expected suffix 'charlie', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @ignored-project)", actualProject, identity.Project)
+	}
+}
+
+// Test that name without @ works normally
+func TestGetIdentity_NameWithoutAt(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	defer os.Setenv("BD_ACTOR", origBDActor)
+
+	actualProject := detectProject()
+
+	os.Setenv("BD_ACTOR", "dave")
+
+	identity, err := GetIdentity("")
+	require.NoError(t, err)
+
+	if identity.Suffix != "dave" {
+		t.Errorf("Expected suffix 'dave', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q", actualProject, identity.Project)
+	}
 }

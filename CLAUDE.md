@@ -133,10 +133,36 @@ make coverage-check           # Verify coverage threshold
 - Tests MUST use table-driven patterns where applicable
 - Tests MUST NOT rely on external services or network
 
-**Pre-commit hooks:** NEVER skip pre-commit hooks (`--no-verify`) without explicit human approval. If a hook fails:
-1. Fix the issue, don't bypass it
-2. If the failure is unrelated to your changes (flaky test, infra issue), ask the human before skipping
-3. Document the reason in the commit message if skipping is approved
+## Git Safety Protocol
+
+**CRITICAL: Pre-commit and pre-push hooks are MANDATORY quality gates.**
+
+### Absolute Rules
+
+1. **NEVER use `--no-verify`** without explicit human approval
+   - Not for commits: `git commit --no-verify`
+   - Not for pushes: `git push --no-verify`
+   - Not for any git operation with verification
+
+2. **If a hook fails:**
+   - Fix the underlying issue
+   - Re-run the command normally
+   - Document the fix in commit message if relevant
+
+3. **Exception process (requires human approval):**
+   - Explain WHY the hook is failing
+   - Explain WHY it cannot be fixed
+   - Ask: "The [hook-name] is failing because [reason]. Can I use --no-verify?"
+   - Wait for explicit "yes" before proceeding
+   - Document the bypass reason in commit message
+
+4. **Common scenarios:**
+   - Hook fails → Fix the code, don't bypass
+   - Flaky test → Investigate why, don't bypass
+   - Permission issue → Fix permissions, don't bypass
+   - Timeout → Optimize or split work, don't bypass
+
+**Violating this protocol risks shipping broken code and failing CI.**
 
 ## Session Completion Checklist
 
@@ -149,10 +175,12 @@ make ci
 # 2. Commit changes
 git add <files>
 git commit -m "type: description"
+# If pre-commit fails, FIX the issue. NEVER use --no-verify.
 
 # 3. Sync beads and push
 bd sync
-git push -u origin <branch>       # Push branch to remote
+git push -u origin <branch>
+# If pre-push fails, FIX the issue. NEVER use --no-verify.
 
 # 4. Create PR (if ready for review)
 gh pr create --draft              # Create draft PR for review
@@ -161,7 +189,7 @@ gh pr create --draft              # Create draft PR for review
 git status  # MUST show "up to date with origin"
 ```
 
-You MUST NOT skip quality gates. If checks fail, fix the issues before committing.
+You MUST NOT skip quality gates or hooks. If checks fail, fix the issues before committing.
 
 ## Key Principles (from Constitution)
 

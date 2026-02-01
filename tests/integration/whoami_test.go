@@ -255,7 +255,7 @@ func TestWhoamiSmokeAuthorOverride(t *testing.T) {
 }
 
 // TestWhoamiBDActor verifies that BD_ACTOR environment variable
-// takes precedence and correctly parses agent-suffix@project format
+// takes precedence for name but @project is ALWAYS auto-detected
 func TestWhoamiBDActor(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -265,7 +265,7 @@ func TestWhoamiBDActor(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Set BD_ACTOR in the expected format
+	// Set BD_ACTOR with @project (which will be stripped and ignored)
 	h.SetIdentity("agent-name@testproj")
 
 	stdout, _, err := h.Run("whoami")
@@ -275,9 +275,14 @@ func TestWhoamiBDActor(t *testing.T) {
 
 	identity := strings.TrimSpace(stdout)
 
-	// Should use the BD_ACTOR value exactly
-	if identity != "agent-name@testproj" {
-		t.Errorf("expected 'agent-name@testproj', got: %q", identity)
+	// Should use agent-name but with auto-detected project (not testproj)
+	// @project override is explicitly ignored per #33
+	if !strings.HasPrefix(identity, "agent-name@") {
+		t.Errorf("expected identity to start with 'agent-name@', got: %q", identity)
+	}
+	// Verify @testproj was NOT used
+	if strings.Contains(identity, "testproj") {
+		t.Errorf("@project override should be ignored, but got: %q", identity)
 	}
 }
 

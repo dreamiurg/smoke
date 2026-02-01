@@ -47,15 +47,20 @@ func GetIdentity(override string) (*Identity, error) {
 		}
 	}
 
-	// If we have an explicit author (from override or env), parse it
+	// If we have an explicit author (from override or env), use as custom identity
 	if author != "" {
-		if strings.Contains(author, "@") {
-			return parseFullIdentity(author)
+		// Strip @project if present (always ignore it)
+		name := author
+		if idx := strings.Index(author, "@"); idx != -1 {
+			name = author[:idx] // Take only the name part before @
 		}
-		project := detectProject()
+
+		project := detectProject() // ALWAYS auto-detect
+
+		// Use as custom identity (don't try to split agent-suffix for overrides)
 		return &Identity{
 			Agent:   "",
-			Suffix:  sanitizeName(author),
+			Suffix:  sanitizeName(name),
 			Project: project,
 		}, nil
 	}
@@ -91,14 +96,15 @@ func GetIdentity(override string) (*Identity, error) {
 }
 
 // parseFullIdentity parses "agent-suffix@project" or "name@project" format
+// NOTE: @project is ALWAYS auto-detected and cannot be overridden
 func parseFullIdentity(s string) (*Identity, error) {
 	parts := strings.SplitN(s, "@", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid identity format: %s", s)
-	}
 
+	// Extract name part (before @, or whole string if no @)
 	agentSuffix := parts[0]
-	project := sanitizeName(parts[1])
+
+	// ALWAYS auto-detect project, ignore @ override
+	project := detectProject()
 
 	// Split agent-suffix (e.g., "claude-swift-fox" -> "claude", "swift-fox")
 	firstDash := strings.Index(agentSuffix, "-")

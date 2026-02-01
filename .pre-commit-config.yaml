@@ -22,9 +22,10 @@ repos:
 
       # golangci-lint v2 required (matches CI)
       # Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+      # Auto-fixes issues where possible (gocritic, staticcheck, misspell, etc.)
       - id: golangci-lint
         name: golangci-lint
-        entry: golangci-lint run
+        entry: golangci-lint run --fix
         language: system
         types: [go]
         pass_filenames: false
