@@ -34,6 +34,15 @@ type Model struct {
 	config            *config.TUIConfig
 	version           string
 	err               error
+
+	// Cursor selection state
+	selectedPostIndex int     // Index of selected post in displayedPosts
+	displayedPosts    []*Post // Posts in display order (for cursor navigation)
+
+	// Copy menu state
+	showCopyMenu     bool   // Whether copy menu is visible
+	copyMenuIndex    int    // Currently highlighted menu option (0-2)
+	copyConfirmation string // Confirmation message after copy
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
@@ -101,6 +110,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle copy menu navigation when visible
+		if m.showCopyMenu {
+			return m.handleCopyMenuKey(msg)
+		}
+
+		// Clear copy confirmation on any key
+		if m.copyConfirmation != "" {
+			m.copyConfirmation = ""
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -123,6 +142,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.newestOnTop = !m.newestOnTop
 			m.config.NewestOnTop = m.newestOnTop
 			m.err = config.SaveTUIConfig(m.config)
+			// Update displayed posts and reset selection
+			m.updateDisplayedPosts()
+			m.selectedPostIndex = 0
 			// Scroll to show newest posts: top if newestOnTop, bottom otherwise
 			if m.newestOnTop {
 				m.scrollOffset = 0
@@ -132,17 +154,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "up", "k":
-			// Scroll up one line
-			if m.scrollOffset > 0 {
-				m.scrollOffset--
+			// Move cursor up (select previous post)
+			if m.selectedPostIndex > 0 {
+				m.selectedPostIndex--
+				m.ensureSelectedVisible()
 			}
 			return m, nil
 
 		case "down", "j":
-			// Scroll down one line
-			maxOffset := m.maxScrollOffset()
-			if m.scrollOffset < maxOffset {
-				m.scrollOffset++
+			// Move cursor down (select next post)
+			if m.selectedPostIndex < len(m.displayedPosts)-1 {
+				m.selectedPostIndex++
+				m.ensureSelectedVisible()
 			}
 			return m, nil
 
@@ -166,13 +189,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "home", "g":
-			// Scroll to top
+			// Jump to first post
+			m.selectedPostIndex = 0
 			m.scrollOffset = 0
 			return m, nil
 
 		case "end", "G":
-			// Scroll to bottom
-			m.scrollOffset = m.maxScrollOffset()
+			// Jump to last post
+			if len(m.displayedPosts) > 0 {
+				m.selectedPostIndex = len(m.displayedPosts) - 1
+				m.scrollOffset = m.maxScrollOffset()
+			}
 			return m, nil
 
 		case "l":
@@ -200,15 +227,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "c":
-			m.config.Contrast = NextContrastLevel(m.config.Contrast)
-			m.contrast = GetContrastLevel(m.config.Contrast)
-			m.err = config.SaveTUIConfig(m.config)
-			return m, nil
-
-		case "C":
-			m.config.Contrast = PrevContrastLevel(m.config.Contrast)
-			m.contrast = GetContrastLevel(m.config.Contrast)
-			m.err = config.SaveTUIConfig(m.config)
+			// Open copy menu if a post is selected
+			if len(m.displayedPosts) > 0 && m.selectedPostIndex < len(m.displayedPosts) {
+				m.showCopyMenu = true
+				m.copyMenuIndex = 0
+			}
 			return m, nil
 
 		case "?":
@@ -243,9 +266,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			oldCount := len(m.posts)
 			m.posts = msg.posts
+			m.updateDisplayedPosts()
 			// Set initial scroll position once we have posts and know height
 			if !m.initialScrollDone && m.height > 0 && len(m.posts) > 0 {
 				m.initialScrollDone = true
+				m.selectedPostIndex = 0
 				if m.newestOnTop {
 					m.scrollOffset = 0
 				} else {
@@ -258,6 +283,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.scrollOffset = m.maxScrollOffset()
 				}
+			}
+			// Clamp selectedPostIndex if posts were removed
+			if m.selectedPostIndex >= len(m.displayedPosts) && len(m.displayedPosts) > 0 {
+				m.selectedPostIndex = len(m.displayedPosts) - 1
 			}
 		}
 		return m, nil
@@ -274,6 +303,10 @@ func (m Model) View() string {
 
 	if m.showHelp {
 		return m.renderHelpOverlay()
+	}
+
+	if m.showCopyMenu {
+		return m.renderCopyMenuOverlay()
 	}
 
 	// Render three sections: header, content, status bar
@@ -330,6 +363,15 @@ func (m Model) renderHeader() string {
 
 // renderStatusBar creates the status bar showing settings and keybindings
 func (m Model) renderStatusBar() string {
+	// Show copy confirmation if present
+	if m.copyConfirmation != "" {
+		style := lipgloss.NewStyle().
+			Foreground(m.theme.Accent).
+			Background(m.theme.BackgroundSecondary).
+			Width(m.width)
+		return style.Render(m.copyConfirmation)
+	}
+
 	// Build status items
 	autoStr := "OFF"
 	if m.autoRefresh {
@@ -351,7 +393,7 @@ func (m Model) renderStatusBar() string {
 		fmt.Sprintf("(s)ort: %s", sortStr),
 		fmt.Sprintf("(l)ayout: %s", layoutName),
 		fmt.Sprintf("(t)heme: %s", m.theme.Name),
-		fmt.Sprintf("(c)ontrast: %s", m.contrast.Name),
+		"(c)opy",
 		"(?) help",
 		"(q)uit",
 	}
@@ -372,10 +414,11 @@ func (m Model) renderStatusBar() string {
 	return style.Render(statusText)
 }
 
-// buildAllContentLines builds all content lines for the feed (used for scrolling)
-func (m Model) buildAllContentLines() []string {
+// updateDisplayedPosts updates the displayedPosts slice based on current sort order
+func (m *Model) updateDisplayedPosts() {
 	if len(m.posts) == 0 {
-		return []string{"No posts yet. Exit TUI (q) and try: smoke post \"hello world\""}
+		m.displayedPosts = nil
+		return
 	}
 
 	threads := buildThreads(m.posts)
@@ -387,41 +430,328 @@ func (m Model) buildAllContentLines() []string {
 		}
 	}
 
-	var lines []string
+	// Flatten to posts: main post + replies for each thread
+	m.displayedPosts = make([]*Post, 0, len(m.posts))
+	for _, thread := range threads {
+		m.displayedPosts = append(m.displayedPosts, thread.post)
+		m.displayedPosts = append(m.displayedPosts, thread.replies...)
+	}
+}
+
+// ensureSelectedVisible adjusts scroll offset to keep selected post visible
+func (m *Model) ensureSelectedVisible() {
+	if len(m.displayedPosts) == 0 || m.height <= 2 {
+		return
+	}
+
+	// Build content lines with post indices to find which lines belong to selected post
+	contentLines := m.buildAllContentLinesWithPosts()
+	availableHeight := m.height - 2 // header + status bar
+
+	// Find line range for selected post
+	var firstLine, lastLine int
+	found := false
+	for i, cl := range contentLines {
+		if cl.postIndex == m.selectedPostIndex {
+			if !found {
+				firstLine = i
+				found = true
+			}
+			lastLine = i
+		}
+	}
+
+	if !found {
+		return
+	}
+
+	// Adjust scroll to keep selected post visible
+	if firstLine < m.scrollOffset {
+		m.scrollOffset = firstLine
+	} else if lastLine >= m.scrollOffset+availableHeight {
+		m.scrollOffset = lastLine - availableHeight + 1
+	}
+
+	// Clamp scroll offset
+	maxOffset := m.maxScrollOffset()
+	if m.scrollOffset > maxOffset {
+		m.scrollOffset = maxOffset
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+}
+
+// contentLine tracks a rendered line and which post it belongs to
+type contentLine struct {
+	text      string
+	postIndex int // -1 for separators/blanks, >= 0 for post content
+}
+
+// buildAllContentLinesWithPosts builds content lines with post index tracking
+func (m Model) buildAllContentLinesWithPosts() []contentLine {
+	if len(m.posts) == 0 {
+		return []contentLine{{text: "No posts yet. Exit TUI (q) and try: smoke post \"hello world\"", postIndex: -1}}
+	}
+
+	threads := buildThreads(m.posts)
+
+	// Reverse thread order if newestOnTop is false
+	if !m.newestOnTop {
+		for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
+			threads[i], threads[j] = threads[j], threads[i]
+		}
+	}
+
+	var lines []contentLine
 	var lastDay time.Time
+	postIdx := 0
+
 	for i, thread := range threads {
-		// Get post time for day separator (convert to local time for consistent day comparison)
+		// Get post time for day separator
 		postTime, err := thread.post.GetCreatedTime()
 		if err == nil {
 			localTime := postTime.Local()
 			postDay := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), 0, 0, 0, 0, localTime.Location())
-			// Check if we need a day separator
 			if lastDay.IsZero() || !postDay.Equal(lastDay) {
 				if i > 0 {
-					// Add blank line before separator (except for first post)
-					lines = append(lines, "")
+					lines = append(lines, contentLine{text: "", postIndex: -1})
 				}
-				lines = append(lines, m.formatDaySeparator(localTime))
+				lines = append(lines, contentLine{text: m.formatDaySeparator(localTime), postIndex: -1})
 				lastDay = postDay
 			}
 		}
 
-		// Format main post
-		postLines := m.formatPost(thread.post)
-		lines = append(lines, postLines...)
+		// Format main post with selection highlight
+		isSelected := postIdx == m.selectedPostIndex
+		postLines := m.formatPostWithSelection(thread.post, isSelected)
+		for _, line := range postLines {
+			lines = append(lines, contentLine{text: line, postIndex: postIdx})
+		}
+		postIdx++
 
-		// Format replies (indented)
+		// Format replies
 		for _, reply := range thread.replies {
-			replyLines := m.formatReply(reply)
-			lines = append(lines, replyLines...)
+			isReplySelected := postIdx == m.selectedPostIndex
+			replyLines := m.formatReplyWithSelection(reply, isReplySelected)
+			for _, line := range replyLines {
+				lines = append(lines, contentLine{text: line, postIndex: postIdx})
+			}
+			postIdx++
 		}
 
-		// Blank line between threads (within same day)
+		// Blank line between threads
 		if i < len(threads)-1 {
-			lines = append(lines, "")
+			lines = append(lines, contentLine{text: "", postIndex: -1})
 		}
 	}
 
+	return lines
+}
+
+// formatPostWithSelection formats a post with optional selection highlight
+func (m Model) formatPostWithSelection(post *Post, selected bool) []string {
+	lines := m.formatPost(post)
+	if !selected {
+		return lines
+	}
+
+	// Add selection indicator to first line
+	indicator := m.styleSelectionIndicator("▶ ")
+	result := make([]string, len(lines))
+	for i, line := range lines {
+		if i == 0 {
+			result[i] = indicator + line
+		} else {
+			// Pad continuation lines to align
+			result[i] = m.styleSpace("  ") + line
+		}
+	}
+	return result
+}
+
+// formatReplyWithSelection formats a reply with optional selection highlight
+func (m Model) formatReplyWithSelection(reply *Post, selected bool) []string {
+	lines := m.formatPost(reply)
+	indented := make([]string, len(lines))
+
+	indicator := "  └─ "
+	if selected {
+		indicator = "▶ └─ "
+	}
+
+	for i, line := range lines {
+		if i == 0 {
+			indented[i] = m.styleSpace(indicator) + line
+		} else {
+			padding := "     "
+			if selected {
+				padding = "       "
+			}
+			indented[i] = m.styleSpace(padding) + line
+		}
+	}
+	return indented
+}
+
+// styleSelectionIndicator applies accent color to selection indicator
+func (m Model) styleSelectionIndicator(s string) string {
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.Accent).
+		Background(m.theme.Background)
+	return style.Render(s)
+}
+
+// handleCopyMenuKey handles key presses when copy menu is visible
+func (m Model) handleCopyMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c", "esc":
+		m.showCopyMenu = false
+		return m, nil
+
+	case "up", "k":
+		if m.copyMenuIndex > 0 {
+			m.copyMenuIndex--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.copyMenuIndex < 2 {
+			m.copyMenuIndex++
+		}
+		return m, nil
+
+	case "enter", " ":
+		return m.executeCopyAction()
+
+	case "1":
+		m.copyMenuIndex = 0
+		return m.executeCopyAction()
+
+	case "2":
+		m.copyMenuIndex = 1
+		return m.executeCopyAction()
+
+	case "3":
+		m.copyMenuIndex = 2
+		return m.executeCopyAction()
+	}
+
+	return m, nil
+}
+
+// executeCopyAction performs the selected copy action
+func (m Model) executeCopyAction() (tea.Model, tea.Cmd) {
+	if m.selectedPostIndex >= len(m.displayedPosts) {
+		m.showCopyMenu = false
+		return m, nil
+	}
+
+	post := m.displayedPosts[m.selectedPostIndex]
+	m.showCopyMenu = false
+
+	switch m.copyMenuIndex {
+	case 0: // Text
+		text := FormatPostAsText(post)
+		if err := CopyTextToClipboard(text); err != nil {
+			m.copyConfirmation = fmt.Sprintf("Copy failed: %v", err)
+		} else {
+			m.copyConfirmation = "Copied as text"
+		}
+
+	case 1: // Square image
+		imgData, err := RenderShareCard(post, m.theme, SquareImage)
+		if err != nil {
+			m.copyConfirmation = fmt.Sprintf("Render failed: %v", err)
+		} else if err := CopyImageToClipboard(imgData); err != nil {
+			m.copyConfirmation = fmt.Sprintf("Copy failed: %v", err)
+		} else {
+			m.copyConfirmation = "Copied as square image (1200x1200)"
+		}
+
+	case 2: // Landscape image
+		imgData, err := RenderShareCard(post, m.theme, LandscapeImage)
+		if err != nil {
+			m.copyConfirmation = fmt.Sprintf("Render failed: %v", err)
+		} else if err := CopyImageToClipboard(imgData); err != nil {
+			m.copyConfirmation = fmt.Sprintf("Copy failed: %v", err)
+		} else {
+			m.copyConfirmation = "Copied as landscape image (1200x630)"
+		}
+	}
+
+	return m, nil
+}
+
+// renderCopyMenuOverlay renders the copy menu as a centered overlay
+func (m Model) renderCopyMenuOverlay() string {
+	// Menu options
+	options := []string{
+		"1. Text",
+		"2. Square (1200×1200)",
+		"3. Landscape (1200×630)",
+	}
+
+	var content strings.Builder
+	content.WriteString("\n")
+	content.WriteString("      Copy Post\n")
+	content.WriteString("\n")
+
+	for i, opt := range options {
+		if i == m.copyMenuIndex {
+			content.WriteString(fmt.Sprintf("  ▶ %s\n", opt))
+		} else {
+			content.WriteString(fmt.Sprintf("    %s\n", opt))
+		}
+	}
+
+	content.WriteString("\n")
+	content.WriteString("  ↑/↓ navigate  Enter select\n")
+	content.WriteString("  Esc cancel\n")
+
+	menuStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.Text).
+		Padding(1, 2).
+		Width(30)
+
+	styledBox := menuStyle.Render(content.String())
+
+	// Center the box
+	boxHeight := strings.Count(styledBox, "\n") + 1
+	boxWidth := 34 // 30 + borders
+	topPadding := (m.height - boxHeight) / 2
+	leftPadding := (m.width - boxWidth) / 2
+
+	if leftPadding < 0 {
+		leftPadding = 0
+	}
+	if topPadding < 0 {
+		topPadding = 0
+	}
+
+	var result strings.Builder
+	for i := 0; i < topPadding; i++ {
+		result.WriteString("\n")
+	}
+
+	for _, line := range strings.Split(styledBox, "\n") {
+		result.WriteString(strings.Repeat(" ", leftPadding))
+		result.WriteString(line)
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+// buildAllContentLines builds all content lines for the feed (used for scrolling)
+// Now uses selection-aware formatting via buildAllContentLinesWithPosts
+func (m Model) buildAllContentLines() []string {
+	contentLines := m.buildAllContentLinesWithPosts()
+	lines := make([]string, len(contentLines))
+	for i, cl := range contentLines {
+		lines[i] = cl.text
+	}
 	return lines
 }
 
@@ -714,28 +1044,28 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("          Smoke Feed\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString("  Navigation\n")
-	helpContent.WriteString("   ↑/k    Scroll up\n")
-	helpContent.WriteString("   ↓/j    Scroll down\n")
+	helpContent.WriteString("   ↑/k    Select previous\n")
+	helpContent.WriteString("   ↓/j    Select next\n")
 	helpContent.WriteString("   PgUp   Page up\n")
 	helpContent.WriteString("   PgDn   Page down\n")
-	helpContent.WriteString("   g/G    Top/bottom\n")
+	helpContent.WriteString("   g/G    First/last post\n")
+	helpContent.WriteString("\n")
+	helpContent.WriteString("  Actions\n")
+	helpContent.WriteString("   c      Copy post menu\n")
+	helpContent.WriteString("   r      Refresh now\n")
+	helpContent.WriteString("   q      Quit\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString("  Settings\n")
 	helpContent.WriteString("   a      Toggle auto-refresh\n")
 	helpContent.WriteString("   s      Toggle sort order\n")
 	helpContent.WriteString("   l/L    Cycle layout\n")
 	helpContent.WriteString("   t/T    Cycle theme\n")
-	helpContent.WriteString("   c/C    Cycle contrast\n")
-	helpContent.WriteString("   r      Refresh now\n")
-	helpContent.WriteString("   q      Quit\n")
-	helpContent.WriteString("\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString("  Current Settings\n")
 	helpContent.WriteString(fmt.Sprintf("   Auto: %s\n", autoStr))
 	helpContent.WriteString(fmt.Sprintf("   Sort: %s\n", sortStr))
 	helpContent.WriteString(fmt.Sprintf("   Layout: %s\n", layoutName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
-	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
 	helpContent.WriteString("\n")
 	helpContent.WriteString("      Press any key to close\n")
 
