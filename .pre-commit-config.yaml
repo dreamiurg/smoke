@@ -33,9 +33,11 @@ repos:
         types: [go]
         pass_filenames: false
 
+      # Tests run on pre-push, not pre-commit (see below)
       - id: go-test
         name: go test
         entry: bash -c 'go test -race ./...'
         language: system
         types: [go]
         pass_filenames: false
+        stages: [pre-push]
