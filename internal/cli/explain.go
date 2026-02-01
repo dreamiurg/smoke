@@ -26,7 +26,7 @@ func init() {
 func runExplain(_ *cobra.Command, _ []string) error {
 	// Get identity for personalized output
 	// If identity cannot be resolved, continue with nil (graceful fallback)
-	identity, err := config.GetIdentity()
+	identity, err := config.GetIdentity("")
 	if err != nil {
 		// Log to stderr but don't fail - identity is optional for this command
 		fmt.Fprintf(os.Stderr, "Warning: could not determine identity: %v\n", err)

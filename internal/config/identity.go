@@ -29,20 +29,26 @@ func (i *Identity) String() string {
 	return fmt.Sprintf("%s-%s@%s", i.Agent, i.Suffix, i.Project)
 }
 
-// GetIdentity resolves the agent identity from environment and session
-func GetIdentity() (*Identity, error) {
-	// Check for explicit override first (BD_ACTOR takes precedence, then SMOKE_AUTHOR)
-	author := os.Getenv("BD_ACTOR")
+// GetIdentity resolves the agent identity from environment, session, and optional override.
+// If override is provided, it takes precedence. Otherwise, checks env vars (BD_ACTOR, then SMOKE_AUTHOR),
+// then falls back to auto-detection.
+func GetIdentity(override string) (*Identity, error) {
+	// Use override if provided
+	author := override
+
+	// Otherwise check env vars (BD_ACTOR takes precedence, then SMOKE_AUTHOR)
 	if author == "" {
-		author = os.Getenv("SMOKE_AUTHOR")
+		author = os.Getenv("BD_ACTOR")
+		if author == "" {
+			author = os.Getenv("SMOKE_AUTHOR")
+		}
 	}
 
+	// If we have an explicit author (from override or env), parse it
 	if author != "" {
-		// Parse if it's a full identity (contains @)
 		if strings.Contains(author, "@") {
 			return parseFullIdentity(author)
 		}
-		// Otherwise use as-is with detected project
 		project := detectProject()
 		return &Identity{
 			Agent:   "custom",
@@ -69,21 +75,10 @@ func GetIdentity() (*Identity, error) {
 	}, nil
 }
 
-// GetIdentityWithOverride resolves identity with optional --as override
+// GetIdentityWithOverride is a backward-compatibility wrapper around GetIdentity.
+// Deprecated: use GetIdentity(override) directly.
 func GetIdentityWithOverride(authorOverride string) (*Identity, error) {
-	if authorOverride != "" {
-		// Parse override as full identity or suffix
-		if strings.Contains(authorOverride, "@") {
-			return parseFullIdentity(authorOverride)
-		}
-		project := detectProject()
-		return &Identity{
-			Agent:   "custom",
-			Suffix:  sanitizeName(authorOverride),
-			Project: project,
-		}, nil
-	}
-	return GetIdentity()
+	return GetIdentity(authorOverride)
 }
 
 // parseFullIdentity parses "agent-suffix@project" or "name@project" format
@@ -133,32 +128,21 @@ func detectAgent() string {
 	return "unknown"
 }
 
-// getSessionSeed returns a stable seed for the current session
+// getSessionSeed returns a stable seed for the current session.
+// Tries TERM_SESSION_ID and WINDOWID first, then falls back to PPID.
 func getSessionSeed() string {
-	// Try various session identifiers in order of preference
-	signals := []string{
-		os.Getenv("TERM_SESSION_ID"), // macOS Terminal
-		os.Getenv("WINDOWID"),        // X11
+	// Check most reliable session identifiers
+	if seed := os.Getenv("TERM_SESSION_ID"); seed != "" {
+		return seed
+	}
+	if seed := os.Getenv("WINDOWID"); seed != "" {
+		return seed
 	}
 
-	for _, sig := range signals {
-		if sig != "" {
-			return sig
-		}
-	}
-
-	// Fallback: PPID + TTY
+	// Fallback to process parent ID (always available)
 	ppid := os.Getppid()
-	tty := os.Getenv("TTY")
-	if tty == "" {
-		// Try to get TTY another way
-		if ttyname, err := os.Readlink("/dev/fd/0"); err == nil {
-			tty = ttyname
-		}
-	}
-
 	if ppid > 0 {
-		return fmt.Sprintf("%d-%s", ppid, tty)
+		return fmt.Sprintf("ppid-%d", ppid)
 	}
 
 	return ""

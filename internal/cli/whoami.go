@@ -40,7 +40,7 @@ func init() {
 
 func runWhoami(_ *cobra.Command, _ []string) error {
 	// Get identity
-	identity, err := config.GetIdentity()
+	identity, err := config.GetIdentity("")
 	if err != nil {
 		return err
 	}

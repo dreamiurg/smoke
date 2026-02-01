@@ -68,8 +68,8 @@ func IsSmokeInitialized() (bool, error) {
 	return true, nil
 }
 
-// ensureInitialized returns an error if smoke is not initialized
-func ensureInitialized() error {
+// EnsureInitialized returns an error if smoke is not initialized
+func EnsureInitialized() error {
 	initialized, err := IsSmokeInitialized()
 	if err != nil {
 		return err

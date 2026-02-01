@@ -59,12 +59,8 @@ func init() {
 
 func runFeed(_ *cobra.Command, _ []string) error {
 	// Check if smoke is initialized
-	initialized, err := config.IsSmokeInitialized()
-	if err != nil {
+	if err := config.EnsureInitialized(); err != nil {
 		return err
-	}
-	if !initialized {
-		return config.ErrNotInitialized
 	}
 
 	store, err := feed.NewStore()
