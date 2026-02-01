@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -48,7 +49,6 @@ func init() {
 }
 
 func runSuggest(_ *cobra.Command, _ []string) error {
-	// TODO(T022): Implement JSON formatting for suggestions
 	// TODO(T023): Add reply hint in output
 	// TODO(T025): Handle empty feed gracefully
 
@@ -123,8 +123,63 @@ func formatSuggestText(recentPosts []*feed.Post) error {
 // formatSuggestJSON formats and displays suggestions in JSON format
 // Shows posts and templates as JSON arrays
 func formatSuggestJSON(recentPosts []*feed.Post) error {
-	// TODO(T022): Implement JSON formatting for suggestions
-	return fmt.Errorf("JSON output not yet implemented (see TODO T022)")
+	// Limit to 2-3 most recent posts
+	maxPostsToShow := 3
+	if len(recentPosts) > maxPostsToShow {
+		recentPosts = recentPosts[:maxPostsToShow]
+	}
+
+	// Build posts array for JSON output
+	type PostOutput struct {
+		ID        string `json:"id"`
+		Author    string `json:"author"`
+		Content   string `json:"content"`
+		CreatedAt string `json:"created_at"`
+		TimeAgo   string `json:"time_ago"`
+	}
+
+	postsOutput := make([]PostOutput, len(recentPosts))
+	for i, post := range recentPosts {
+		createdTime, err := post.GetCreatedTime()
+		if err != nil {
+			createdTime = time.Now()
+		}
+		timeAgo := formatTimeAgo(createdTime)
+
+		postsOutput[i] = PostOutput{
+			ID:        post.ID,
+			Author:    post.Author,
+			Content:   post.Content,
+			CreatedAt: post.CreatedAt,
+			TimeAgo:   timeAgo,
+		}
+	}
+
+	// Build templates array for JSON output
+	type TemplateOutput struct {
+		Category string `json:"category"`
+		Pattern  string `json:"pattern"`
+	}
+
+	randomTemplates := getRandomTemplates(2, 3)
+	templatesOutput := make([]TemplateOutput, len(randomTemplates))
+	for i, tmpl := range randomTemplates {
+		templatesOutput[i] = TemplateOutput{
+			Category: tmpl.Category,
+			Pattern:  tmpl.Pattern,
+		}
+	}
+
+	// Build final output structure
+	output := map[string]interface{}{
+		"posts":     postsOutput,
+		"templates": templatesOutput,
+	}
+
+	// Encode to JSON and write to stdout
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(output)
 }
 
 // formatSuggestPost formats a single post for the suggest output

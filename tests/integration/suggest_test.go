@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -173,8 +174,8 @@ func TestSuggestSinceFlag(t *testing.T) {
 	}
 }
 
-// TestSuggestJSONFlag verifies that --json flag returns not-implemented error
-// TODO(T022): Update this test when JSON formatting is implemented
+// TestSuggestJSONFlag verifies that --json flag returns valid JSON output
+// JSON should contain posts and templates arrays
 func TestSuggestJSONFlag(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -191,38 +192,86 @@ func TestSuggestJSONFlag(t *testing.T) {
 		t.Fatalf("failed to post: %v", err)
 	}
 
-	// Run suggest with --json flag - should return error
-	_, stderr, err := h.Run("suggest", "--json")
-	if err == nil {
-		t.Fatalf("smoke suggest --json should fail with not-implemented error")
+	// Run suggest with --json flag
+	stdout, stderr, err := h.Run("suggest", "--json")
+	if err != nil {
+		t.Fatalf("smoke suggest --json failed: %v, stderr: %s", err, stderr)
 	}
 
-	// Verify error message mentions not implemented
-	if !strings.Contains(stderr, "not yet implemented") && !strings.Contains(stderr, "TODO T022") {
-		t.Errorf("error should mention not implemented, got: %s", stderr)
+	// Verify output is valid JSON
+	var output map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("output is not valid JSON: %v, output: %s", err, stdout)
+	}
+
+	// Verify structure has posts and templates arrays
+	if _, hasPosts := output["posts"]; !hasPosts {
+		t.Errorf("JSON output missing 'posts' key: %s", stdout)
+	}
+
+	if _, hasTemplates := output["templates"]; !hasTemplates {
+		t.Errorf("JSON output missing 'templates' key: %s", stdout)
+	}
+
+	// Verify posts array contains expected fields
+	if posts, ok := output["posts"].([]interface{}); ok && len(posts) > 0 {
+		firstPost := posts[0].(map[string]interface{})
+
+		requiredFields := []string{"id", "author", "content", "created_at", "time_ago"}
+		for _, field := range requiredFields {
+			if _, hasField := firstPost[field]; !hasField {
+				t.Errorf("post missing required field '%s': %v", field, firstPost)
+			}
+		}
 	}
 }
 
-// TestSuggestJSONEmptyFeed verifies that --json flag returns not-implemented error even with empty feed
-// TODO(T022): Update this test when JSON formatting is implemented
+// TestSuggestJSONEmptyFeed verifies that --json flag returns valid JSON even with no recent posts
+// Tests the case where we filter for a time window with no recent activity
+// JSON should contain empty posts array and templates array
 func TestSuggestJSONEmptyFeed(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
-	// Initialize smoke
+	// Initialize smoke (creates with 4 seeded posts)
 	if _, _, err := h.Run("init"); err != nil {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Run suggest with --json on empty feed - should return error
-	_, stderr, err := h.Run("suggest", "--json")
-	if err == nil {
-		t.Fatalf("smoke suggest --json should fail with not-implemented error")
+	// Run suggest with --json but with a time window that excludes all posts (1 second)
+	// This simulates an empty feed without deleting posts
+	stdout, stderr, err := h.Run("suggest", "--json", "--since", "1s")
+	if err != nil {
+		t.Fatalf("smoke suggest --json failed: %v, stderr: %s", err, stderr)
 	}
 
-	// Verify error message mentions not implemented
-	if !strings.Contains(stderr, "not yet implemented") && !strings.Contains(stderr, "TODO T022") {
-		t.Errorf("error should mention not implemented, got: %s", stderr)
+	// Verify output is valid JSON
+	var output map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("output is not valid JSON: %v, output: %s", err, stdout)
+	}
+
+	// Verify structure has posts and templates arrays
+	if _, hasPosts := output["posts"]; !hasPosts {
+		t.Errorf("JSON output missing 'posts' key: %s", stdout)
+	}
+
+	if _, hasTemplates := output["templates"]; !hasTemplates {
+		t.Errorf("JSON output missing 'templates' key: %s", stdout)
+	}
+
+	// Posts array should be empty (no posts within last 1 second)
+	if posts, ok := output["posts"].([]interface{}); ok {
+		if len(posts) != 0 {
+			t.Errorf("posts array should be empty with 1s filter, got %d posts: %v", len(posts), posts)
+		}
+	}
+
+	// Templates array should have 2-3 templates
+	if templates, ok := output["templates"].([]interface{}); ok {
+		if len(templates) < 2 || len(templates) > 3 {
+			t.Errorf("templates array should have 2-3 templates, got %d: %v", len(templates), templates)
+		}
 	}
 }
 
@@ -420,8 +469,8 @@ func TestSuggestSinceFlagParseFormats(t *testing.T) {
 	}
 }
 
-// TestSuggestJSONWithMultiplePosts verifies JSON output returns not-implemented error
-// TODO(T022): Update this test when JSON formatting is implemented
+// TestSuggestJSONWithMultiplePosts verifies JSON output works with multiple posts
+// Should return 2-3 most recent posts and templates
 func TestSuggestJSONWithMultiplePosts(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -440,15 +489,56 @@ func TestSuggestJSONWithMultiplePosts(t *testing.T) {
 		}
 	}
 
-	// Run suggest with --json - should return error
-	_, stderr, err := h.Run("suggest", "--json")
-	if err == nil {
-		t.Fatalf("smoke suggest --json should fail with not-implemented error")
+	// Run suggest with --json
+	stdout, stderr, err := h.Run("suggest", "--json")
+	if err != nil {
+		t.Fatalf("smoke suggest --json failed: %v, stderr: %s", err, stderr)
 	}
 
-	// Verify error message mentions not implemented
-	if !strings.Contains(stderr, "not yet implemented") && !strings.Contains(stderr, "TODO T022") {
-		t.Errorf("error should mention not implemented, got: %s", stderr)
+	// Verify output is valid JSON
+	var output map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("output is not valid JSON: %v, output: %s", err, stdout)
+	}
+
+	// Verify posts array has 2-3 items (most recent posts)
+	if posts, ok := output["posts"].([]interface{}); ok {
+		if len(posts) < 2 || len(posts) > 3 {
+			t.Errorf("posts array should have 2-3 items with 3 posts, got %d: %v", len(posts), posts)
+		}
+
+		// Verify each post has required fields
+		for i, p := range posts {
+			post := p.(map[string]interface{})
+			requiredFields := []string{"id", "author", "content", "created_at", "time_ago"}
+			for _, field := range requiredFields {
+				if _, hasField := post[field]; !hasField {
+					t.Errorf("post[%d] missing required field '%s': %v", i, field, post)
+				}
+			}
+		}
+	} else {
+		t.Errorf("posts is not an array: %v", output["posts"])
+	}
+
+	// Verify templates array has 2-3 items
+	if templates, ok := output["templates"].([]interface{}); ok {
+		if len(templates) < 2 || len(templates) > 3 {
+			t.Errorf("templates array should have 2-3 items, got %d: %v", len(templates), templates)
+		}
+
+		// Verify each template has required fields
+		for i, tmp := range templates {
+			tmpl := tmp.(map[string]interface{})
+			requiredFields := []string{"category", "pattern"}
+			for _, field := range requiredFields {
+				if _, hasField := tmpl[field]; !hasField {
+					t.Errorf("template[%d] missing required field '%s': %v", i, field, tmpl)
+				}
+			}
+		}
+	} else {
+		t.Errorf("templates is not an array: %v", output["templates"])
 	}
 }
 
