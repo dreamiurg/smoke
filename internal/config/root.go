@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ErrNotInitialized is returned when smoke hasn't been initialized
@@ -27,12 +28,56 @@ func GetConfigDir() (string, error) {
 	return filepath.Join(home, ".config", SmokeDir), nil
 }
 
+// ErrInvalidFeedPath is returned when SMOKE_FEED path is outside allowed directories
+var ErrInvalidFeedPath = errors.New("SMOKE_FEED path must be within home directory")
+
+// validateFeedPath ensures the path is safe (absolute, within home directory)
+func validateFeedPath(path string) (string, error) {
+	// Resolve to absolute path and clean it
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	cleanPath := filepath.Clean(absPath)
+
+	// Get home directory and resolve symlinks for consistent comparison
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	// Resolve symlinks on home to handle /var -> /private/var on macOS
+	resolvedHome, err := filepath.EvalSymlinks(home)
+	if err != nil {
+		resolvedHome = home // Fall back if home doesn't exist or can't resolve
+	}
+
+	// Also try to resolve the path's parent for comparison
+	resolvedPath := cleanPath
+	if parentDir := filepath.Dir(cleanPath); parentDir != cleanPath {
+		if resolved, resolveErr := filepath.EvalSymlinks(parentDir); resolveErr == nil {
+			resolvedPath = filepath.Join(resolved, filepath.Base(cleanPath))
+		}
+	}
+
+	// Check if path is within home directory (using both resolved and unresolved)
+	homePrefix := home + string(filepath.Separator)
+	resolvedHomePrefix := resolvedHome + string(filepath.Separator)
+
+	inHome := strings.HasPrefix(cleanPath, homePrefix) || cleanPath == home ||
+		strings.HasPrefix(resolvedPath, resolvedHomePrefix) || resolvedPath == resolvedHome
+
+	if !inHome {
+		return "", ErrInvalidFeedPath
+	}
+	return absPath, nil
+}
+
 // GetFeedPath returns the path to the feed.jsonl file
-// If SMOKE_FEED env var is set, uses that path directly (allows custom feed location)
+// If SMOKE_FEED env var is set, uses that path after validation (must be within home directory)
 func GetFeedPath() (string, error) {
 	// Check for explicit feed path override
 	if feedPath := os.Getenv("SMOKE_FEED"); feedPath != "" {
-		return feedPath, nil
+		return validateFeedPath(feedPath)
 	}
 
 	configDir, err := GetConfigDir()

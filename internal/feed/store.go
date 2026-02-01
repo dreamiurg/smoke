@@ -53,7 +53,7 @@ func (s *Store) Append(post *Post) error {
 	}
 
 	// Open file for appending
-	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to open feed file: %w", err)
 	}
@@ -67,6 +67,11 @@ func (s *Store) Append(post *Post) error {
 
 	if _, err := f.Write(append(data, '\n')); err != nil {
 		return fmt.Errorf("failed to write post: %w", err)
+	}
+
+	// Sync to disk for durability
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("failed to sync feed file: %w", err)
 	}
 
 	return nil

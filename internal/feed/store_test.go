@@ -277,6 +277,11 @@ func TestNewStore(t *testing.T) {
 	err := os.WriteFile(feedPath, []byte{}, 0644)
 	require.NoError(t, err)
 
+	// Set HOME to temp dir so path validation passes
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
 	// Set SMOKE_FEED environment variable to point to test feed
 	oldFeed := os.Getenv("SMOKE_FEED")
 	defer func() {

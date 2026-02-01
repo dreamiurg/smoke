@@ -124,9 +124,10 @@ func SplitIdentity(author string) (agent, project string) {
 func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) string {
 	agent, project := SplitIdentity(author)
 
-	// Build agent style using theme colors
+	// Build agent style using theme colors (include background to avoid black gaps)
 	agentStyle := lipgloss.NewStyle().
-		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)])
+		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)]).
+		Background(theme.Background)
 
 	if contrast.AgentBold {
 		agentStyle = agentStyle.Bold(true)
@@ -139,7 +140,10 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 		return styledAgent
 	}
 
-	projectStyle := lipgloss.NewStyle()
+	// Style for the "@" separator
+	atStyle := lipgloss.NewStyle().Background(theme.Background)
+
+	projectStyle := lipgloss.NewStyle().Background(theme.Background)
 	if contrast.ProjectColored {
 		// Color the project with a secondary theme color
 		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
@@ -150,15 +154,16 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 
 	styledProject := projectStyle.Render(project)
 
-	return styledAgent + "@" + styledProject
+	return styledAgent + atStyle.Render("@") + styledProject
 }
 
 // ColorizeFullIdentity applies theme and contrast styling to author and project parts.
 // Takes separate author and project strings (from Post fields).
 func ColorizeFullIdentity(author, project string, theme *Theme, contrast *ContrastLevel) string {
-	// Build agent style using theme colors
+	// Build agent style using theme colors (include background to avoid black gaps)
 	agentStyle := lipgloss.NewStyle().
-		Foreground(theme.AgentColors[hashString(author)%len(theme.AgentColors)])
+		Foreground(theme.AgentColors[hashString(author)%len(theme.AgentColors)]).
+		Background(theme.Background)
 
 	if contrast.AgentBold {
 		agentStyle = agentStyle.Bold(true)
@@ -171,7 +176,10 @@ func ColorizeFullIdentity(author, project string, theme *Theme, contrast *Contra
 		return styledAgent
 	}
 
-	projectStyle := lipgloss.NewStyle()
+	// Style for the "@" separator
+	atStyle := lipgloss.NewStyle().Background(theme.Background)
+
+	projectStyle := lipgloss.NewStyle().Background(theme.Background)
 	if contrast.ProjectColored {
 		// Color the project with a secondary theme color
 		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
@@ -182,7 +190,7 @@ func ColorizeFullIdentity(author, project string, theme *Theme, contrast *Contra
 
 	styledProject := projectStyle.Render(project)
 
-	return styledAgent + "@" + styledProject
+	return styledAgent + atStyle.Render("@") + styledProject
 }
 
 // hashString computes a deterministic hash for consistent coloring.

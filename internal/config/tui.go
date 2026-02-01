@@ -92,7 +92,7 @@ func SaveTUIConfig(cfg *TUIConfig) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // defaultTUIConfig returns the default TUI configuration.

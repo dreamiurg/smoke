@@ -266,7 +266,7 @@ func fixConfigFile() error {
 		return err
 	}
 	defaultConfig := "# Smoke configuration\n# See: smoke explain\n"
-	return os.WriteFile(configPath, []byte(defaultConfig), 0644)
+	return os.WriteFile(configPath, []byte(defaultConfig), 0600)
 }
 
 // applyFixes attempts to fix all fixable issues
@@ -558,7 +558,7 @@ func fixTUIConfigStyleToLayout(tuiPath string) error {
 		return err
 	}
 
-	return os.WriteFile(tuiPath, newData, 0644)
+	return os.WriteFile(tuiPath, newData, 0600)
 }
 
 // checkConfigFile verifies config.yaml exists and is valid YAML

@@ -1048,6 +1048,49 @@ func TestInitialScrollPosition_OldestOnTop(t *testing.T) {
 	}
 }
 
+// TestInitialScrollPosition_PostsBeforeWindowSize tests when loadPostsMsg arrives before WindowSizeMsg
+func TestInitialScrollPosition_PostsBeforeWindowSize(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	theme := GetTheme("dracula")
+	contrast := GetContrastLevel("medium")
+	layout := GetLayout("comfy")
+	cfg := &config.TUIConfig{
+		Theme:       "dracula",
+		Contrast:    "medium",
+		Layout:      "comfy",
+		AutoRefresh: false,
+		NewestOnTop: false, // oldest on top, so should scroll to bottom
+	}
+	model := NewModel(store, theme, contrast, layout, cfg, "test")
+
+	// Create many posts
+	var posts []*Post
+	for i := 0; i < 50; i++ {
+		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content that is reasonably long"})
+	}
+
+	// Process loadPostsMsg FIRST (before window size is known)
+	// This simulates posts loading quickly before terminal reports size
+	updated, _ := model.Update(loadPostsMsg{posts: posts, err: nil})
+	model = updated.(Model)
+
+	t.Logf("After loadPostsMsg: scrollOffset=%d, height=%d, initialScrollDone=%v",
+		model.scrollOffset, model.height, model.initialScrollDone)
+
+	// THEN process WindowSizeMsg
+	updated, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	model = updated.(Model)
+
+	t.Logf("After WindowSizeMsg: scrollOffset=%d, height=%d, maxOffset=%d",
+		model.scrollOffset, model.height, model.maxScrollOffset())
+
+	// With newestOnTop=false, scroll should be at maxScrollOffset (bottom)
+	maxOffset := model.maxScrollOffset()
+	if model.scrollOffset != maxOffset {
+		t.Errorf("initial scroll with newestOnTop=false should be %d, got %d", maxOffset, model.scrollOffset)
+	}
+}
+
 func TestScrollKeys(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)

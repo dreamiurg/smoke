@@ -826,6 +826,11 @@ func TestCheckFeedFile_CustomPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Set HOME to temp dir so path validation passes
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
 	// Set SMOKE_FEED environment variable
 	oldFeed := os.Getenv("SMOKE_FEED")
 	os.Setenv("SMOKE_FEED", customFeed)

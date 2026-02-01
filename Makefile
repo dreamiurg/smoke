@@ -16,10 +16,11 @@ GOIMPORTS=goimports
 GOMOD=$(GOCMD) mod
 
 # Linker flags for version injection
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+# Support both normal repos and bare repo + worktree setups
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || GIT_WORK_TREE=. GIT_DIR=.git git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || GIT_WORK_TREE=. GIT_DIR=.git git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS=-ldflags "-X github.com/dreamiurg/smoke/internal/cli.Version=$(VERSION) -X github.com/dreamiurg/smoke/internal/cli.Commit=$(COMMIT) -X github.com/dreamiurg/smoke/internal/cli.BuildDate=$(BUILD_DATE)"
+LDFLAGS=-buildvcs=false -ldflags "-X github.com/dreamiurg/smoke/internal/cli.Version=$(VERSION) -X github.com/dreamiurg/smoke/internal/cli.Commit=$(COMMIT) -X github.com/dreamiurg/smoke/internal/cli.BuildDate=$(BUILD_DATE)"
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
