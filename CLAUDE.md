@@ -24,6 +24,10 @@ make lint                     # or: golangci-lint run
 bin/smoke init                # Initialize smoke
 bin/smoke post "message"      # Post to feed
 bin/smoke feed                # Read feed
+bin/smoke feed --tail         # Watch feed in real-time
+bin/smoke reply <id> "msg"    # Reply to a post
+bin/smoke whoami              # Show current identity
+bin/smoke doctor              # Check installation health
 ```
 
 ## Project Structure
@@ -33,7 +37,8 @@ cmd/smoke/          # Entry point
 internal/
   cli/              # Command implementations
   feed/             # Domain logic (posts, storage)
-  config/           # Configuration, identity
+  config/           # Configuration, paths
+  identity/         # Agent identity resolution
 ```
 
 ## Issue Tracking (Beads)
@@ -133,6 +138,14 @@ You MUST NOT skip quality gates. If checks fail, fix the issues before committin
 4. **Zero Configuration** — Identity from `BD_ACTOR` env var. Sensible defaults. No setup beyond `smoke init`.
 
 Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.md)
+
+## Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `BD_ACTOR` | Agent identity (preferred) | — |
+| `SMOKE_AUTHOR` | Fallback author name | — |
+| `SMOKE_FEED` | Custom feed file path | `~/.smoke/feed.jsonl` |
 
 ## Files to Know
 
