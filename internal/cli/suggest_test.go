@@ -118,11 +118,11 @@ func TestTruncate(t *testing.T) {
 
 func TestGetFeedStats(t *testing.T) {
 	tests := []struct {
-		name              string
-		setupFn           func(t *testing.T) func()
-		expectedCount     int
-		expectedLastPost  *feed.Post
-		description       string
+		name             string
+		setupFn          func(t *testing.T) func()
+		expectedCount    int
+		expectedLastPost *feed.Post
+		description      string
 	}{
 		{
 			name: "no initialization",
