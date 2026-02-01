@@ -14,6 +14,9 @@ const (
 	// DefaultTUIConfigFile is the name of the TUI config file
 	DefaultTUIConfigFile = "tui.yaml"
 
+	// DefaultReadStateFile is the name of the read state file
+	DefaultReadStateFile = "readstate.yaml"
+
 	// DefaultLogFile is the name of the log file
 	DefaultLogFile = "smoke.log"
 )
