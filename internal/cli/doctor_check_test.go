@@ -88,9 +88,7 @@ func TestCheckConfigDir(t *testing.T) {
 			tmpDir := tt.setup(t)
 
 			// Set HOME to temp dir so config functions use it
-			oldHome := os.Getenv("HOME")
-			os.Setenv("HOME", tmpDir)
-			defer os.Setenv("HOME", oldHome)
+			t.Setenv("HOME", tmpDir)
 
 			check := performConfigDirCheck()
 
@@ -187,9 +185,7 @@ func TestCheckFeedFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := tt.setup(t)
 
-			oldHome := os.Getenv("HOME")
-			os.Setenv("HOME", tmpDir)
-			defer os.Setenv("HOME", oldHome)
+			t.Setenv("HOME", tmpDir)
 
 			check := performFeedFileCheck()
 
@@ -227,7 +223,7 @@ func TestCheckFeedFormat(t *testing.T) {
 			name:         "valid single line JSON",
 			feedContent:  `{"id":"smk-1","text":"hello"}`,
 			wantStatus:   StatusPass,
-			wantContains: "1 posts, all valid",
+			wantContains: "1 post, valid",
 		},
 		{
 			name: "valid multiple lines JSON",
@@ -271,9 +267,7 @@ invalid json line
 				t.Fatal(err)
 			}
 
-			oldHome := os.Getenv("HOME")
-			os.Setenv("HOME", tmpDir)
-			defer os.Setenv("HOME", oldHome)
+			t.Setenv("HOME", tmpDir)
 
 			check := performFeedFormatCheck()
 
@@ -294,9 +288,7 @@ func TestCheckFeedFormat_FileErrors(t *testing.T) {
 		configDir := filepath.Join(tmpDir, ".config", "smoke")
 		os.MkdirAll(configDir, 0755)
 
-		oldHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", oldHome)
+		t.Setenv("HOME", tmpDir)
 
 		check := performFeedFormatCheck()
 
@@ -362,9 +354,7 @@ func TestCheckConfigFile(t *testing.T) {
 				}
 			}
 
-			oldHome := os.Getenv("HOME")
-			os.Setenv("HOME", tmpDir)
-			defer os.Setenv("HOME", oldHome)
+			t.Setenv("HOME", tmpDir)
 
 			check := performConfigFileCheck()
 
@@ -388,9 +378,7 @@ func TestCheckConfigFile(t *testing.T) {
 func TestFixConfigDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", tmpDir)
 
 	// Directory should not exist initially
 	configDir := filepath.Join(tmpDir, ".config", "smoke")
@@ -418,9 +406,7 @@ func TestFixFeedFile(t *testing.T) {
 	configDir := filepath.Join(tmpDir, ".config", "smoke")
 	os.MkdirAll(configDir, 0755)
 
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", tmpDir)
 
 	feedPath := filepath.Join(configDir, "feed.jsonl")
 
@@ -449,9 +435,7 @@ func TestFixConfigFile(t *testing.T) {
 	configDir := filepath.Join(tmpDir, ".config", "smoke")
 	os.MkdirAll(configDir, 0755)
 
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", tmpDir)
 
 	configPath := filepath.Join(configDir, "config.yaml")
 
@@ -764,9 +748,7 @@ func TestCheckFeedFormat_LargeFile(t *testing.T) {
 	}
 	f.Close()
 
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", tmpDir)
 
 	check := performFeedFormatCheck()
 
@@ -780,10 +762,8 @@ func TestCheckFeedFormat_LargeFile(t *testing.T) {
 
 func TestFixConfigDir_Error(t *testing.T) {
 	// Test error path when HOME is not set
-	oldHome := os.Getenv("HOME")
-	os.Unsetenv("HOME")
-	os.Unsetenv("USERPROFILE")
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
 
 	err := fixConfigDir()
 	if err == nil {
@@ -793,10 +773,8 @@ func TestFixConfigDir_Error(t *testing.T) {
 
 func TestFixFeedFile_Error(t *testing.T) {
 	// Test error path when HOME is not set
-	oldHome := os.Getenv("HOME")
-	os.Unsetenv("HOME")
-	os.Unsetenv("USERPROFILE")
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
 
 	err := fixFeedFile()
 	if err == nil {
@@ -806,10 +784,8 @@ func TestFixFeedFile_Error(t *testing.T) {
 
 func TestFixConfigFile_Error(t *testing.T) {
 	// Test error path when HOME is not set
-	oldHome := os.Getenv("HOME")
-	os.Unsetenv("HOME")
-	os.Unsetenv("USERPROFILE")
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
 
 	err := fixConfigFile()
 	if err == nil {
@@ -827,9 +803,7 @@ func TestCheckFeedFile_CustomPath(t *testing.T) {
 	}
 
 	// Set HOME to temp dir so path validation passes
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	t.Setenv("HOME", tmpDir)
 
 	// Set SMOKE_FEED environment variable
 	oldFeed := os.Getenv("SMOKE_FEED")
