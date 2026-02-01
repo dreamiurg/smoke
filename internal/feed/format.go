@@ -24,13 +24,18 @@ func (o FormatOptions) getTerminalWidth() int {
 	return GetTerminalWidth()
 }
 
-// FormatPost formats a single post for display
+// FormatPost formats a single post for display without timestamp deduplication.
+// For feeds with multiple posts that need smart timestamp display, use a Formatter
+// instance directly (f.formatCompact) or use FormatFeed.
 func FormatPost(w io.Writer, post *Post, opts FormatOptions) {
 	cw := NewColorWriter(w, opts.ColorMode)
 	if opts.Oneline {
 		formatOneline(w, post, cw)
 	} else {
-		formatCompact(w, post, cw, opts.getTerminalWidth())
+		// Use a fresh formatter for each post to avoid thread-safety issues
+		// with global state. Each post gets its own timestamp display.
+		f := NewFormatter()
+		f.formatCompact(w, post, cw, opts.getTerminalWidth())
 	}
 }
 
@@ -43,8 +48,8 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 		return
 	}
 
-	// Reset timestamp tracking for fresh feed display
-	ResetTimestamp()
+	// Create a new formatter for this feed display to avoid global state issues
+	formatter := NewFormatter()
 
 	cw := NewColorWriter(w, opts.ColorMode)
 
@@ -60,7 +65,7 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 				formatOneline(w, reply, cw)
 			}
 		} else {
-			formatCompact(w, thread.post, cw, termWidth)
+			formatter.formatCompact(w, thread.post, cw, termWidth)
 			for _, reply := range thread.replies {
 				formatReply(w, thread.post, reply, cw, termWidth)
 			}
@@ -146,8 +151,33 @@ const TimeColumnWidth = 5
 // MinContentWidth is the minimum content width before we stop trying to wrap nicely
 const MinContentWidth = 30
 
-// lastTimestamp tracks the previous timestamp to avoid repetition
-var lastTimestamp string
+// OnelineContentWidth is the maximum content length in oneline format
+const OnelineContentWidth = 60
+
+// OnelineTruncateLen is the truncation point for oneline content (OnelineContentWidth - 3 for "...")
+const OnelineTruncateLen = 57
+
+// SuggestPreviewWidth is the default width for truncating post previews in suggest command
+const SuggestPreviewWidth = 40
+
+// SuggestIdlePreviewWidth is the width for truncating post previews in idle suggest context
+const SuggestIdlePreviewWidth = 50
+
+// Formatter handles post formatting with state tracking for timestamp deduplication.
+// Formatter is NOT thread-safe. For concurrent use, create a separate Formatter per goroutine.
+type Formatter struct {
+	lastTimestamp string
+}
+
+// NewFormatter creates a new Formatter instance.
+func NewFormatter() *Formatter {
+	return &Formatter{}
+}
+
+// Reset clears the formatter state, resetting timestamp tracking.
+func (f *Formatter) Reset() {
+	f.lastTimestamp = ""
+}
 
 // AuthorLayout contains calculated layout for author column
 type AuthorLayout struct {
@@ -187,11 +217,6 @@ func CalculateContentLayout(prefixWidth, authorColWidth, termWidth, minWidth int
 	return ContentLayout{Start: start, Width: width}
 }
 
-// ResetTimestamp resets the timestamp tracking (call at start of feed)
-func ResetTimestamp() {
-	lastTimestamp = ""
-}
-
 // formatTimestamp returns the timestamp string for a post, or "??:??" on error
 func formatTimestamp(post *Post) string {
 	t, err := post.GetCreatedTime()
@@ -201,16 +226,16 @@ func formatTimestamp(post *Post) string {
 	return t.Local().Format("15:04")
 }
 
-// formatCompact formats a post with right-aligned author@project and smart timestamps
+// formatCompact on Formatter formats a post with right-aligned author@project and smart timestamps
 // Format: 14:32  author@project  content (timestamp only shown when it changes)
-func formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
+func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
 	timeStr := formatTimestamp(post)
 
 	// Only show timestamp if different from previous
 	var timeColumn string
-	if timeStr != lastTimestamp {
+	if timeStr != f.lastTimestamp {
 		timeColumn = cw.Dim(timeStr)
-		lastTimestamp = timeStr
+		f.lastTimestamp = timeStr
 	} else {
 		timeColumn = "     " // 5 spaces to match timestamp width
 	}
@@ -245,47 +270,9 @@ func formatCompact(w io.Writer, post *Post, cw *ColorWriter, termWidth int) {
 	}
 }
 
-// wrapText wraps text to specified width, breaking on word boundaries
-func wrapText(text string, maxWidth int) []string {
-	if len(text) <= maxWidth {
-		return []string{text}
-	}
-
-	var lines []string
-	remaining := text
-
-	for len(remaining) > maxWidth {
-		// Find last space within maxWidth
-		breakPoint := maxWidth
-		for breakPoint > 0 && remaining[breakPoint] != ' ' {
-			breakPoint--
-		}
-		if breakPoint == 0 {
-			// No space found, force break at maxWidth (but don't exceed remaining length)
-			breakPoint = maxWidth
-			if breakPoint > len(remaining) {
-				breakPoint = len(remaining)
-			}
-		}
-
-		lines = append(lines, remaining[:breakPoint])
-		remaining = remaining[breakPoint:]
-		// Skip leading space on next line
-		for len(remaining) > 0 && remaining[0] == ' ' {
-			remaining = remaining[1:]
-		}
-	}
-
-	if len(remaining) > 0 {
-		lines = append(lines, remaining)
-	}
-
-	return lines
-}
-
-// wrapTextFirstLineShorter wraps text with a shorter first line width
-// Used for dense layout where first line has a prefix but continuations wrap to column 0
-func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) []string {
+// wrapTextWithWidths wraps text with different widths for first and subsequent lines.
+// This is the core wrapping function that handles both uniform and variable-width wrapping.
+func wrapTextWithWidths(text string, firstLineWidth, subsequentWidth int) []string {
 	if len(text) <= firstLineWidth {
 		return []string{text}
 	}
@@ -304,7 +291,7 @@ func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) 
 			breakPoint--
 		}
 		if breakPoint == 0 {
-			// No space found, force break
+			// No space found, force break at currentWidth
 			breakPoint = currentWidth
 			if breakPoint > len(remaining) {
 				breakPoint = len(remaining)
@@ -326,6 +313,19 @@ func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) 
 	}
 
 	return lines
+}
+
+// wrapText wraps text to specified width, breaking on word boundaries.
+// Convenience wrapper that uses the same width for all lines.
+func wrapText(text string, maxWidth int) []string {
+	return wrapTextWithWidths(text, maxWidth, maxWidth)
+}
+
+// wrapTextFirstLineShorter wraps text with a shorter first line width.
+// Used for dense layout where first line has a prefix but continuations wrap to column 0.
+// Convenience wrapper around wrapTextWithWidths.
+func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) []string {
+	return wrapTextWithWidths(text, firstLineWidth, subsequentWidth)
 }
 
 // formatReply formats a reply with indent (parent already shown in thread)
@@ -369,8 +369,8 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth i
 func formatOneline(w io.Writer, post *Post, cw *ColorWriter) {
 	// Truncate content if needed for single line
 	content := post.Content
-	if len(content) > 60 {
-		content = content[:57] + "..."
+	if len(content) > OnelineContentWidth {
+		content = content[:OnelineTruncateLen] + "..."
 	}
 	// Apply highlighting
 	content = HighlightAll(content, cw.ColorEnabled)

@@ -1,0 +1,31 @@
+package config
+
+// Default directory and file names
+const (
+	// DefaultSmokeDir is the name of the smoke data directory within ~/.config/
+	DefaultSmokeDir = "smoke"
+
+	// DefaultFeedFile is the name of the feed file
+	DefaultFeedFile = "feed.jsonl"
+
+	// DefaultConfigFile is the name of the config file
+	DefaultConfigFile = "config.yaml"
+
+	// DefaultTUIConfigFile is the name of the TUI config file
+	DefaultTUIConfigFile = "tui.yaml"
+)
+
+// Default TUI configuration values
+const (
+	// DefaultTheme is the default TUI theme
+	DefaultTheme = "dracula"
+
+	// DefaultContrast is the default contrast level
+	DefaultContrast = "medium"
+
+	// DefaultLayout is the default TUI layout
+	DefaultLayout = "comfy"
+
+	// DefaultAutoRefresh determines if auto-refresh is enabled by default
+	DefaultAutoRefresh = true
+)

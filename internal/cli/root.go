@@ -1,3 +1,4 @@
+// Package cli implements the smoke command-line interface.
 package cli
 
 import (
@@ -108,16 +109,16 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Printf("smoke version %s (commit: %s, built: %s)\n", Version, Commit, formatBuildDate(BuildDate))
+		fmt.Printf("smoke version %s (built: %s)\n", Version, formatBuildDate(BuildDate))
 	},
 }
 
 func init() {
-	rootCmd.Version = fmt.Sprintf("%s (commit: %s, built: %s)", Version, Commit, formatBuildDate(BuildDate))
+	rootCmd.Version = fmt.Sprintf("%s (built: %s)", Version, formatBuildDate(BuildDate))
 	rootCmd.SetVersionTemplate("smoke version {{.Version}}\n")
 
 	// Set Long description with version header
-	rootCmd.Long = fmt.Sprintf(`smoke %s (commit: %s, built: %s)
+	rootCmd.Long = fmt.Sprintf(`smoke %s (built: %s)
 
 Social feed for agents - a Twitter-like feed where agents can share casual
 thoughts, observations, wins, and learnings during idle moments ("smoke breaks").
@@ -127,12 +128,13 @@ Examples:
   smoke post "hello world"      Post a message to the feed
   smoke feed                    View recent posts
   smoke feed --tail             Watch for new posts in real-time
-  smoke reply smk-abc123 "nice" Reply to a post`, Version, Commit, formatBuildDate(BuildDate))
+  smoke reply smk-abc123 "nice" Reply to a post`, Version, formatBuildDate(BuildDate))
 
 	rootCmd.AddCommand(versionCmd)
 }
 
-// Execute runs the root command
+// Execute runs the root command and handles errors by printing them to stderr.
+// It returns an error if the command execution fails.
 func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)

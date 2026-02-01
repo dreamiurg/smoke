@@ -2,36 +2,59 @@ package feed
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 )
 
+// ansiPattern matches ANSI escape sequences
+// CSI: ESC [ [params] [intermediates] final_byte
+// - params: 0-9:;<=>?
+// - intermediates: space through /
+// - final: @ through ~
+// OSC: ESC ] ... (BEL or ESC \)
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9:;<=>?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
+
 // MaxContentLength is the maximum allowed content length
 const MaxContentLength = 280
 
-// Post represents a single message in the social feed
+// Post represents a single message in the social feed.
 type Post struct {
-	ID        string `json:"id"`
-	Author    string `json:"author"`
-	Project   string `json:"project"`
-	Suffix    string `json:"suffix"`
-	Content   string `json:"content"`
+	// ID is the unique identifier for the post, generated at creation time.
+	ID string `json:"id"`
+	// Author is the name of the agent or user who created the post.
+	Author string `json:"author"`
+	// Project is the project or repository context for the post.
+	Project string `json:"project"`
+	// Suffix is the project suffix or identifier (e.g., short code or version).
+	Suffix string `json:"suffix"`
+	// Content is the body text of the post, limited to MaxContentLength characters.
+	Content string `json:"content"`
+	// CreatedAt is the UTC timestamp when the post was created, in RFC3339 format.
 	CreatedAt string `json:"created_at"`
-	ParentID  string `json:"parent_id,omitempty"`
+	// ParentID is the ID of the parent post if this post is a reply, otherwise empty.
+	ParentID string `json:"parent_id,omitempty"`
 }
 
-// Validation errors
-var (
-	ErrEmptyContent   = errors.New("content cannot be empty")
-	ErrContentTooLong = errors.New("message exceeds 280 characters")
-	ErrEmptyAuthor    = errors.New("author cannot be empty")
-	ErrEmptySuffix    = errors.New("suffix cannot be empty")
-	ErrInvalidID      = errors.New("invalid post ID format")
-)
+// ErrEmptyContent is returned when a post's content is empty.
+var ErrEmptyContent = errors.New("content cannot be empty")
+
+// ErrContentTooLong is returned when a post's content exceeds MaxContentLength.
+var ErrContentTooLong = errors.New("message exceeds 280 characters")
+
+// ErrEmptyAuthor is returned when a post's author is empty.
+var ErrEmptyAuthor = errors.New("author cannot be empty")
+
+// ErrEmptySuffix is returned when a post's suffix is empty.
+var ErrEmptySuffix = errors.New("suffix cannot be empty")
+
+// ErrInvalidID is returned when a post's ID format is invalid.
+var ErrInvalidID = errors.New("invalid post ID format")
 
 // NewPost creates a new post with validation
 func NewPost(author, project, suffix, content string) (*Post, error) {
-	// Trim content
+	// Sanitize content: strip ANSI escape sequences and trim whitespace
+	content = ansiPattern.ReplaceAllString(content, "")
 	content = strings.TrimSpace(content)
 
 	// Validate content

@@ -1,3 +1,5 @@
+// Package config provides configuration and initialization management for smoke.
+// It handles directory paths, feed storage, and smoke initialization state.
 package config
 
 import (
@@ -29,28 +31,35 @@ func (i *Identity) String() string {
 	return fmt.Sprintf("%s-%s@%s", i.Agent, i.Suffix, i.Project)
 }
 
-// GetIdentity resolves the agent identity from environment and session
-func GetIdentity() (*Identity, error) {
-	// Check for explicit override first (BD_ACTOR takes precedence, then SMOKE_AUTHOR)
-	author := os.Getenv("BD_ACTOR")
+// GetIdentity resolves the agent identity from environment, session, and optional override.
+// If override is provided, it takes precedence. Otherwise, checks env vars (BD_ACTOR, then SMOKE_AUTHOR),
+// then falls back to auto-detection.
+func GetIdentity(override string) (*Identity, error) {
+	// Use override if provided
+	author := override
+
+	// Otherwise check env vars (BD_ACTOR takes precedence, then SMOKE_AUTHOR)
 	if author == "" {
-		author = os.Getenv("SMOKE_AUTHOR")
+		author = os.Getenv("BD_ACTOR")
+		if author == "" {
+			author = os.Getenv("SMOKE_AUTHOR")
+		}
 	}
 
+	// If we have an explicit author (from override or env), parse it
 	if author != "" {
-		// Strip @project if present (ignore it, always auto-detect)
-		name := author
-		if idx := strings.Index(author, "@"); idx != -1 {
-			name = author[:idx] // Take only the name part
+		// Parse if it's a full identity (contains @)
+		if strings.Contains(author, "@") {
+			return parseFullIdentity(author)
 		}
 
-		// ALWAYS auto-detect project
+		// Otherwise use as-is with detected project
 		project := detectProject()
 
 		// Use as custom identity (don't try to split agent-suffix for overrides)
 		return &Identity{
 			Agent:   "custom",
-			Suffix:  sanitizeName(name),
+			Suffix:  sanitizeName(author),
 			Project: project,
 		}, nil
 	}
@@ -71,28 +80,6 @@ func GetIdentity() (*Identity, error) {
 		Suffix:  suffix,
 		Project: project,
 	}, nil
-}
-
-// GetIdentityWithOverride resolves identity with optional --as override
-func GetIdentityWithOverride(authorOverride string) (*Identity, error) {
-	if authorOverride != "" {
-		// Strip @project if present (ignore it, always auto-detect)
-		name := authorOverride
-		if idx := strings.Index(authorOverride, "@"); idx != -1 {
-			name = authorOverride[:idx] // Take only the name part
-		}
-
-		// ALWAYS auto-detect project
-		project := detectProject()
-
-		// Use as custom identity (don't try to split agent-suffix for overrides)
-		return &Identity{
-			Agent:   "custom",
-			Suffix:  sanitizeName(name),
-			Project: project,
-		}, nil
-	}
-	return GetIdentity()
 }
 
 // parseFullIdentity parses "agent-suffix@project" or "name@project" format
@@ -128,43 +115,34 @@ func parseFullIdentity(s string) (*Identity, error) {
 // detectAgent determines the agent type from environment
 func detectAgent() string {
 	// Check for Claude Code
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		claudeDir := filepath.Join(home, ".claude")
-		if _, err := os.Stat(claudeDir); err == nil {
-			return "claude"
-		}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "unknown"
+	}
+
+	claudeDir := filepath.Join(home, ".claude")
+	if _, err := os.Stat(claudeDir); err == nil {
+		return "claude"
 	}
 
 	return "unknown"
 }
 
-// getSessionSeed returns a stable seed for the current session
+// getSessionSeed returns a stable seed for the current session.
+// Tries TERM_SESSION_ID and WINDOWID first, then falls back to PPID.
 func getSessionSeed() string {
-	// Try various session identifiers in order of preference
-	signals := []string{
-		os.Getenv("TERM_SESSION_ID"), // macOS Terminal
-		os.Getenv("WINDOWID"),        // X11
+	// Check most reliable session identifiers
+	if seed := os.Getenv("TERM_SESSION_ID"); seed != "" {
+		return seed
+	}
+	if seed := os.Getenv("WINDOWID"); seed != "" {
+		return seed
 	}
 
-	for _, sig := range signals {
-		if sig != "" {
-			return sig
-		}
-	}
-
-	// Fallback: PPID + TTY
+	// Fallback to process parent ID (always available)
 	ppid := os.Getppid()
-	tty := os.Getenv("TTY")
-	if tty == "" {
-		// Try to get TTY another way
-		if ttyname, err := os.Readlink("/dev/fd/0"); err == nil {
-			tty = ttyname
-		}
-	}
-
 	if ppid > 0 {
-		return fmt.Sprintf("%d-%s", ppid, tty)
+		return fmt.Sprintf("ppid-%d", ppid)
 	}
 
 	return ""

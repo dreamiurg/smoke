@@ -204,6 +204,9 @@ func TestFormatReplied(t *testing.T) {
 
 func TestFilterPosts(t *testing.T) {
 	now := time.Now()
+	// Use local time zone for "today" calculation to match FilterPosts behavior
+	// which uses time.Now().Location() for start of day comparison
+	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	posts := []*Post{
 		{
 			ID:        "smk-aaa111",
@@ -211,7 +214,7 @@ func TestFilterPosts(t *testing.T) {
 			Project:   "smoke",
 			Suffix:    "swift-fox",
 			Content:   "swift-fox smoke post",
-			CreatedAt: now.Add(-1 * time.Hour).UTC().Format(time.RFC3339),
+			CreatedAt: startOfToday.Add(1 * time.Hour).Format(time.RFC3339), // 1am today
 		},
 		{
 			ID:        "smk-bbb222",
@@ -219,7 +222,7 @@ func TestFilterPosts(t *testing.T) {
 			Project:   "smoke",
 			Suffix:    "calm-owl",
 			Content:   "calm-owl smoke post",
-			CreatedAt: now.Add(-30 * time.Minute).UTC().Format(time.RFC3339),
+			CreatedAt: startOfToday.Add(2 * time.Hour).Format(time.RFC3339), // 2am today
 		},
 		{
 			ID:        "smk-ccc333",
@@ -227,7 +230,7 @@ func TestFilterPosts(t *testing.T) {
 			Project:   "calle",
 			Suffix:    "swift-fox",
 			Content:   "swift-fox calle post",
-			CreatedAt: now.Add(-10 * time.Minute).UTC().Format(time.RFC3339),
+			CreatedAt: startOfToday.Add(3 * time.Hour).Format(time.RFC3339), // 3am today
 		},
 		{
 			ID:        "smk-ddd444",
@@ -235,7 +238,7 @@ func TestFilterPosts(t *testing.T) {
 			Project:   "calle",
 			Suffix:    "calm-owl",
 			Content:   "calm-owl calle post",
-			CreatedAt: now.Add(-25 * time.Hour).UTC().Format(time.RFC3339), // yesterday
+			CreatedAt: startOfToday.Add(-25 * time.Hour).Format(time.RFC3339), // yesterday
 		},
 	}
 
@@ -261,9 +264,10 @@ func TestFilterPosts(t *testing.T) {
 	})
 
 	t.Run("filter by since", func(t *testing.T) {
-		result := FilterPosts(posts, FilterCriteria{Since: now.Add(-45 * time.Minute)})
+		// Filter for posts since 1.5 hours after start of today (between 2am and 3am posts)
+		result := FilterPosts(posts, FilterCriteria{Since: startOfToday.Add(90 * time.Minute)})
 		if len(result) != 2 {
-			t.Errorf("FilterPosts(since=45m) returned %d, want 2", len(result))
+			t.Errorf("FilterPosts(since=1h30m after start of day) returned %d, want 2", len(result))
 		}
 	})
 

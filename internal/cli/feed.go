@@ -59,24 +59,23 @@ func init() {
 
 func runFeed(_ *cobra.Command, _ []string) error {
 	// Check if smoke is initialized
-	initialized, err := config.IsSmokeInitialized()
-	if err != nil {
+	if err := config.EnsureInitialized(); err != nil {
 		return err
-	}
-	if !initialized {
-		return config.ErrNotInitialized
 	}
 
-	store, err := feed.NewStore()
+	feedPath, err := config.GetFeedPath()
 	if err != nil {
 		return err
 	}
+	store := feed.NewStoreWithPath(feedPath)
 
 	if feedTail {
 		return runTailMode(store)
 	}
 
-	// T011: Mode detection - launch TUI if stdout is TTY and not in tail mode
+	// Launch interactive TUI if stdout is a TTY (terminal), otherwise use plain text output.
+	// This provides a better user experience with navigation and formatting when the
+	// output is not being piped or redirected.
 	if feed.IsTerminal(os.Stdout.Fd()) {
 		return runTUIMode(store)
 	}
@@ -85,8 +84,8 @@ func runFeed(_ *cobra.Command, _ []string) error {
 }
 
 func runNormalFeed(store *feed.Store) error {
-	// Read all posts
-	posts, err := store.ReadAll()
+	// Read posts sorted by time (most recent first)
+	posts, err := store.ReadRecent(0) // 0 = no limit, just sorted
 	if err != nil {
 		return err
 	}
@@ -104,7 +103,7 @@ func runNormalFeed(store *feed.Store) error {
 	}
 	posts = feed.FilterPosts(posts, criteria)
 
-	// Limit results
+	// Limit results (already sorted, so take first N)
 	if feedLimit > 0 && len(posts) > feedLimit {
 		posts = posts[:feedLimit]
 	}

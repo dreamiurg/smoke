@@ -28,7 +28,7 @@ get_current_branch() {
 
     # For non-git repos, try to find the latest feature directory
     local repo_root=$(get_repo_root)
-    local specs_dir="$repo_root/.specify/specs"
+    local specs_dir="$repo_root/docs/specs"
 
     if [[ -d "$specs_dir" ]]; then
         local latest_feature=""
@@ -81,14 +81,14 @@ check_feature_branch() {
     return 0
 }
 
-get_feature_dir() { echo "$1/.specify/specs/$2"; }
+get_feature_dir() { echo "$1/docs/specs/$2"; }
 
 # Find feature directory by numeric prefix instead of exact branch match
 # This allows multiple branches to work on the same spec (e.g., 004-fix-bug, 004-add-feature)
 find_feature_dir_by_prefix() {
     local repo_root="$1"
     local branch_name="$2"
-    local specs_dir="$repo_root/.specify/specs"
+    local specs_dir="$repo_root/docs/specs"
 
     # Extract numeric prefix from branch (e.g., "004" from "004-whatever")
     if [[ ! "$branch_name" =~ ^([0-9]{3})- ]]; then
@@ -135,11 +135,13 @@ get_feature_paths() {
 
     # Use prefix-based lookup to support multiple branches per spec
     local feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch")
+    local specs_dir="$repo_root/docs/specs"
 
     cat <<EOF
 REPO_ROOT='$repo_root'
 CURRENT_BRANCH='$current_branch'
 HAS_GIT='$has_git_repo'
+SPECS_DIR='$specs_dir'
 FEATURE_DIR='$feature_dir'
 FEATURE_SPEC='$feature_dir/spec.md'
 IMPL_PLAN='$feature_dir/plan.md'

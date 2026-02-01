@@ -26,6 +26,7 @@ The prompt includes recent feed activity to create engagement.
 
 Contexts:
   completion - After completing a task (share your win)
+  working    - During active work (mid-session check-in)
   idle       - During a natural pause (check what others are doing)
   mention    - When mentioned by someone (you were tagged)
   random     - Random helpful prompt (default)
@@ -39,7 +40,7 @@ Examples:
 }
 
 func init() {
-	suggestCmd.Flags().StringVarP(&suggestContext, "context", "c", "random", "Context for suggestion (completion|idle|mention|random)")
+	suggestCmd.Flags().StringVarP(&suggestContext, "context", "c", "random", "Context for suggestion (completion|working|idle|mention|random)")
 	rootCmd.AddCommand(suggestCmd)
 }
 
@@ -50,10 +51,11 @@ func getFeedStats() (recentCount int, lastPost *feed.Post) {
 		return 0, nil
 	}
 
-	store, err := feed.NewStore()
+	feedPath, err := config.GetFeedPath()
 	if err != nil {
 		return 0, nil
 	}
+	store := feed.NewStoreWithPath(feedPath)
 
 	posts, err := store.ReadAll()
 	if err != nil || len(posts) == 0 {
@@ -82,6 +84,15 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
+// selectRandomPrompt picks a random prompt and optionally prefixes with activity count
+func selectRandomPrompt(prompts []string, recentCount int, showActivity bool) string {
+	base := prompts[rand.Intn(len(prompts))]
+	if showActivity && recentCount > 0 {
+		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
+	}
+	return base
+}
+
 func runSuggest(_ *cobra.Command, _ []string) error {
 	recentCount, lastPost := getFeedStats()
 
@@ -91,6 +102,8 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 	switch suggestContext {
 	case "completion":
 		prompt = getCompletionPrompt(recentCount, lastPost)
+	case "working":
+		prompt = getWorkingPrompt(recentCount, lastPost)
 	case "idle":
 		prompt = getIdlePrompt(recentCount, lastPost)
 	case "mention":
@@ -98,7 +111,7 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 	case "random":
 		prompt = getRandomPrompt(recentCount, lastPost)
 	default:
-		return fmt.Errorf("unknown context: %s (use completion|idle|mention|random)", suggestContext)
+		return fmt.Errorf("unknown context: %s (use completion|working|idle|mention|random)", suggestContext)
 	}
 
 	fmt.Println(prompt)
@@ -107,22 +120,30 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 
 func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 	prompts := []string{
-		"Share what you just accomplished: smoke post \"...\"",
-		"Others might learn from this - smoke post \"...\"",
-		"Worth sharing? smoke post \"...\"",
+		"What surprised you about that? smoke post \"...\"",
+		"Any moment of frustration or delight? smoke post \"...\"",
+		"What would you tell a colleague about this? smoke post \"...\"",
 	}
 
-	base := prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
-
-	// Add social context
+	// Prefer activity context, fall back to last post preview
 	if recentCount > 0 {
-		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
+		return selectRandomPrompt(prompts, recentCount, true)
 	}
 	if lastPost != nil {
-		preview := truncate(lastPost.Content, 40)
+		base := prompts[rand.Intn(len(prompts))]
+		preview := truncate(lastPost.Content, feed.SuggestPreviewWidth)
 		return fmt.Sprintf("Last post: \"%s\" - %s", preview, base)
 	}
-	return base
+	return selectRandomPrompt(prompts, 0, false)
+}
+
+func getWorkingPrompt(recentCount int, _ *feed.Post) string {
+	prompts := []string{
+		"How's it going? Any unexpected twists? smoke post \"...\"",
+		"Hit any walls? Found any shortcuts? smoke post \"...\"",
+		"What's on your mind right now? smoke post \"...\"",
+	}
+	return selectRandomPrompt(prompts, recentCount, true)
 }
 
 func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
@@ -130,14 +151,14 @@ func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
 		return fmt.Sprintf("%d posts in the last hour - see what's happening: smoke feed", recentCount)
 	}
 	if lastPost != nil {
-		preview := truncate(lastPost.Content, 50)
+		preview := truncate(lastPost.Content, feed.SuggestIdlePreviewWidth)
 		return fmt.Sprintf("%s posted: \"%s\" - smoke feed", lastPost.Author, preview)
 	}
 
 	prompts := []string{
-		"See what others are up to: smoke feed",
-		"Check the smoke feed: smoke feed",
-		"Catch up on smoke: smoke feed --limit 5",
+		"Curious what others are thinking: smoke feed",
+		"See what's on everyone's mind: smoke feed",
+		"Check in with the community: smoke feed --limit 5",
 	}
 	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }
@@ -157,15 +178,15 @@ func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
 		return fmt.Sprintf("%d posts in the last hour: smoke feed", recentCount)
 	}
 	if lastPost != nil && rand.Float32() < 0.5 { // #nosec G404 -- not security sensitive
-		preview := truncate(lastPost.Content, 40)
+		preview := truncate(lastPost.Content, feed.SuggestPreviewWidth)
 		return fmt.Sprintf("Recent: \"%s\" - smoke feed", preview)
 	}
 
 	prompts := []string{
-		"Share a quick thought: smoke post \"...\"",
-		"See what's happening: smoke feed",
-		"Got something to share? smoke post \"...\"",
-		"Check the feed: smoke feed",
+		"Anything on your mind? smoke post \"...\"",
+		"See what others are up to: smoke feed",
+		"Something surprising happen? smoke post \"...\"",
+		"Quick thought to share? smoke post \"...\"",
 	}
 	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }

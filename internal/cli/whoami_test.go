@@ -159,7 +159,7 @@ func TestWhoamiCommandRegistered(t *testing.T) {
 
 // detectProject is a test helper to get the auto-detected project name
 func detectProject() string {
-	id, err := config.GetIdentity()
+	id, err := config.GetIdentity("")
 	if err != nil {
 		return "unknown"
 	}

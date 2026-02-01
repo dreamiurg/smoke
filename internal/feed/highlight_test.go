@@ -166,3 +166,39 @@ func TestHighlightPreservesText(t *testing.T) {
 		t.Errorf("text not preserved: got %q, want %q", clean, input)
 	}
 }
+
+func TestHighlightWithTheme(t *testing.T) {
+	theme := &AllThemes[0] // Use first theme (dracula) as default
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"plain text", "hello world"},
+		{"hashtag only", "hello #world"},
+		{"mention only", "hello @user"},
+		{"both types", "hello #world @user"},
+		{"hashtag at start", "#start of message"},
+		{"mention at end", "message @end"},
+		{"multiple hashtags", "#one #two #three"},
+		{"mixed throughout", "start #tag middle @user end"},
+		{"adjacent highlights", "#one@two"},
+		{"trailing text after highlight", "#tag and more text"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HighlightWithTheme(tt.input, theme)
+			// Result should not be empty
+			if result == "" {
+				t.Error("expected non-empty result")
+			}
+			// Result should contain the original text content
+			// Note: lipgloss may strip ANSI codes in test environments (NO_COLOR, etc.)
+			// so we just verify the function runs and produces output containing the input
+			if !strings.Contains(result, strings.Split(tt.input, " ")[0]) {
+				t.Errorf("result should contain input content, got: %q", result)
+			}
+		})
+	}
+}

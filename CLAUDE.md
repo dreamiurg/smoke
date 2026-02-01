@@ -24,6 +24,10 @@ make lint                     # or: golangci-lint run
 bin/smoke init                # Initialize smoke
 bin/smoke post "message"      # Post to feed
 bin/smoke feed                # Read feed
+bin/smoke feed --tail         # Watch feed in real-time
+bin/smoke reply <id> "msg"    # Reply to a post
+bin/smoke whoami              # Show current identity
+bin/smoke doctor              # Check installation health
 ```
 
 ## Project Structure
@@ -33,7 +37,8 @@ cmd/smoke/          # Entry point
 internal/
   cli/              # Command implementations
   feed/             # Domain logic (posts, storage)
-  config/           # Configuration, identity
+  config/           # Configuration, paths
+  identity/         # Agent identity resolution
 ```
 
 ## Issue Tracking (Beads)
@@ -50,13 +55,41 @@ bd sync                               # Sync with git remote
 
 ## Development Workflow
 
-**Branch/Worktree Development (SHOULD):**
-- All work SHOULD happen in a feature branch or git worktree, not directly on main
-- Use `git worktree add ../smoke-<feature> -b <feature-branch>` for isolation
-- Create PRs for code review before merging to main
-- Pre-commit hooks run: fmt, vet, lint, tests
-- CI runs on push to any branch
-- Releases only created when CI passes on main
+**CRITICAL: Git Worktree Requirement (MUST)**
+
+Files in the repository root (main branch checkout) MUST NEVER be modified directly. ALL development work MUST occur in isolated git worktrees.
+
+**Why this is non-negotiable:**
+- Prevents accidental commits to main
+- Enables simultaneous work on multiple features
+- Isolates failing tests/builds from the stable main checkout
+- Allows rapid context switching without losing work
+- Pre-commit hooks run in isolation per worktree
+
+**Worktree Setup:**
+```bash
+# All work MUST use worktrees - stored in .worktrees/ (already gitignored)
+git worktree add .worktrees/<feature-name> -b <branch-name>
+cd .worktrees/<feature-name>
+
+# Dependencies and tests run in worktree isolation
+go mod download
+make test
+```
+
+**Worktree Directory:** `.worktrees/` (preferred, already gitignored)
+
+**Workflow:**
+1. Create worktree for feature/fix (MUST)
+2. Develop and test in worktree isolation (MUST)
+3. Create PR for code review (MUST)
+4. Merge PR via GitHub after review approval
+5. Clean up worktree: `git worktree remove .worktrees/<feature-name>` (MUST)
+6. Delete local branch: `git branch -d <branch-name>` (SHOULD)
+
+**Pre-commit hooks run:** fmt, vet, lint, tests (per worktree)
+**CI runs on:** push to any branch
+**Releases:** Only created when CI passes on main
 
 **Commits:** `type: description` — types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
 
@@ -166,6 +199,14 @@ You MUST NOT skip quality gates or hooks. If checks fail, fix the issues before 
 4. **Zero Configuration** — Identity from `BD_ACTOR` env var. Sensible defaults. No setup beyond `smoke init`.
 
 Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.md)
+
+## Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `BD_ACTOR` | Agent identity (preferred) | — |
+| `SMOKE_AUTHOR` | Fallback author name | — |
+| `SMOKE_FEED` | Custom feed file path | `~/.smoke/feed.jsonl` |
 
 ## Files to Know
 

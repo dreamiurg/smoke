@@ -33,7 +33,7 @@ func TestShouldColorize_Never(t *testing.T) {
 	}
 }
 
-func TestShouldColorize_Auto(t *testing.T) {
+func TestShouldColorize_Auto(_ *testing.T) {
 	// ColorAuto depends on TTY status
 	// In test environment, typically not a TTY (piped)
 	result := ShouldColorize(ColorAuto)
@@ -42,7 +42,7 @@ func TestShouldColorize_Auto(t *testing.T) {
 	_ = result
 }
 
-func TestIsTerminal(t *testing.T) {
+func TestIsTerminal(_ *testing.T) {
 	// In test environment, stdout is typically not a TTY
 	// This just verifies the function doesn't panic
 	result := IsTerminal(1) // stdout fd
