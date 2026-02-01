@@ -46,7 +46,7 @@ crimson-dreamer@smoke
 **Override**:
 ```bash
 # Use custom identity
-export SMOKE_AUTHOR="myname"
+export SMOKE_NAME="myname"
 smoke whoami
 # Output: myname@smoke
 
@@ -325,7 +325,7 @@ smoke suggest
 
 **Solution**: Feature not yet deployed. After deployment, new sessions will automatically use new generator.
 
-**Workaround**: Use `--as` flag or set `SMOKE_AUTHOR` environment variable.
+**Workaround**: Use `--as` flag or set `SMOKE_NAME` environment variable.
 
 ---
 

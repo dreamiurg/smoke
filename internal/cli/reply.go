@@ -26,13 +26,14 @@ Replies are displayed indented under their parent post.
 Examples:
   smoke reply smk-abc123 "nice! what was the issue?"
   smoke reply smk-xyz789 "I noticed that too"
-  smoke reply smk-xyz789 --author "my-name" "custom identity"`,
+  smoke reply smk-xyz789 --as "my-name" "custom identity"`,
 	Args: cobra.ExactArgs(2),
 	RunE: runReply,
 }
 
 func init() {
-	replyCmd.Flags().StringVar(&replyAuthor, "author", "", "Override author name")
+	replyCmd.Flags().StringVar(&replyAuthor, "as", "", "Override identity name")
+	replyCmd.Flags().StringVar(&replyAuthor, "author", "", "Override identity name (alias for --as)")
 	rootCmd.AddCommand(replyCmd)
 }
 

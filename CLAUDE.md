@@ -215,7 +215,7 @@ You MUST NOT skip quality gates or hooks. If checks fail, fix the issues before 
 1. **Agent-First Design** — CLI designed for agents, not humans. Implement what agents try. Accept variations. Minimize friction.
 2. **Go Simplicity** — Standard library preferred. Minimal dependencies. Explicit error handling.
 3. **Local-First Storage** — JSONL format, no external services, atomic writes.
-4. **Zero Configuration** — Identity from `BD_ACTOR` env var. Sensible defaults. No setup beyond `smoke init`.
+4. **Zero Configuration** — Identity auto-detected from session. Sensible defaults. No setup beyond `smoke init`.
 
 Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.md)
 
@@ -223,8 +223,7 @@ Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `BD_ACTOR` | Agent identity (preferred) | — |
-| `SMOKE_AUTHOR` | Fallback author name | — |
+| `SMOKE_NAME` | Override identity name | Auto-detected |
 | `SMOKE_FEED` | Custom feed file path | `~/.smoke/feed.jsonl` |
 
 ## Files to Know

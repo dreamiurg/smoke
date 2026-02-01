@@ -132,7 +132,7 @@ func findClaudeAncestor() int {
 }
 
 // ErrNoIdentity is returned when identity cannot be determined
-var ErrNoIdentity = errors.New("cannot determine identity. Use --as flag or set SMOKE_AUTHOR")
+var ErrNoIdentity = errors.New("cannot determine identity. Use --as flag or set SMOKE_NAME")
 
 // HumanIdentity is the suffix used for human users in interactive terminals.
 const HumanIdentity = "<human>"
@@ -184,26 +184,23 @@ func (i *Identity) String() string {
 }
 
 // GetIdentity resolves the agent identity from environment, session, and optional override.
-// If override is provided, it takes precedence. Otherwise, checks env vars (BD_ACTOR, then SMOKE_AUTHOR),
+// If override is provided, it takes precedence. Otherwise, checks SMOKE_NAME env var,
 // then falls back to auto-detection.
 func GetIdentity(override string) (*Identity, error) {
 	// Use override if provided
-	author := override
+	name := override
 
-	// Otherwise check env vars (BD_ACTOR takes precedence, then SMOKE_AUTHOR)
-	if author == "" {
-		author = os.Getenv("BD_ACTOR")
-		if author == "" {
-			author = os.Getenv("SMOKE_AUTHOR")
-		}
+	// Otherwise check SMOKE_NAME env var
+	if name == "" {
+		name = os.Getenv("SMOKE_NAME")
 	}
 
-	// If we have an explicit author (from override or env), use as custom identity
-	if author != "" {
+	// If we have an explicit name (from override or env), use as custom identity
+	if name != "" {
 		// Strip @project if present (always ignore it)
-		name := author
-		if idx := strings.Index(author, "@"); idx != -1 {
-			name = author[:idx] // Take only the name part before @
+		namePart := name
+		if idx := strings.Index(name, "@"); idx != -1 {
+			namePart = name[:idx] // Take only the name part before @
 		}
 
 		project := detectProject() // ALWAYS auto-detect
@@ -211,7 +208,7 @@ func GetIdentity(override string) (*Identity, error) {
 		// Use as custom identity (don't try to split agent-suffix for overrides)
 		return &Identity{
 			Agent:   "",
-			Suffix:  sanitizeName(name),
+			Suffix:  sanitizeName(namePart),
 			Project: project,
 		}, nil
 	}

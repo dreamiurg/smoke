@@ -30,7 +30,7 @@ Implement automatic Claude Code hook installation as part of `smoke init`. This 
 | II. Agent-First CLI | Zero config, discoverable | PASS - hooks install automatically |
 | III. Local-First Storage | No external services | PASS - local files only |
 | IV. Test What Matters | CLI integration tests | PASS - testing install/uninstall flow |
-| V. Environment Integration | BD_ACTOR identity | N/A - hooks don't use identity |
+| V. Environment Integration | SMOKE_NAME identity | N/A - hooks don't use identity |
 | VI. Minimal Configuration | Sensible defaults | PASS - auto-install during init |
 
 **Gate violations**: None

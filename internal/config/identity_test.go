@@ -11,15 +11,15 @@ import (
 
 func TestGetIdentity_WithSmokeAuthor(t *testing.T) {
 	// Save original env
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Set env var
-	os.Setenv("SMOKE_AUTHOR", "test-user")
+	os.Setenv("SMOKE_NAME", "test-user")
 	os.Setenv("TERM_SESSION_ID", "")
 
 	identity, err := GetIdentity("")
@@ -133,15 +133,15 @@ func TestIdentityString(t *testing.T) {
 
 func TestGetIdentity_AutoDetect(t *testing.T) {
 	// Save original env
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Clear explicit author to force auto-detection
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "test-auto-detect-123")
 
 	identity, err := GetIdentity("")
@@ -165,15 +165,15 @@ func TestGetIdentity_AutoDetect(t *testing.T) {
 
 func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 	// Save original env
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Clear explicit author and primary session ID to force PPID fallback
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "")
 
 	identity, err := GetIdentity("")
@@ -310,15 +310,15 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 
 func TestGetIdentityWithOverride_Empty(t *testing.T) {
 	// Save original env
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Set up for GetIdentity to work
-	os.Setenv("SMOKE_AUTHOR", "default-author")
+	os.Setenv("SMOKE_NAME", "default-author")
 	os.Setenv("TERM_SESSION_ID", "")
 
 	identity, err := GetIdentity("")
@@ -461,12 +461,12 @@ func TestIdentityString_WithoutAgent(t *testing.T) {
 }
 
 func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
-	// Test GetIdentity with full identity in SMOKE_AUTHOR env var
+	// Test GetIdentity with full identity in SMOKE_NAME env var
 	// @project should be ignored and auto-detected
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	defer os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+	origSmokeName := os.Getenv("SMOKE_NAME")
+	defer os.Setenv("SMOKE_NAME", origSmokeName)
 
-	os.Setenv("SMOKE_AUTHOR", "claude-brave@ignored-project")
+	os.Setenv("SMOKE_NAME", "claude-brave@ignored-project")
 
 	// Get the actual auto-detected project
 	actualProject := detectProject()
@@ -482,22 +482,22 @@ func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
 	if identity.Suffix != "claude-brave" {
 		t.Errorf("Expected suffix 'claude-brave', got %q", identity.Suffix)
 	}
-	// Project should be auto-detected, not from SMOKE_AUTHOR
+	// Project should be auto-detected, not from SMOKE_NAME
 	if identity.Project != actualProject {
-		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in SMOKE_AUTHOR)", actualProject, identity.Project)
+		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in SMOKE_NAME)", actualProject, identity.Project)
 	}
 }
 
 func TestGetIdentity_NoSessionSeed(t *testing.T) {
 	// Test GetIdentity returns error when no session seed available
 	// This covers the error case (line 59-61)
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	origWindowID := os.Getenv("WINDOWID")
 	origTTY := os.Getenv("TTY")
 	origPPID := os.Getenv("PPID") // Not actually used by code, but for safety
 	defer func() {
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 		os.Setenv("WINDOWID", origWindowID)
 		os.Setenv("TTY", origTTY)
@@ -505,7 +505,7 @@ func TestGetIdentity_NoSessionSeed(t *testing.T) {
 	}()
 
 	// Clear all session identifiers to trigger no-seed scenario
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "")
 	os.Setenv("WINDOWID", "")
 	os.Setenv("TTY", "")
@@ -546,72 +546,18 @@ func TestExtractRepoName_SSHWithColonNoSlash(t *testing.T) {
 	}
 }
 
-func TestGetIdentity_WithBdActorOverride(t *testing.T) {
-	// Test that BD_ACTOR takes precedence over SMOKE_AUTHOR
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	defer func() {
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-	}()
-
-	os.Setenv("BD_ACTOR", "bd-user")
-	os.Setenv("SMOKE_AUTHOR", "smoke-user")
-
-	identity, err := GetIdentity("")
-	require.NoError(t, err)
-
-	// BD_ACTOR should take precedence
-	if identity.Suffix != "bd-user" {
-		t.Errorf("Expected suffix 'bd-user', got %q", identity.Suffix)
-	}
-}
-
-func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
-	// Test that BD_ACTOR with full identity format is parsed correctly
-	// @project should be ignored and auto-detected
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	defer func() {
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-	}()
-
-	os.Setenv("BD_ACTOR", "agent-name@ignored-project")
-	os.Setenv("SMOKE_AUTHOR", "")
-
-	identity, err := GetIdentity("")
-	require.NoError(t, err)
-
-	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
-	if identity.Agent != "" {
-		t.Errorf("Expected agent '', got %q", identity.Agent)
-	}
-	if identity.Suffix != "agent-name" {
-		t.Errorf("Expected suffix 'agent-name', got %q", identity.Suffix)
-	}
-	// Project should be auto-detected, not from BD_ACTOR
-	actualProject := detectProject()
-	if identity.Project != actualProject {
-		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in BD_ACTOR)", actualProject, identity.Project)
-	}
-}
-
 func TestGetIdentity_AutoDetectPath(t *testing.T) {
-	// Test GetIdentity with both BD_ACTOR and SMOKE_AUTHOR empty
-	// This ensures we cover the auto-detection path (line 55-69)
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	// Test GetIdentity with SMOKE_NAME empty
+	// This ensures we cover the auto-detection path
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
-	// Clear both overrides to force auto-detection
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	// Clear override to force auto-detection
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "auto-detect-test-session")
 
 	identity, err := GetIdentity("")
@@ -632,42 +578,14 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	t.Logf("Auto-detected identity: %s", identity.String())
 }
 
-// Test that @project override is ignored in BD_ACTOR
-func TestGetIdentity_BdActorIgnoresProjectOverride(t *testing.T) {
-	origBDActor := os.Getenv("BD_ACTOR")
-	defer os.Setenv("BD_ACTOR", origBDActor)
+// Test that @project override is ignored in SMOKE_NAME
+func TestGetIdentity_SmokeNameIgnoresProjectOverride(t *testing.T) {
+	origSmokeName := os.Getenv("SMOKE_NAME")
+	defer os.Setenv("SMOKE_NAME", origSmokeName)
 
 	actualProject := detectProject()
 
-	// Try to override with @fake-project
-	os.Setenv("BD_ACTOR", "alice@fake-project")
-
-	identity, err := GetIdentity("")
-	require.NoError(t, err)
-
-	// Should use name "alice" but ignore project override
-	if identity.Suffix != "alice" {
-		t.Errorf("Expected suffix 'alice', got %q", identity.Suffix)
-	}
-	if identity.Project != actualProject {
-		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @fake-project)", actualProject, identity.Project)
-	}
-}
-
-// Test that @project override is ignored in SMOKE_AUTHOR
-func TestGetIdentity_SmokeAuthorIgnoresProjectOverride(t *testing.T) {
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	defer func() {
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-	}()
-
-	actualProject := detectProject()
-
-	// Clear BD_ACTOR to ensure SMOKE_AUTHOR is used
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "bob@other-repo")
+	os.Setenv("SMOKE_NAME", "bob@other-repo")
 
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
@@ -699,12 +617,12 @@ func TestGetIdentity_OverrideIgnoresProjectOverride(t *testing.T) {
 
 // Test that name without @ works normally
 func TestGetIdentity_NameWithoutAt(t *testing.T) {
-	origBDActor := os.Getenv("BD_ACTOR")
-	defer os.Setenv("BD_ACTOR", origBDActor)
+	origSmokeName := os.Getenv("SMOKE_NAME")
+	defer os.Setenv("SMOKE_NAME", origSmokeName)
 
 	actualProject := detectProject()
 
-	os.Setenv("BD_ACTOR", "dave")
+	os.Setenv("SMOKE_NAME", "dave")
 
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
@@ -720,21 +638,24 @@ func TestGetIdentity_NameWithoutAt(t *testing.T) {
 // TestClaudeCodeSessionIdentity verifies that when running under Claude Code,
 // the session seed uses PPID instead of terminal session ID for per-session identity.
 func TestClaudeCodeSessionIdentity(t *testing.T) {
+	// This test only works when actually running under Claude Code, since we need
+	// a real Claude process ancestor for findClaudeAncestor() to detect
+	if claudePID := findClaudeAncestor(); claudePID == 0 {
+		t.Skip("This test requires actually running under Claude Code (need real Claude ancestor)")
+	}
+
 	origClaudeCode := os.Getenv("CLAUDECODE")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
 		os.Setenv("CLAUDECODE", origClaudeCode)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Simulate running under Claude Code
 	os.Setenv("CLAUDECODE", "1")
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "same-terminal-session")
 
 	// Get identity - should use PPID-based seed, not TERM_SESSION_ID
@@ -759,20 +680,17 @@ func TestNonClaudeCodeUsesTerminalSession(t *testing.T) {
 	}
 
 	origClaudeCode := os.Getenv("CLAUDECODE")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
 		os.Setenv("CLAUDECODE", origClaudeCode)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Simulate NOT running under Claude Code
 	os.Setenv("CLAUDECODE", "")
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "my-terminal-session-id")
 
 	// Get session seed - should use TERM_SESSION_ID
@@ -858,6 +776,12 @@ func TestIsPIDRunning(t *testing.T) {
 // TestSessionFileCrossProcessSharing tests the main use case:
 // Claude Code writes session file, ccstatusline reads it
 func TestSessionFileCrossProcessSharing(t *testing.T) {
+	// This test only works when actually running under Claude Code, since we need
+	// a real Claude process ancestor for findClaudeAncestor() to detect
+	if claudePID := findClaudeAncestor(); claudePID == 0 {
+		t.Skip("This test requires actually running under Claude Code (need real Claude ancestor)")
+	}
+
 	tmpDir := t.TempDir()
 	configDir := filepath.Join(tmpDir, ".config", "smoke")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
@@ -865,19 +789,16 @@ func TestSessionFileCrossProcessSharing(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	origClaudeCode := os.Getenv("CLAUDECODE")
 	origTermSession := os.Getenv("TERM_SESSION_ID")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	defer func() {
 		os.Setenv("HOME", origHome)
 		os.Setenv("CLAUDECODE", origClaudeCode)
 		os.Setenv("TERM_SESSION_ID", origTermSession)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 	}()
 
 	os.Setenv("HOME", tmpDir)
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 
 	termSessionID := "shared-terminal-123"
 	os.Setenv("TERM_SESSION_ID", termSessionID)
@@ -921,19 +842,16 @@ func TestSessionFileIgnoredWhenDifferentTerminal(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	origClaudeCode := os.Getenv("CLAUDECODE")
 	origTermSession := os.Getenv("TERM_SESSION_ID")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	defer func() {
 		os.Setenv("HOME", origHome)
 		os.Setenv("CLAUDECODE", origClaudeCode)
 		os.Setenv("TERM_SESSION_ID", origTermSession)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 	}()
 
 	os.Setenv("HOME", tmpDir)
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 
 	// Write a session file for terminal A
 	info := &sessionInfo{
@@ -967,19 +885,16 @@ func TestSessionFileIgnoredWhenProcessDead(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	origClaudeCode := os.Getenv("CLAUDECODE")
 	origTermSession := os.Getenv("TERM_SESSION_ID")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	defer func() {
 		os.Setenv("HOME", origHome)
 		os.Setenv("CLAUDECODE", origClaudeCode)
 		os.Setenv("TERM_SESSION_ID", origTermSession)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 	}()
 
 	os.Setenv("HOME", tmpDir)
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 
 	termSessionID := "my-terminal"
 	os.Setenv("TERM_SESSION_ID", termSessionID)
@@ -1180,20 +1095,17 @@ func TestFindClaudeAncestor(t *testing.T) {
 // the Claude ancestor when available
 func TestGetSessionSeed_UsesClaudeAncestor(t *testing.T) {
 	origClaudeCode := os.Getenv("CLAUDECODE")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
 		os.Setenv("CLAUDECODE", origClaudeCode)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
 	// Simulate NOT running directly under Claude Code
 	os.Setenv("CLAUDECODE", "")
-	os.Setenv("BD_ACTOR", "")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "test-terminal")
 
 	// Get the session seed

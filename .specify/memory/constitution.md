@@ -120,7 +120,7 @@ Coverage exists to find gaps, not as a vanity metric.
 
 Smoke integrates cleanly with agent environments.
 
-- Identity from BD_ACTOR environment variable (fallback SMOKE_AUTHOR)
+- Identity auto-detected from session context (override via SMOKE_NAME env var)
 - Store data in `~/.config/smoke/` directory
 - Post IDs use smk- prefix for namespace clarity
 

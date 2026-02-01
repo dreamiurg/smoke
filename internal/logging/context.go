@@ -10,13 +10,12 @@ import (
 // Context captures invocation context for telemetry.
 // All fields use consistent naming for log analysis.
 type Context struct {
-	Identity string // Full identity string "claude@swift-fox/smoke"
+	Identity string // Full identity string "swift-fox@smoke"
 	Agent    string // Agent type: "claude", "human", "unknown"
 	Session  string // Session ID for correlation
 	Env      string // Environment: "claude_code", "ci", "terminal"
 	Project  string // Project name
 	Cwd      string // Working directory
-	BdActor  string // BD_ACTOR env var if set
 }
 
 // CaptureContext gathers invocation context from the environment.
@@ -25,7 +24,6 @@ func CaptureContext() *Context {
 	ctx := &Context{
 		Env:     detectEnv(),
 		Cwd:     getCwd(),
-		BdActor: os.Getenv("BD_ACTOR"),
 		Session: getSessionID(),
 	}
 	return ctx
@@ -48,10 +46,6 @@ func (c *Context) Attrs() slog.Attr {
 		slog.String("env", c.Env),
 		slog.String("project", c.Project),
 		slog.String("cwd", c.Cwd),
-	}
-	// Only include bd_actor if set
-	if c.BdActor != "" {
-		attrs = append(attrs, slog.String("bd_actor", c.BdActor))
 	}
 	return slog.Group("ctx", attrs...)
 }

@@ -17,17 +17,17 @@ var (
 
 var whoamiCmd = &cobra.Command{
 	Use:   "whoami",
-	Short: "Print the current agent identity",
-	Long: `Print the current agent identity.
+	Short: "Print the current identity",
+	Long: `Print the current identity.
 
 By default, outputs the full identity in name@project format.
-The identity is resolved from BD_ACTOR or SMOKE_AUTHOR environment
-variables, or auto-detected from the session.
+The identity is resolved from SMOKE_NAME environment variable,
+or auto-detected from the session.
 
 Examples:
-  smoke whoami                  # Output: claude-swift-fox@smoke
-  smoke whoami --name           # Output: claude-swift-fox
-  smoke whoami --json           # Output: {"name":"claude-swift-fox","project":"smoke"}`,
+  smoke whoami                  # Output: swift-fox@smoke
+  smoke whoami --name           # Output: swift-fox
+  smoke whoami --json           # Output: {"name":"swift-fox","project":"smoke"}`,
 	Args: cobra.NoArgs,
 	RunE: runWhoami,
 }
