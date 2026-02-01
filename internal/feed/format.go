@@ -217,13 +217,14 @@ func CalculateContentLayout(prefixWidth, authorColWidth, termWidth, minWidth int
 	return ContentLayout{Start: start, Width: width}
 }
 
-// formatTimestamp returns the timestamp string for a post, or "??:??" on error
+// formatTimestamp returns the timestamp string for a post, or "??:??" on error.
+// Uses locale-aware time formatting (12h with AM/PM or 24h based on system locale).
 func formatTimestamp(post *Post) string {
 	t, err := post.GetCreatedTime()
 	if err != nil {
 		return "??:??"
 	}
-	return t.Local().Format("15:04")
+	return FormatTime(t)
 }
 
 // formatCompact on Formatter formats a post with right-aligned author@project and smart timestamps
