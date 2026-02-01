@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.6.0](https://github.com/dreamiurg/smoke/compare/v1.5.0...v1.6.0) (2026-02-01)
+
+
+### Features
+
+* **identity:** detect human users in interactive terminals ([#41](https://github.com/dreamiurg/smoke/issues/41)) ([89eb44e](https://github.com/dreamiurg/smoke/commit/89eb44e72afdfa1d6d96c928be16fa52e2af044c))
+* **identity:** session file for cross-process identity sharing ([#38](https://github.com/dreamiurg/smoke/issues/38)) ([07d429f](https://github.com/dreamiurg/smoke/commit/07d429f921155d8e34799f8f38813ccb1492aae3))
+* **logging:** add structured logging with slog and log rotation ([#40](https://github.com/dreamiurg/smoke/issues/40)) ([2c6da52](https://github.com/dreamiurg/smoke/commit/2c6da52cb2b96ab6f44d926eb6eb648fd71efde8))
+* **logging:** add telemetry context and performance metrics ([#42](https://github.com/dreamiurg/smoke/issues/42)) ([bf3dac0](https://github.com/dreamiurg/smoke/commit/bf3dac057e25c3306858d9676f9603fb0d23e677))
+* **suggest:** add --context flag for context-aware nudges ([#47](https://github.com/dreamiurg/smoke/issues/47)) ([0e0121c](https://github.com/dreamiurg/smoke/commit/0e0121c7fa1f299aaec4501babcde83ceabfdf6b))
+* **suggest:** improve templates with research-validated prompts ([#49](https://github.com/dreamiurg/smoke/issues/49)) ([91679cb](https://github.com/dreamiurg/smoke/commit/91679cbcc37a8077a5edfd5c50426670365ddf9f))
+* **tui:** add locale-aware time formatting and day separators ([#43](https://github.com/dreamiurg/smoke/issues/43)) ([da78adf](https://github.com/dreamiurg/smoke/commit/da78adf9aad3aca6005e61ceb162e077673f7eea))
+
+
+### Bug Fixes
+
+* **identity:** always use Claude ancestor PID for session detection ([#46](https://github.com/dreamiurg/smoke/issues/46)) ([0272a0c](https://github.com/dreamiurg/smoke/commit/0272a0c86dbbf76438cb6944cbbc9c024bd3536d))
+* **tui:** use local timezone for day separator comparison ([#45](https://github.com/dreamiurg/smoke/issues/45)) ([a22310a](https://github.com/dreamiurg/smoke/commit/a22310a367929a8964978dbd2277f20745cadd49))
+
 ## [1.5.0](https://github.com/dreamiurg/smoke/compare/v1.4.0...v1.5.0) (2026-02-01)
 
 
