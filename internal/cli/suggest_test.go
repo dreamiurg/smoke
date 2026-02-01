@@ -166,7 +166,7 @@ func TestGetFeedStats(t *testing.T) {
 				// Create posts with recent timestamps
 				now := time.Now()
 				post1 := feed.Post{
-					ID:        "test001",
+					ID:        "smk-ts0001",
 					Author:    "alice",
 					Project:   "test",
 					Suffix:    "test",
@@ -174,7 +174,7 @@ func TestGetFeedStats(t *testing.T) {
 					CreatedAt: now.Add(-10 * time.Minute).Format(time.RFC3339),
 				}
 				post2 := feed.Post{
-					ID:        "test002",
+					ID:        "smk-ts0002",
 					Author:    "bob",
 					Project:   "test",
 					Suffix:    "test",
@@ -182,7 +182,7 @@ func TestGetFeedStats(t *testing.T) {
 					CreatedAt: now.Add(-30 * time.Minute).Format(time.RFC3339),
 				}
 				post3 := feed.Post{
-					ID:        "test003",
+					ID:        "smk-ts0003",
 					Author:    "charlie",
 					Project:   "test",
 					Suffix:    "test",
@@ -218,7 +218,7 @@ func TestGetFeedStats(t *testing.T) {
 
 				now := time.Now()
 				post1 := feed.Post{
-					ID:        "test001",
+					ID:        "smk-ts0001",
 					Author:    "alice",
 					Project:   "test",
 					Suffix:    "test",
@@ -226,7 +226,7 @@ func TestGetFeedStats(t *testing.T) {
 					CreatedAt: now.Add(-10 * time.Minute).Format(time.RFC3339),
 				}
 				post2 := feed.Post{
-					ID:        "test002",
+					ID:        "smk-ts0002",
 					Author:    "bob",
 					Project:   "test",
 					Suffix:    "test",
@@ -260,7 +260,7 @@ func TestGetFeedStats(t *testing.T) {
 
 				now := time.Now()
 				post1 := feed.Post{
-					ID:        "test001",
+					ID:        "smk-ts0001",
 					Author:    "alice",
 					Project:   "test",
 					Suffix:    "test",
@@ -325,5 +325,100 @@ func TestGetFeedStats(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSelectRandomPrompt(t *testing.T) {
+	prompts := []string{"prompt A", "prompt B", "prompt C"}
+
+	t.Run("no activity", func(t *testing.T) {
+		result := selectRandomPrompt(prompts, 0, true)
+		// Should be one of the base prompts without prefix
+		found := false
+		for _, p := range prompts {
+			if result == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("selectRandomPrompt() = %q, want one of %v", result, prompts)
+		}
+	})
+
+	t.Run("with activity and showActivity true", func(t *testing.T) {
+		result := selectRandomPrompt(prompts, 5, true)
+		// Should start with activity count
+		if len(result) < 20 || result[:1] != "5" {
+			t.Errorf("selectRandomPrompt() = %q, expected to start with '5 posts'", result)
+		}
+	})
+
+	t.Run("with activity but showActivity false", func(t *testing.T) {
+		result := selectRandomPrompt(prompts, 5, false)
+		// Should not include activity count
+		found := false
+		for _, p := range prompts {
+			if result == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("selectRandomPrompt() = %q, want one of %v (no activity prefix)", result, prompts)
+		}
+	})
+}
+
+func TestGetWorkingPromptNoActivity(t *testing.T) {
+	result := getWorkingPrompt(0, nil)
+
+	// Should return one of the base prompts
+	validPrompts := []string{
+		"How's it going? Any unexpected twists? smoke post \"...\"",
+		"Hit any walls? Found any shortcuts? smoke post \"...\"",
+		"What's on your mind right now? smoke post \"...\"",
+	}
+
+	found := false
+	for _, p := range validPrompts {
+		if result == p {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("getWorkingPrompt(0, nil) = %q, want one of the base prompts", result)
+	}
+}
+
+func TestGetWorkingPromptWithActivity(t *testing.T) {
+	result := getWorkingPrompt(7, nil)
+
+	// Should start with activity count
+	expected := "7 posts in the last hour."
+	if len(result) < len(expected) || result[:len(expected)] != expected {
+		t.Errorf("getWorkingPrompt(7, nil) = %q, expected to start with %q", result, expected)
+	}
+}
+
+func TestGetWorkingPromptRandomness(t *testing.T) {
+	// Call 100 times and verify we get at least 2 different results
+	results := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		result := getWorkingPrompt(0, nil)
+		results[result] = true
+	}
+
+	if len(results) < 2 {
+		t.Errorf("getWorkingPrompt() returned only %d unique results in 100 calls, expected at least 2", len(results))
+	}
+}
+
+func TestSuggestWorkingContext(t *testing.T) {
+	suggestContext = "working"
+	err := runSuggest(nil, nil)
+	if err != nil {
+		t.Errorf("runSuggest() with working context: unexpected error: %v", err)
 	}
 }

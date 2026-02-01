@@ -85,8 +85,8 @@ func runFeed(_ *cobra.Command, _ []string) error {
 }
 
 func runNormalFeed(store *feed.Store) error {
-	// Read all posts
-	posts, err := store.ReadAll()
+	// Read posts sorted by time (most recent first)
+	posts, err := store.ReadRecent(0) // 0 = no limit, just sorted
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func runNormalFeed(store *feed.Store) error {
 	}
 	posts = feed.FilterPosts(posts, criteria)
 
-	// Limit results
+	// Limit results (already sorted, so take first N)
 	if feedLimit > 0 && len(posts) > feedLimit {
 		posts = posts[:feedLimit]
 	}

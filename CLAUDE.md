@@ -105,6 +105,11 @@ make coverage-check           # Verify coverage threshold
 - Tests MUST use table-driven patterns where applicable
 - Tests MUST NOT rely on external services or network
 
+**Pre-commit hooks:** NEVER skip pre-commit hooks (`--no-verify`) without explicit human approval. If a hook fails:
+1. Fix the issue, don't bypass it
+2. If the failure is unrelated to your changes (flaky test, infra issue), ask the human before skipping
+3. Document the reason in the commit message if skipping is approved
+
 ## Session Completion Checklist
 
 Work is NOT complete until pushed. Before ending a session:

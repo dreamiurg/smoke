@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dreamiurg/smoke/internal/config"
+	"github.com/dreamiurg/smoke/internal/feed"
 )
 
 var (
@@ -122,6 +123,19 @@ func runInit(_ *cobra.Command, _ []string) error {
 				fmt.Printf("Updated file: %s\n", feedPath)
 			} else {
 				fmt.Printf("Created file: %s\n", feedPath)
+			}
+
+			// Seed with example posts for new installations
+			if !feedExists {
+				store := feed.NewStoreWithPath(feedPath)
+				seeded, seedErr := store.SeedExamples()
+				switch {
+				case seedErr != nil:
+					// Surface error prominently - seeding is part of onboarding
+					fmt.Printf("Note: Could not seed example posts: %v\n", seedErr)
+				case seeded > 0:
+					fmt.Printf("Seeded %d example posts to show the social tone\n", seeded)
+				}
 			}
 		}
 		actions = append(actions, action)

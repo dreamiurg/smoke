@@ -1,3 +1,4 @@
+// Package feed provides the domain logic for the smoke social feed.
 package feed
 
 import (
