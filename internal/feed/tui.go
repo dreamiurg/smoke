@@ -35,6 +35,9 @@ type Model struct {
 	pressure          int // Current pressure level (0-4)
 	version           string
 	err               error
+	// Cursor state for post selection (spec 008)
+	selectedPostIndex int     // Index of currently selected post in displayedPosts
+	displayedPosts    []*Post // Posts currently visible (sorted order)
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
@@ -125,6 +128,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.newestOnTop = !m.newestOnTop
 			m.config.NewestOnTop = m.newestOnTop
 			m.err = config.SaveTUIConfig(m.config)
+			// Update displayedPosts with new sort order
+			m.updateDisplayedPosts()
 			// Scroll to show newest posts: top if newestOnTop, bottom otherwise
 			if m.newestOnTop {
 				m.scrollOffset = 0
@@ -254,6 +259,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			oldCount := len(m.posts)
 			m.posts = msg.posts
+			// Update displayedPosts with current sort order
+			m.updateDisplayedPosts()
 			// Set initial scroll position once we have posts and know height
 			if !m.initialScrollDone && m.height > 0 && len(m.posts) > 0 {
 				m.initialScrollDone = true
@@ -397,6 +404,40 @@ func (m Model) renderStatusBar() string {
 		Width(m.width)
 
 	return style.Render(statusText)
+}
+
+// updateDisplayedPosts updates the displayedPosts slice with posts in current display order.
+// Posts are flattened from threads (main post + replies) in sort order.
+func (m *Model) updateDisplayedPosts() {
+	if len(m.posts) == 0 {
+		m.displayedPosts = nil
+		m.selectedPostIndex = 0
+		return
+	}
+
+	threads := buildThreads(m.posts)
+
+	// Reverse thread order if newestOnTop is false (threads come newest-first from buildThreads)
+	if !m.newestOnTop {
+		for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
+			threads[i], threads[j] = threads[j], threads[i]
+		}
+	}
+
+	// Flatten threads into displayedPosts (main post followed by its replies)
+	m.displayedPosts = make([]*Post, 0, len(m.posts))
+	for _, thread := range threads {
+		m.displayedPosts = append(m.displayedPosts, thread.post)
+		m.displayedPosts = append(m.displayedPosts, thread.replies...)
+	}
+
+	// Clamp selectedPostIndex to valid range
+	if m.selectedPostIndex >= len(m.displayedPosts) {
+		m.selectedPostIndex = len(m.displayedPosts) - 1
+	}
+	if m.selectedPostIndex < 0 {
+		m.selectedPostIndex = 0
+	}
 }
 
 // buildAllContentLines builds all content lines for the feed (used for scrolling)
