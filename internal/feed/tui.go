@@ -19,20 +19,21 @@ const (
 
 // Model is the Bubbletea model for the TUI feed.
 type Model struct {
-	posts        []*Post
-	theme        *Theme
-	contrast     *ContrastLevel
-	layout       *LayoutStyle
-	showHelp     bool
-	autoRefresh  bool
-	newestOnTop  bool // Sort order: true=newest first, false=oldest first
-	scrollOffset int  // Number of lines scrolled from top
-	width        int
-	height       int
-	store        *Store
-	config       *config.TUIConfig
-	version      string
-	err          error
+	posts             []*Post
+	theme             *Theme
+	contrast          *ContrastLevel
+	layout            *LayoutStyle
+	showHelp          bool
+	autoRefresh       bool
+	newestOnTop       bool // Sort order: true=newest first, false=oldest first
+	scrollOffset      int  // Number of lines scrolled from top
+	initialScrollDone bool // Track if initial scroll position has been set
+	width             int
+	height            int
+	store             *Store
+	config            *config.TUIConfig
+	version           string
+	err               error
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
@@ -218,6 +219,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		// Set initial scroll position once we know the height and have posts
+		if !m.initialScrollDone && len(m.posts) > 0 {
+			m.initialScrollDone = true
+			if m.newestOnTop {
+				m.scrollOffset = 0
+			} else {
+				m.scrollOffset = m.maxScrollOffset()
+			}
+		}
 
 	case tickMsg:
 		if m.autoRefresh {
@@ -233,8 +243,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			oldCount := len(m.posts)
 			m.posts = msg.posts
-			// Auto-scroll to newest posts when new posts arrive
-			if len(m.posts) > oldCount {
+			// Set initial scroll position once we have posts and know height
+			if !m.initialScrollDone && m.height > 0 && len(m.posts) > 0 {
+				m.initialScrollDone = true
+				if m.newestOnTop {
+					m.scrollOffset = 0
+				} else {
+					m.scrollOffset = m.maxScrollOffset()
+				}
+			} else if len(m.posts) > oldCount && m.height > 0 {
+				// Auto-scroll when NEW posts arrive (after initial load)
 				if m.newestOnTop {
 					m.scrollOffset = 0
 				} else {
@@ -428,21 +446,27 @@ func (m Model) renderContent(availableHeight int) string {
 	}
 	visibleLines := allLines[offset:endIdx]
 
-	// Style for each line - ensures full width background
-	lineStyle := lipgloss.NewStyle().
-		Background(m.theme.Background).
-		Width(m.width)
+	// Style for background - applied to each line individually
+	bgStyle := lipgloss.NewStyle().Background(m.theme.Background)
 
-	// Build all lines with consistent background
+	// Build styled lines - each line gets background applied separately
+	// to avoid gaps from newline characters
 	styledLines := make([]string, availableHeight)
 	for i := 0; i < availableHeight; i++ {
+		var line string
 		if i < len(visibleLines) {
-			styledLines[i] = lineStyle.Render(visibleLines[i])
-		} else {
-			styledLines[i] = lineStyle.Render("")
+			line = visibleLines[i]
 		}
+		// Pad to full width (lipgloss.Width accounts for ANSI codes)
+		visibleLen := lipgloss.Width(line)
+		if visibleLen < m.width {
+			line += strings.Repeat(" ", m.width-visibleLen)
+		}
+		// Apply background to the padded line
+		styledLines[i] = bgStyle.Render(line)
 	}
 
+	// Use JoinVertical which handles line joining without extra newlines
 	return lipgloss.JoinVertical(lipgloss.Left, styledLines...)
 }
 

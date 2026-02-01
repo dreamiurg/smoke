@@ -200,8 +200,8 @@ func runTUIMode(store *feed.Store) error {
 	contrast := feed.GetContrastLevel(cfg.Contrast)
 	layout := feed.GetLayout(cfg.Layout)
 
-	// Get version from root command
-	version := rootCmd.Version
+	// Get short version (e.g., "1.3.0" not the full string with commit info)
+	version := Version
 
 	// Create model and run
 	m := feed.NewModel(store, theme, contrast, layout, cfg, version)

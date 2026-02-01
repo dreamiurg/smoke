@@ -923,3 +923,209 @@ func TestRenderContent(t *testing.T) {
 		t.Error("renderContent() should include post content")
 	}
 }
+
+// Regression tests for TUI fixes
+
+func TestRenderHeader_IncludesVersion(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 100
+	model.version = "1.2.3"
+
+	result := model.renderHeader()
+
+	if !strings.Contains(result, "[smoke v1.2.3]") {
+		t.Errorf("renderHeader() should include version badge [smoke v1.2.3], got: %s", result)
+	}
+}
+
+func TestRenderHeader_ContainsStats(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 100
+	model.posts = []*Post{
+		{Author: "agent1@proj1"},
+		{Author: "agent2@proj1"},
+	}
+
+	result := model.renderHeader()
+
+	if !strings.Contains(result, "2 posts") {
+		t.Error("renderHeader() should show post count")
+	}
+	if !strings.Contains(result, "2 agents") {
+		t.Error("renderHeader() should show agent count")
+	}
+	if !strings.Contains(result, "1 project") {
+		t.Error("renderHeader() should show project count")
+	}
+}
+
+func TestRenderHeader_ContainsClock(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 100
+
+	result := model.renderHeader()
+
+	// Clock format is [HH:MM]
+	if !strings.Contains(result, "[") || !strings.Contains(result, ":") {
+		t.Error("renderHeader() should contain clock in [HH:MM] format")
+	}
+}
+
+func TestInitialScrollPosition_NewestOnTop(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	theme := GetTheme("dracula")
+	contrast := GetContrastLevel("medium")
+	layout := GetLayout("comfy")
+	cfg := &config.TUIConfig{
+		Theme:       "dracula",
+		Contrast:    "medium",
+		Layout:      "comfy",
+		AutoRefresh: false,
+		NewestOnTop: true,
+	}
+	model := NewModel(store, theme, contrast, layout, cfg, "test")
+
+	// Simulate window size message first
+	model.width = 80
+	model.height = 24
+
+	// Then simulate loading posts
+	posts := []*Post{
+		{ID: "1", Content: "post 1"},
+		{ID: "2", Content: "post 2"},
+		{ID: "3", Content: "post 3"},
+	}
+
+	// Process WindowSizeMsg
+	updated, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model = updated.(Model)
+
+	// Process loadPostsMsg
+	updated, _ = model.Update(loadPostsMsg{posts: posts, err: nil})
+	model = updated.(Model)
+
+	// With newestOnTop=true, scroll should be at 0 (top)
+	if model.scrollOffset != 0 {
+		t.Errorf("initial scroll with newestOnTop=true should be 0, got %d", model.scrollOffset)
+	}
+}
+
+func TestInitialScrollPosition_OldestOnTop(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	theme := GetTheme("dracula")
+	contrast := GetContrastLevel("medium")
+	layout := GetLayout("comfy")
+	cfg := &config.TUIConfig{
+		Theme:       "dracula",
+		Contrast:    "medium",
+		Layout:      "comfy",
+		AutoRefresh: false,
+		NewestOnTop: false, // oldest on top
+	}
+	model := NewModel(store, theme, contrast, layout, cfg, "test")
+
+	// Create many posts to exceed screen height
+	var posts []*Post
+	for i := 0; i < 50; i++ {
+		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content that is reasonably long"})
+	}
+
+	// Process WindowSizeMsg first
+	updated, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	model = updated.(Model)
+
+	// Then process loadPostsMsg
+	updated, _ = model.Update(loadPostsMsg{posts: posts, err: nil})
+	model = updated.(Model)
+
+	// With newestOnTop=false, scroll should be at maxScrollOffset (bottom)
+	maxOffset := model.maxScrollOffset()
+	if model.scrollOffset != maxOffset {
+		t.Errorf("initial scroll with newestOnTop=false should be %d, got %d", maxOffset, model.scrollOffset)
+	}
+}
+
+func TestScrollKeys(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 10
+
+	// Add many posts
+	var posts []*Post
+	for i := 0; i < 50; i++ {
+		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content"})
+	}
+	model.posts = posts
+	model.initialScrollDone = true
+
+	tests := []struct {
+		name      string
+		key       string
+		wantDelta int // expected change in scrollOffset
+	}{
+		{"down arrow", "down", 1},
+		{"j key", "j", 1},
+		{"up arrow", "up", -1},
+		{"k key", "k", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model
+			m.scrollOffset = 5 // start in middle
+
+			var msg tea.KeyMsg
+			switch tt.key {
+			case "up":
+				msg = tea.KeyMsg{Type: tea.KeyUp}
+			case "down":
+				msg = tea.KeyMsg{Type: tea.KeyDown}
+			default:
+				msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)}
+			}
+
+			updated, _ := m.Update(msg)
+			updatedModel := updated.(Model)
+
+			expected := 5 + tt.wantDelta
+			if updatedModel.scrollOffset != expected {
+				t.Errorf("%s: scrollOffset = %d, want %d", tt.name, updatedModel.scrollOffset, expected)
+			}
+		})
+	}
+}
+
+func TestSortToggleScrollsToNewest(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 10
+	model.newestOnTop = true
+	model.scrollOffset = 0
+	model.initialScrollDone = true
+
+	// Add many posts
+	var posts []*Post
+	for i := 0; i < 50; i++ {
+		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content"})
+	}
+	model.posts = posts
+
+	// Toggle sort order with 's'
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	// Now newestOnTop should be false, and scroll should be at bottom
+	if updatedModel.newestOnTop {
+		t.Error("'s' should toggle newestOnTop to false")
+	}
+	maxOffset := updatedModel.maxScrollOffset()
+	if updatedModel.scrollOffset != maxOffset {
+		t.Errorf("after toggling to oldestOnTop, scroll should be at bottom (%d), got %d", maxOffset, updatedModel.scrollOffset)
+	}
+}
