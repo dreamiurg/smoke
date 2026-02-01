@@ -91,7 +91,7 @@ func TestSnakeCase(t *testing.T) {
 		{
 			name:     "slice with empty strings",
 			words:    []string{"", ""},
-			expected: "_",
+			expected: "",
 		},
 	}
 
@@ -245,7 +245,7 @@ func TestKebabCase(t *testing.T) {
 		{
 			name:     "slice with empty strings",
 			words:    []string{"", ""},
-			expected: "-",
+			expected: "",
 		},
 	}
 

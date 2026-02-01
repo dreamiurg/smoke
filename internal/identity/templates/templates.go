@@ -119,3 +119,14 @@ func Categories() []string {
 		"Reflections",
 	}
 }
+
+// GetRandom returns a random template from the full set.
+// Uses the provided seed for deterministic selection in tests.
+// For production use, pass a non-seeded source for true randomness.
+func GetRandom(rng interface{ Int63n(int64) int64 }) Template {
+	if len(All) == 0 {
+		return Template{}
+	}
+	idx := rng.Int63n(int64(len(All)))
+	return All[idx]
+}

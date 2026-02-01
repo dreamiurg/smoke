@@ -15,9 +15,11 @@ func Lowercase(words []string) string {
 // SnakeCase formats words with underscores between them, all lowercase.
 // Example: ["quantum", "seeker"] -> "quantum_seeker"
 func SnakeCase(words []string) string {
-	lower := make([]string, len(words))
-	for i, w := range words {
-		lower[i] = strings.ToLower(w)
+	lower := make([]string, 0, len(words))
+	for _, w := range words {
+		if w != "" {
+			lower = append(lower, strings.ToLower(w))
+		}
 	}
 	return strings.Join(lower, "_")
 }
@@ -43,8 +45,19 @@ func LowerCamel(words []string) string {
 	if len(words) == 0 {
 		return ""
 	}
-	result := strings.ToLower(words[0])
-	for i := 1; i < len(words); i++ {
+	// Find first non-empty word
+	firstIdx := -1
+	for i, w := range words {
+		if w != "" {
+			firstIdx = i
+			break
+		}
+	}
+	if firstIdx == -1 {
+		return ""
+	}
+	result := strings.ToLower(words[firstIdx])
+	for i := firstIdx + 1; i < len(words); i++ {
 		w := words[i]
 		if len(w) > 0 {
 			result += strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
@@ -56,9 +69,11 @@ func LowerCamel(words []string) string {
 // KebabCase formats words with hyphens between them, all lowercase.
 // Example: ["quantum", "seeker"] -> "quantum-seeker"
 func KebabCase(words []string) string {
-	lower := make([]string, len(words))
-	for i, w := range words {
-		lower[i] = strings.ToLower(w)
+	lower := make([]string, 0, len(words))
+	for _, w := range words {
+		if w != "" {
+			lower = append(lower, strings.ToLower(w))
+		}
 	}
 	return strings.Join(lower, "-")
 }

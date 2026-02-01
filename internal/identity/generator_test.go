@@ -149,6 +149,21 @@ func TestGenerateWithPattern(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:    "AdjectiveAdjectiveNoun pattern with valid seed",
+			seed:    "test-seed-5",
+			pattern: PatternAdjectiveAdjectiveNoun,
+			wantErr: false,
+			validate: func(t *testing.T, result string) {
+				// AdjectiveAdjectiveNoun should be: adjective-adjective-noun format
+				if !containsHyphen(result, 2) {
+					t.Errorf("AdjectiveAdjectiveNoun result should have exactly 2 hyphens, got %q", result)
+				}
+				if result == "" {
+					t.Errorf("AdjectiveAdjectiveNoun result should not be empty")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -174,6 +189,7 @@ func TestPatternDeterminism(t *testing.T) {
 		PatternAdjectiveNoun,
 		PatternAbstractConcrete,
 		PatternTechTerm,
+		PatternAdjectiveAdjectiveNoun,
 	}
 
 	seed := "determinism-test-seed"

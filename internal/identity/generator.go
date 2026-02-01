@@ -14,6 +14,7 @@ const (
 	PatternAdjectiveNoun
 	PatternAbstractConcrete
 	PatternTechTerm
+	PatternAdjectiveAdjectiveNoun
 )
 
 // String returns the string representation of a Pattern.
@@ -27,6 +28,8 @@ func (p Pattern) String() string {
 		return "AbstractConcrete"
 	case PatternTechTerm:
 		return "TechTerm"
+	case PatternAdjectiveAdjectiveNoun:
+		return "AdjectiveAdjectiveNoun"
 	default:
 		return "Unknown"
 	}
@@ -58,8 +61,8 @@ func SelectPattern(seed string) Pattern {
 	h.Write([]byte(seed))
 	hash := h.Sum32()
 
-	// Map hash to one of the 4 patterns
-	patternIdx := hash % 4
+	// Map hash to one of the 5 patterns
+	patternIdx := hash % 5
 	switch patternIdx {
 	case 0:
 		return PatternVerbNoun
@@ -69,16 +72,52 @@ func SelectPattern(seed string) Pattern {
 		return PatternAbstractConcrete
 	case 3:
 		return PatternTechTerm
+	case 4:
+		return PatternAdjectiveAdjectiveNoun
 	default:
 		return PatternVerbNoun
 	}
 }
 
 // GenerateWithPattern generates an identity using the specified pattern.
-// This function will be implemented in T007 to handle all four pattern types.
-// For now, it returns a stub that will cause tests to fail.
+// Different patterns combine words from different categories:
+// - VerbNoun: verb + animal (e.g., "chase-fox")
+// - AdjectiveNoun: adjective + animal (e.g., "swift-bear")
+// - AbstractConcrete: abstract concept + animal (e.g., "aether-wolf")
+// - TechTerm: single tech term (e.g., "lambda")
+// - AdjectiveAdjectiveNoun: adjective + adjective + animal (e.g., "swift-clever-fox")
 func GenerateWithPattern(seed string, pattern Pattern) (string, error) {
-	// TODO(T007): Implement actual multi-pattern generation
-	// This stub ensures tests compile but fail during execution
-	return "", fmt.Errorf("pattern %v not implemented", pattern)
+	h := fnv.New32a()
+	h.Write([]byte(seed))
+	hash := h.Sum32()
+
+	switch pattern {
+	case PatternVerbNoun:
+		verbIdx := hash % uint32(len(Verbs))
+		animalIdx := (hash / uint32(len(Verbs))) % uint32(len(Animals))
+		return fmt.Sprintf("%s-%s", Verbs[verbIdx], Animals[animalIdx]), nil
+
+	case PatternAdjectiveNoun:
+		adjIdx := hash % uint32(len(Adjectives))
+		animalIdx := (hash / uint32(len(Adjectives))) % uint32(len(Animals))
+		return fmt.Sprintf("%s-%s", Adjectives[adjIdx], Animals[animalIdx]), nil
+
+	case PatternAbstractConcrete:
+		abstractIdx := hash % uint32(len(Abstracts))
+		animalIdx := (hash / uint32(len(Abstracts))) % uint32(len(Animals))
+		return fmt.Sprintf("%s-%s", Abstracts[abstractIdx], Animals[animalIdx]), nil
+
+	case PatternTechTerm:
+		techIdx := hash % uint32(len(TechTerms))
+		return TechTerms[techIdx], nil
+
+	case PatternAdjectiveAdjectiveNoun:
+		adj1Idx := hash % uint32(len(Adjectives))
+		adj2Idx := (hash / uint32(len(Adjectives))) % uint32(len(Adjectives))
+		animalIdx := (hash / uint32(len(Adjectives)*len(Adjectives))) % uint32(len(Animals))
+		return fmt.Sprintf("%s-%s-%s", Adjectives[adj1Idx], Adjectives[adj2Idx], Animals[animalIdx]), nil
+
+	default:
+		return "", fmt.Errorf("invalid pattern: %v", pattern)
+	}
 }
