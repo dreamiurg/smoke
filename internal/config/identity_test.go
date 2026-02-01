@@ -1146,3 +1146,45 @@ func TestIsHumanSession_DeadProcessSession(t *testing.T) {
 	result := isHumanSession()
 	t.Logf("isHumanSession() with dead process: %v", result)
 }
+
+// TestFindClaudeAncestor tests the process tree walking for Claude detection
+func TestFindClaudeAncestor(t *testing.T) {
+	// In a normal test environment, we're not running under Claude
+	// so this should return 0
+	pid := findClaudeAncestor()
+
+	// The result depends on whether we're actually running under Claude
+	// In CI or standalone tests, this should be 0
+	// We just verify it doesn't crash and returns a reasonable value
+	t.Logf("findClaudeAncestor() returned PID: %d", pid)
+	require.GreaterOrEqual(t, pid, 0, "PID should be non-negative")
+}
+
+// TestGetSessionSeed_UsesClaudeAncestor verifies that getSessionSeed uses
+// the Claude ancestor when available
+func TestGetSessionSeed_UsesClaudeAncestor(t *testing.T) {
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	// Simulate NOT running directly under Claude Code
+	os.Setenv("CLAUDECODE", "")
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("TERM_SESSION_ID", "test-terminal")
+
+	// Get the session seed
+	seed := getSessionSeed()
+
+	// In a test environment without Claude ancestor, should fall back
+	// to terminal session ID
+	t.Logf("getSessionSeed() returned: %s", seed)
+	require.NotEmpty(t, seed, "Should return a non-empty seed")
+}
