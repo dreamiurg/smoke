@@ -191,16 +191,20 @@ func runTailMode(store *feed.Store) error {
 	}
 }
 
-// T012: runTUIMode launches the interactive TUI feed
+// runTUIMode launches the interactive TUI feed
 func runTUIMode(store *feed.Store) error {
 	// Load TUI config (never returns error, gracefully handles all failures)
 	cfg := config.LoadTUIConfig()
 
 	theme := feed.GetTheme(cfg.Theme)
 	contrast := feed.GetContrastLevel(cfg.Contrast)
+	style := feed.GetStyle(cfg.Style)
+
+	// Get version from root command
+	version := rootCmd.Version
 
 	// Create model and run
-	m := feed.NewModel(store, theme, contrast, cfg)
+	m := feed.NewModel(store, theme, contrast, style, cfg, version)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

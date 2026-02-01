@@ -3,57 +3,40 @@ package feed
 import "github.com/charmbracelet/lipgloss"
 
 // DefaultThemeName is the default theme when none is specified
-const DefaultThemeName = "tomorrow-night"
+const DefaultThemeName = "dracula"
 
-// Theme defines a color palette for the TUI.
+// Theme defines a color palette for the TUI with AdaptiveColor support.
 type Theme struct {
-	// Name is the identifier for the theme (e.g., "tomorrow-night")
+	// Name is the identifier for the theme (e.g., "dracula")
 	Name string
-	// DisplayName is the human-readable name (e.g., "Tomorrow Night")
+	// DisplayName is the human-readable name (e.g., "Dracula")
 	DisplayName string
-	// Foreground is the default text color
-	Foreground lipgloss.Color
-	// Dim is the dimmed text color (for timestamps, etc.)
-	Dim lipgloss.Color
+	// Text is the primary text color
+	Text lipgloss.AdaptiveColor
+	// TextMuted is for timestamps and secondary text
+	TextMuted lipgloss.AdaptiveColor
+	// BackgroundSecondary is for header/status bar backgrounds
+	BackgroundSecondary lipgloss.AdaptiveColor
+	// Accent is for highlights, version badge
+	Accent lipgloss.AdaptiveColor
+	// Error is for error indicators
+	Error lipgloss.AdaptiveColor
 	// AgentColors is a palette of 5 colors for agent name hashing
 	AgentColors []lipgloss.Color
 }
 
 // AllThemes is the registry of available themes.
-// Themes will cycle in order: tomorrow-night → monokai → dracula → solarized-light → ...
-// Actual colors will be filled in T019-T022.
+// Themes cycle in order: dracula → github → catppuccin → solarized → nord → gruvbox → onedark → tokyonight
 var AllThemes = []Theme{
+	// Dracula - High contrast, vibrant purples/pinks
 	{
-		Name:        "tomorrow-night",
-		DisplayName: "Tomorrow Night",
-		Foreground:  lipgloss.Color("#c5c8c6"),
-		Dim:         lipgloss.Color("#969896"),
-		AgentColors: []lipgloss.Color{
-			lipgloss.Color("#81a2be"), // blue
-			lipgloss.Color("#b5bd68"), // green
-			lipgloss.Color("#f0c674"), // yellow
-			lipgloss.Color("#8abeb7"), // cyan
-			lipgloss.Color("#cc6666"), // red
-		},
-	},
-	{
-		Name:        "monokai",
-		DisplayName: "Monokai",
-		Foreground:  lipgloss.Color("#f8f8f2"),
-		Dim:         lipgloss.Color("#75715e"),
-		AgentColors: []lipgloss.Color{
-			lipgloss.Color("#f92672"), // pink
-			lipgloss.Color("#a6e22e"), // green
-			lipgloss.Color("#fd971f"), // orange
-			lipgloss.Color("#66d9ef"), // blue
-			lipgloss.Color("#ae81ff"), // purple
-		},
-	},
-	{
-		Name:        "dracula",
-		DisplayName: "Dracula",
-		Foreground:  lipgloss.Color("#f8f8f2"),
-		Dim:         lipgloss.Color("#6272a4"),
+		Name:                "dracula",
+		DisplayName:         "Dracula",
+		Text:                lipgloss.AdaptiveColor{Light: "#212121", Dark: "#f8f8f2"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#757575", Dark: "#6272a4"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#e0e0e0", Dark: "#44475a"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#7e57c2", Dark: "#bd93f9"},
+		Error:               lipgloss.AdaptiveColor{Light: "#d32f2f", Dark: "#ff5555"},
 		AgentColors: []lipgloss.Color{
 			lipgloss.Color("#8be9fd"), // cyan
 			lipgloss.Color("#50fa7b"), // green
@@ -62,42 +45,153 @@ var AllThemes = []Theme{
 			lipgloss.Color("#bd93f9"), // purple
 		},
 	},
+	// GitHub - Official GitHub theme, WCAG compliant
 	{
-		Name:        "solarized-light",
-		DisplayName: "Solarized Light",
-		Foreground:  lipgloss.Color("#657b83"),
-		Dim:         lipgloss.Color("#93a1a1"),
+		Name:                "github",
+		DisplayName:         "GitHub",
+		Text:                lipgloss.AdaptiveColor{Light: "#24292f", Dark: "#c9d1d9"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#57606a", Dark: "#8b949e"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#f6f8fa", Dark: "#161b22"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#0969da", Dark: "#58a6ff"},
+		Error:               lipgloss.AdaptiveColor{Light: "#cf222e", Dark: "#f85149"},
+		AgentColors: []lipgloss.Color{
+			lipgloss.Color("#58a6ff"), // blue
+			lipgloss.Color("#3fb950"), // green
+			lipgloss.Color("#d29922"), // yellow
+			lipgloss.Color("#a371f7"), // purple
+			lipgloss.Color("#f78166"), // orange
+		},
+	},
+	// Catppuccin - Modern pastels
+	{
+		Name:                "catppuccin",
+		DisplayName:         "Catppuccin",
+		Text:                lipgloss.AdaptiveColor{Light: "#4c4f69", Dark: "#cdd6f4"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#9ca0b0", Dark: "#6c7086"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#e6e9ef", Dark: "#313244"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#1e66f5", Dark: "#89b4fa"},
+		Error:               lipgloss.AdaptiveColor{Light: "#d20f39", Dark: "#f38ba8"},
+		AgentColors: []lipgloss.Color{
+			lipgloss.Color("#89b4fa"), // blue
+			lipgloss.Color("#a6e3a1"), // green
+			lipgloss.Color("#fab387"), // peach
+			lipgloss.Color("#cba6f7"), // mauve
+			lipgloss.Color("#f5c2e7"), // pink
+		},
+	},
+	// Solarized - Scientifically designed, colorblind-friendly
+	{
+		Name:                "solarized",
+		DisplayName:         "Solarized",
+		Text:                lipgloss.AdaptiveColor{Light: "#657b83", Dark: "#839496"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#93a1a1", Dark: "#586e75"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#eee8d5", Dark: "#073642"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#268bd2", Dark: "#268bd2"},
+		Error:               lipgloss.AdaptiveColor{Light: "#dc322f", Dark: "#dc322f"},
 		AgentColors: []lipgloss.Color{
 			lipgloss.Color("#268bd2"), // blue
 			lipgloss.Color("#2aa198"), // cyan
 			lipgloss.Color("#859900"), // green
 			lipgloss.Color("#cb4b16"), // orange
-			lipgloss.Color("#dc322f"), // red
+			lipgloss.Color("#d33682"), // magenta
+		},
+	},
+	// Nord - Arctic-inspired, cool tones
+	{
+		Name:                "nord",
+		DisplayName:         "Nord",
+		Text:                lipgloss.AdaptiveColor{Light: "#2e3440", Dark: "#eceff4"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#4c566a", Dark: "#d8dee9"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#e5e9f0", Dark: "#3b4252"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#5e81ac", Dark: "#88c0d0"},
+		Error:               lipgloss.AdaptiveColor{Light: "#bf616a", Dark: "#bf616a"},
+		AgentColors: []lipgloss.Color{
+			lipgloss.Color("#88c0d0"), // frost cyan
+			lipgloss.Color("#a3be8c"), // aurora green
+			lipgloss.Color("#ebcb8b"), // aurora yellow
+			lipgloss.Color("#b48ead"), // aurora purple
+			lipgloss.Color("#81a1c1"), // frost blue
+		},
+	},
+	// Gruvbox - Retro warm tones
+	{
+		Name:                "gruvbox",
+		DisplayName:         "Gruvbox",
+		Text:                lipgloss.AdaptiveColor{Light: "#3c3836", Dark: "#ebdbb2"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#7c6f64", Dark: "#a89984"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#f2e5bc", Dark: "#3c3836"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#d65d0e", Dark: "#fe8019"},
+		Error:               lipgloss.AdaptiveColor{Light: "#cc241d", Dark: "#fb4934"},
+		AgentColors: []lipgloss.Color{
+			lipgloss.Color("#83a598"), // aqua
+			lipgloss.Color("#b8bb26"), // green
+			lipgloss.Color("#fabd2f"), // yellow
+			lipgloss.Color("#d3869b"), // purple
+			lipgloss.Color("#fe8019"), // orange
+		},
+	},
+	// One Dark - Atom's default theme
+	{
+		Name:                "onedark",
+		DisplayName:         "One Dark",
+		Text:                lipgloss.AdaptiveColor{Light: "#383a42", Dark: "#abb2bf"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#a0a1a7", Dark: "#5c6370"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#f0f0f0", Dark: "#3e4451"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#4078f2", Dark: "#61afef"},
+		Error:               lipgloss.AdaptiveColor{Light: "#e45649", Dark: "#e06c75"},
+		AgentColors: []lipgloss.Color{
+			lipgloss.Color("#61afef"), // blue
+			lipgloss.Color("#98c379"), // green
+			lipgloss.Color("#e5c07b"), // yellow
+			lipgloss.Color("#c678dd"), // purple
+			lipgloss.Color("#56b6c2"), // cyan
+		},
+	},
+	// Tokyo Night - Modern anime-inspired
+	{
+		Name:                "tokyonight",
+		DisplayName:         "Tokyo Night",
+		Text:                lipgloss.AdaptiveColor{Light: "#343b58", Dark: "#c0caf5"},
+		TextMuted:           lipgloss.AdaptiveColor{Light: "#9699a3", Dark: "#565f89"},
+		BackgroundSecondary: lipgloss.AdaptiveColor{Light: "#d5d6db", Dark: "#1f2335"},
+		Accent:              lipgloss.AdaptiveColor{Light: "#2e7de9", Dark: "#7aa2f7"},
+		Error:               lipgloss.AdaptiveColor{Light: "#f52a65", Dark: "#f7768e"},
+		AgentColors: []lipgloss.Color{
+			lipgloss.Color("#7aa2f7"), // blue
+			lipgloss.Color("#9ece6a"), // green
+			lipgloss.Color("#e0af68"), // yellow
+			lipgloss.Color("#bb9af7"), // purple
+			lipgloss.Color("#7dcfff"), // cyan
 		},
 	},
 }
 
 // GetTheme returns the theme with the given name, or the default theme if not found.
-// Default theme is "tomorrow-night".
 func GetTheme(name string) *Theme {
 	for i := range AllThemes {
 		if AllThemes[i].Name == name {
 			return &AllThemes[i]
 		}
 	}
-	// Return default theme (first one)
 	return &AllThemes[0]
 }
 
 // NextTheme returns the name of the next theme for cycling.
-// If current theme is not found or is the last one, returns the first theme.
 func NextTheme(current string) string {
 	for i, t := range AllThemes {
 		if t.Name == current {
-			// Return next theme, wrapping around to first
 			return AllThemes[(i+1)%len(AllThemes)].Name
 		}
 	}
-	// If not found, return first theme
 	return AllThemes[0].Name
+}
+
+// Foreground returns the Text color for backward compatibility
+func (t *Theme) Foreground() lipgloss.AdaptiveColor {
+	return t.Text
+}
+
+// Dim returns the TextMuted color for backward compatibility
+func (t *Theme) Dim() lipgloss.AdaptiveColor {
+	return t.TextMuted
 }

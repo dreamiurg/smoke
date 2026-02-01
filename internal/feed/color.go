@@ -145,7 +145,7 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
 	} else {
 		// Dim the project
-		projectStyle = projectStyle.Foreground(theme.Dim)
+		projectStyle = projectStyle.Foreground(theme.TextMuted)
 	}
 
 	styledProject := projectStyle.Render(project)

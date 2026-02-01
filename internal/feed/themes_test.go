@@ -2,6 +2,8 @@ package feed
 
 import (
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestGetTheme(t *testing.T) {
@@ -11,44 +13,59 @@ func TestGetTheme(t *testing.T) {
 		want      string
 	}{
 		{
-			name:      "valid theme tomorrow-night",
-			themeName: "tomorrow-night",
-			want:      "tomorrow-night",
-		},
-		{
-			name:      "valid theme monokai",
-			themeName: "monokai",
-			want:      "monokai",
-		},
-		{
 			name:      "valid theme dracula",
 			themeName: "dracula",
 			want:      "dracula",
 		},
 		{
-			name:      "valid theme solarized-light",
-			themeName: "solarized-light",
-			want:      "solarized-light",
+			name:      "valid theme github",
+			themeName: "github",
+			want:      "github",
+		},
+		{
+			name:      "valid theme catppuccin",
+			themeName: "catppuccin",
+			want:      "catppuccin",
+		},
+		{
+			name:      "valid theme solarized",
+			themeName: "solarized",
+			want:      "solarized",
+		},
+		{
+			name:      "valid theme nord",
+			themeName: "nord",
+			want:      "nord",
+		},
+		{
+			name:      "valid theme gruvbox",
+			themeName: "gruvbox",
+			want:      "gruvbox",
+		},
+		{
+			name:      "valid theme onedark",
+			themeName: "onedark",
+			want:      "onedark",
+		},
+		{
+			name:      "valid theme tokyonight",
+			themeName: "tokyonight",
+			want:      "tokyonight",
 		},
 		{
 			name:      "invalid theme name returns default",
 			themeName: "nonexistent",
-			want:      "tomorrow-night",
+			want:      "dracula",
 		},
 		{
 			name:      "empty theme name returns default",
 			themeName: "",
-			want:      "tomorrow-night",
-		},
-		{
-			name:      "case sensitive - lowercase monokai",
-			themeName: "monokai",
-			want:      "monokai",
+			want:      "dracula",
 		},
 		{
 			name:      "case sensitive - uppercase returns default",
-			themeName: "MONOKAI",
-			want:      "tomorrow-night",
+			themeName: "DRACULA",
+			want:      "dracula",
 		},
 	}
 
@@ -66,18 +83,32 @@ func TestGetTheme(t *testing.T) {
 }
 
 func TestGetThemeProperties(t *testing.T) {
-	theme := GetTheme("tomorrow-night")
+	theme := GetTheme("dracula")
 
-	if theme.DisplayName != "Tomorrow Night" {
-		t.Errorf("GetTheme().DisplayName = %q, want %q", theme.DisplayName, "Tomorrow Night")
+	if theme.DisplayName != "Dracula" {
+		t.Errorf("GetTheme().DisplayName = %q, want %q", theme.DisplayName, "Dracula")
 	}
 
-	if theme.Foreground == "" {
-		t.Error("GetTheme().Foreground is empty")
+	// Check AdaptiveColor fields are not empty
+	emptyColor := lipgloss.AdaptiveColor{}
+	if theme.Text == emptyColor {
+		t.Error("GetTheme().Text is empty")
 	}
 
-	if theme.Dim == "" {
-		t.Error("GetTheme().Dim is empty")
+	if theme.TextMuted == emptyColor {
+		t.Error("GetTheme().TextMuted is empty")
+	}
+
+	if theme.BackgroundSecondary == emptyColor {
+		t.Error("GetTheme().BackgroundSecondary is empty")
+	}
+
+	if theme.Accent == emptyColor {
+		t.Error("GetTheme().Accent is empty")
+	}
+
+	if theme.Error == emptyColor {
+		t.Error("GetTheme().Error is empty")
 	}
 
 	if len(theme.AgentColors) != 5 {
@@ -92,8 +123,8 @@ func TestGetThemeProperties(t *testing.T) {
 }
 
 func TestGetThemeReturnsReference(t *testing.T) {
-	theme1 := GetTheme("monokai")
-	theme2 := GetTheme("monokai")
+	theme1 := GetTheme("github")
+	theme2 := GetTheme("github")
 
 	if theme1.Name != theme2.Name {
 		t.Errorf("GetTheme() returned different names: %q vs %q", theme1.Name, theme2.Name)
@@ -111,39 +142,29 @@ func TestNextTheme(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "next theme after tomorrow-night is monokai",
-			current: "tomorrow-night",
-			want:    "monokai",
-		},
-		{
-			name:    "next theme after monokai is dracula",
-			current: "monokai",
-			want:    "dracula",
-		},
-		{
-			name:    "next theme after dracula is solarized-light",
+			name:    "next theme after dracula is github",
 			current: "dracula",
-			want:    "solarized-light",
+			want:    "github",
 		},
 		{
-			name:    "next theme after solarized-light wraps to tomorrow-night",
-			current: "solarized-light",
-			want:    "tomorrow-night",
+			name:    "next theme after github is catppuccin",
+			current: "github",
+			want:    "catppuccin",
+		},
+		{
+			name:    "next theme after tokyonight wraps to dracula",
+			current: "tokyonight",
+			want:    "dracula",
 		},
 		{
 			name:    "invalid theme name returns first theme",
 			current: "nonexistent",
-			want:    "tomorrow-night",
+			want:    "dracula",
 		},
 		{
 			name:    "empty theme name returns first theme",
 			current: "",
-			want:    "tomorrow-night",
-		},
-		{
-			name:    "case sensitive - invalid case returns first theme",
-			current: "MONOKAI",
-			want:    "tomorrow-night",
+			want:    "dracula",
 		},
 	}
 
@@ -154,19 +175,6 @@ func TestNextTheme(t *testing.T) {
 				t.Errorf("NextTheme(%q) = %q, want %q", tt.current, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestNextThemeCycling(t *testing.T) {
-	// Verify that cycling through all themes returns to the first
-	current := "tomorrow-night"
-	expected := []string{"monokai", "dracula", "solarized-light", "tomorrow-night"}
-
-	for _, exp := range expected {
-		current = NextTheme(current)
-		if current != exp {
-			t.Errorf("NextTheme cycling: expected %q, got %q", exp, current)
-		}
 	}
 }
 
@@ -204,6 +212,7 @@ func TestAllThemesHaveUniqueNames(t *testing.T) {
 }
 
 func TestAllThemesHaveValidProperties(t *testing.T) {
+	emptyColor := lipgloss.AdaptiveColor{}
 	for i, theme := range AllThemes {
 		if theme.Name == "" {
 			t.Errorf("AllThemes[%d].Name is empty", i)
@@ -211,11 +220,20 @@ func TestAllThemesHaveValidProperties(t *testing.T) {
 		if theme.DisplayName == "" {
 			t.Errorf("AllThemes[%d].DisplayName is empty", i)
 		}
-		if theme.Foreground == "" {
-			t.Errorf("AllThemes[%d].Foreground is empty", i)
+		if theme.Text == emptyColor {
+			t.Errorf("AllThemes[%d].Text is empty", i)
 		}
-		if theme.Dim == "" {
-			t.Errorf("AllThemes[%d].Dim is empty", i)
+		if theme.TextMuted == emptyColor {
+			t.Errorf("AllThemes[%d].TextMuted is empty", i)
+		}
+		if theme.BackgroundSecondary == emptyColor {
+			t.Errorf("AllThemes[%d].BackgroundSecondary is empty", i)
+		}
+		if theme.Accent == emptyColor {
+			t.Errorf("AllThemes[%d].Accent is empty", i)
+		}
+		if theme.Error == emptyColor {
+			t.Errorf("AllThemes[%d].Error is empty", i)
 		}
 		if len(theme.AgentColors) != 5 {
 			t.Errorf("AllThemes[%d].AgentColors length = %d, want 5", i, len(theme.AgentColors))
@@ -229,8 +247,8 @@ func TestAllThemesHaveValidProperties(t *testing.T) {
 }
 
 func TestDefaultThemeConstant(t *testing.T) {
-	if DefaultThemeName != "tomorrow-night" {
-		t.Errorf("DefaultThemeName = %q, want %q", DefaultThemeName, "tomorrow-night")
+	if DefaultThemeName != "dracula" {
+		t.Errorf("DefaultThemeName = %q, want %q", DefaultThemeName, "dracula")
 	}
 
 	// Verify that the default theme exists in AllThemes
@@ -256,5 +274,29 @@ func TestGetThemeAllThemesAvailable(t *testing.T) {
 		if theme.DisplayName != expectedTheme.DisplayName {
 			t.Errorf("GetTheme(%q).DisplayName = %q, want %q", expectedTheme.Name, theme.DisplayName, expectedTheme.DisplayName)
 		}
+	}
+}
+
+func TestThemeCount(t *testing.T) {
+	// Verify we have exactly 8 themes as specified
+	expected := 8
+	if len(AllThemes) != expected {
+		t.Errorf("AllThemes count = %d, want %d", len(AllThemes), expected)
+	}
+}
+
+func TestBackwardCompatibilityMethods(t *testing.T) {
+	theme := GetTheme("dracula")
+
+	// Test Foreground() method
+	fg := theme.Foreground()
+	if fg != theme.Text {
+		t.Error("Foreground() should return Text color")
+	}
+
+	// Test Dim() method
+	dim := theme.Dim()
+	if dim != theme.TextMuted {
+		t.Error("Dim() should return TextMuted color")
 	}
 }

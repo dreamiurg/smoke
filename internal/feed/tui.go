@@ -19,19 +19,25 @@ const (
 
 // Model is the Bubbletea model for the TUI feed.
 type Model struct {
-	posts    []*Post
-	theme    *Theme
-	contrast *ContrastLevel
-	showHelp bool
-	width    int
-	height   int
-	store    *Store
-	config   *config.TUIConfig
-	err      error
+	posts       []*Post
+	theme       *Theme
+	contrast    *ContrastLevel
+	style       *LayoutStyle
+	showHelp    bool
+	autoRefresh bool
+	width       int
+	height      int
+	store       *Store
+	config      *config.TUIConfig
+	version     string
+	err         error
 }
 
-// T014: tickMsg is sent every 5 seconds for auto-refresh
+// tickMsg is sent every 5 seconds for auto-refresh
 type tickMsg time.Time
+
+// clockTickMsg is sent every second for clock updates
+type clockTickMsg time.Time
 
 // loadPostsMsg is sent when posts are loaded
 type loadPostsMsg struct {
@@ -39,20 +45,30 @@ type loadPostsMsg struct {
 	err   error
 }
 
-// NewModel creates a new TUI model with the given store, theme, and contrast level.
-func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, cfg *config.TUIConfig) Model {
+// NewModel creates a new TUI model with the given store, theme, contrast, style, and version.
+func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, style *LayoutStyle, cfg *config.TUIConfig, version string) Model {
 	return Model{
-		theme:    theme,
-		contrast: contrast,
-		store:    store,
-		config:   cfg,
+		theme:       theme,
+		contrast:    contrast,
+		style:       style,
+		autoRefresh: cfg.AutoRefresh,
+		store:       store,
+		config:      cfg,
+		version:     version,
 	}
 }
 
-// T014: tickCmd returns a command that ticks every 5 seconds
+// tickCmd returns a command that ticks every 5 seconds for auto-refresh
 func tickCmd() tea.Cmd {
 	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// clockTickCmd returns a command that ticks every second for clock updates
+func clockTickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return clockTickMsg(t)
 	})
 }
 
@@ -63,17 +79,19 @@ func (m Model) loadPostsCmd() tea.Msg {
 }
 
 // Init initializes the model and returns the initial command.
-// This includes loading posts and setting up a tick for auto-refresh.
 func (m Model) Init() tea.Cmd {
-	// Load initial posts and start auto-refresh
-	return tea.Batch(m.loadPostsCmd, tickCmd())
+	cmds := []tea.Cmd{m.loadPostsCmd, clockTickCmd()}
+	if m.autoRefresh {
+		cmds = append(cmds, tickCmd())
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update handles incoming messages and updates the model state.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// T041: Handle any-key-to-dismiss when help is visible
+		// Handle any-key-to-dismiss when help is visible
 		if m.showHelp {
 			m.showHelp = false
 			return m, nil
@@ -83,40 +101,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 
-		// T016: Manual refresh on 'r' key
 		case "r":
 			return m, m.loadPostsCmd
 
-		// T018: Theme cycling
+		case "a":
+			// Toggle auto-refresh
+			m.autoRefresh = !m.autoRefresh
+			m.config.AutoRefresh = m.autoRefresh
+			m.err = config.SaveTUIConfig(m.config)
+			if m.autoRefresh {
+				return m, tickCmd()
+			}
+			return m, nil
+
+		case "s":
+			m.config.Style = NextStyle(m.config.Style)
+			m.style = GetStyle(m.config.Style)
+			m.err = config.SaveTUIConfig(m.config)
+			return m, nil
+
 		case "t":
 			m.config.Theme = NextTheme(m.config.Theme)
 			m.theme = GetTheme(m.config.Theme)
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
-		// T018: Contrast cycling
 		case "c":
 			m.config.Contrast = NextContrastLevel(m.config.Contrast)
 			m.contrast = GetContrastLevel(m.config.Contrast)
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
-		// Help toggle (T038: ? key handler)
 		case "?":
 			m.showHelp = !m.showHelp
 			return m, nil
 		}
 
-	// T018: Handle window resize
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 
-	// T015: Handle auto-refresh tick
 	case tickMsg:
-		return m, m.loadPostsCmd
+		if m.autoRefresh {
+			return m, tea.Batch(m.loadPostsCmd, tickCmd())
+		}
+		return m, nil
 
-	// Handle loaded posts
+	case clockTickMsg:
+		// Just trigger a re-render for clock update
+		return m, clockTickCmd()
+
 	case loadPostsMsg:
 		if msg.err == nil {
 			m.posts = msg.posts
@@ -128,33 +162,112 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the current state of the model as a string.
-// Returns the layout: feed content area + status bar, or help overlay if visible.
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Initializing...\n"
 	}
 
-	// T039-T042: Show help overlay if visible
 	if m.showHelp {
 		return m.renderHelpOverlay()
 	}
 
-	// T013: Render feed content
+	// Render three sections: header, content, status bar
+	header := m.renderHeader()
+	statusBar := m.renderStatusBar()
+
+	// Calculate available height for content (total - header - status)
+	availableHeight := m.height - 2 // 1 for header, 1 for status
+
+	content := m.renderContent(availableHeight)
+
+	return header + "\n" + content + statusBar
+}
+
+// renderHeader creates the header bar with version, stats, and clock
+func (m Model) renderHeader() string {
+	// Calculate stats
+	stats := ComputeStats(m.posts)
+
+	// Format version
+	versionStr := "SMOKE"
+	if m.version != "" {
+		versionStr = fmt.Sprintf("SMOKE v%s", m.version)
+	}
+
+	// Format stats
+	statsStr := fmt.Sprintf("Posts: %d • Agents: %d • Projects: %d",
+		stats.PostCount, stats.AgentCount, stats.ProjectCount)
+
+	// Format clock in locale format
+	clockStr := time.Now().Local().Format("15:04")
+
+	// Build header: version + stats on left, clock on right
+	leftContent := versionStr + "  " + statsStr
+	rightContent := clockStr
+
+	// Calculate spacing
+	spacing := m.width - len(leftContent) - len(rightContent)
+	if spacing < 1 {
+		spacing = 1
+	}
+
+	headerText := leftContent + strings.Repeat(" ", spacing) + rightContent
+
+	// Style with theme colors
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.Text).
+		Background(m.theme.BackgroundSecondary).
+		Width(m.width)
+
+	return style.Render(headerText)
+}
+
+// renderStatusBar creates the status bar showing settings and keybindings
+func (m Model) renderStatusBar() string {
+	// Build status items
+	autoStr := "OFF"
+	if m.autoRefresh {
+		autoStr = "ON"
+	}
+
+	styleName := "header"
+	if m.style != nil {
+		styleName = m.style.Name
+	}
+
+	parts := []string{
+		fmt.Sprintf("(a) auto: %s", autoStr),
+		fmt.Sprintf("(s) style: %s", styleName),
+		fmt.Sprintf("(t) theme: %s", m.theme.Name),
+		fmt.Sprintf("(c) contrast: %s", m.contrast.Name),
+		"(?) help",
+		"(q) quit",
+	}
+
+	statusText := strings.Join(parts, "  ")
+
+	// Show error if save failed
+	if m.err != nil {
+		statusText = "⚠ config error  " + statusText
+	}
+
+	// Style with theme colors (matching header)
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.Text).
+		Background(m.theme.BackgroundSecondary).
+		Width(m.width)
+
+	return style.Render(statusText)
+}
+
+// renderContent renders the feed content area
+func (m Model) renderContent(availableHeight int) string {
 	var content strings.Builder
 
 	if len(m.posts) == 0 {
 		content.WriteString("No posts yet. Exit TUI (q) and try: smoke post \"hello world\"\n")
 	} else {
-		// Use existing formatting logic adapted for TUI
-		// Reset timestamp tracking for fresh rendering
-		ResetTimestamp()
-
-		// Build thread structure
 		threads := buildThreads(m.posts)
-
-		// Render threads (limited to fit screen)
-		// Reserve 1 line for status bar
-		availableHeight := m.height - 1
 		lineCount := 0
 
 		for i, thread := range threads {
@@ -162,8 +275,8 @@ func (m Model) View() string {
 				break
 			}
 
-			// Format main post
-			postLines := m.formatPostForTUI(thread.post)
+			// Format main post using current style
+			postLines := m.formatPost(thread.post)
 			for _, line := range postLines {
 				if lineCount >= availableHeight {
 					break
@@ -173,12 +286,12 @@ func (m Model) View() string {
 				lineCount++
 			}
 
-			// Format replies
+			// Format replies (indented)
 			for _, reply := range thread.replies {
 				if lineCount >= availableHeight {
 					break
 				}
-				replyLines := m.formatReplyForTUI(thread.post, reply)
+				replyLines := m.formatReply(reply)
 				for _, line := range replyLines {
 					if lineCount >= availableHeight {
 						break
@@ -189,7 +302,7 @@ func (m Model) View() string {
 				}
 			}
 
-			// Blank line between threads (not after last)
+			// Blank line between threads
 			if i < len(threads)-1 && lineCount < availableHeight {
 				content.WriteString("\n")
 				lineCount++
@@ -197,97 +310,143 @@ func (m Model) View() string {
 		}
 	}
 
-	// T017: Add right-aligned status bar
-	statusBar := m.renderStatusBar()
-
-	return content.String() + statusBar
+	return content.String()
 }
 
-// formatPostForTUI formats a single post for TUI display
-func (m Model) formatPostForTUI(post *Post) []string {
-	var lines []string
-
-	timeStr := formatTimestamp(post)
-
-	// Only show timestamp if different from previous
-	var timeColumn string
-	if timeStr != lastTimestamp {
-		timeColumn = m.styleTimestamp(timeStr)
-		lastTimestamp = timeStr
-	} else {
-		timeColumn = "     " // 5 spaces
+// formatPost formats a post according to the current style
+func (m Model) formatPost(post *Post) []string {
+	if m.style == nil {
+		return m.formatPostHeader(post)
 	}
-
-	// Right-align identity using shared layout calculation
-	authorLayout := CalculateAuthorLayout(len(post.Author), MinAuthorColumnWidth)
-
-	padding := ""
-	if authorLayout.Padding > 0 {
-		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
+	switch m.style.Name {
+	case "irc":
+		return m.formatPostIRC(post)
+	case "slack":
+		return m.formatPostSlack(post)
+	case "minimal":
+		return m.formatPostMinimal(post)
+	default:
+		return m.formatPostHeader(post)
 	}
+}
 
-	identity := m.styleAuthor(post.Author)
-	authorRig := padding + identity
+// formatReply formats a reply (indented post)
+func (m Model) formatReply(reply *Post) []string {
+	lines := m.formatPost(reply)
+	indented := make([]string, len(lines))
+	for i, line := range lines {
+		if i == 0 {
+			indented[i] = "  └─ " + line
+		} else {
+			indented[i] = "     " + line
+		}
+	}
+	return indented
+}
 
-	// Calculate content layout
+// formatPostHeader: Author on separate line above content
+func (m Model) formatPostHeader(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
-	contentLayout := CalculateContentLayout(TimeColumnWidth, authorLayout.ColWidth, termWidth, MinContentWidth)
 
-	// Wrap content
-	contentLines := wrapText(post.Content, contentLayout.Width)
+	timeStr := m.styleTimestamp(formatTimestamp(post))
+	author := m.styleAuthor(post.Author)
+	contentLines := wrapText(post.Content, termWidth-2)
+
+	lines := make([]string, 0, 1+len(contentLines))
+	lines = append(lines, fmt.Sprintf("%s  %s", timeStr, author))
+	for _, line := range contentLines {
+		lines = append(lines, HighlightAll(line, true))
+	}
+
+	return lines
+}
+
+// formatPostIRC: Angle brackets around author
+func (m Model) formatPostIRC(post *Post) []string {
+	var lines []string
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+
+	timeStr := m.styleTimestamp(formatTimestamp(post))
+	author := m.styleAuthor(post.Author)
+	prefix := fmt.Sprintf("%s <%s> ", timeStr, author)
+	prefixLen := len(formatTimestamp(post)) + len(post.Author) + 4
+
+	contentWidth := termWidth - prefixLen
+	if contentWidth < MinContentWidth {
+		contentWidth = MinContentWidth
+	}
+	contentLines := wrapText(post.Content, contentWidth)
+
 	for i, line := range contentLines {
-		highlightedLine := HighlightAll(line, true) // Always enable color in TUI
+		highlighted := HighlightAll(line, true)
 		if i == 0 {
-			lines = append(lines, fmt.Sprintf("%s %s  %s", timeColumn, authorRig, highlightedLine))
+			lines = append(lines, prefix+highlighted)
 		} else {
-			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
-			lines = append(lines, fmt.Sprintf("%s%s", indent, highlightedLine))
+			lines = append(lines, strings.Repeat(" ", prefixLen)+highlighted)
 		}
 	}
 
 	return lines
 }
 
-// formatReplyForTUI formats a reply for TUI display
-func (m Model) formatReplyForTUI(_ *Post, reply *Post) []string {
-	var lines []string
-
-	timestamp := m.styleTimestamp(formatTimestamp(reply))
-
-	// Reply prefix: "  └─ " = 5 chars
-	const replyPrefix = 5
-
-	// Right-align identity using shared layout calculation
-	minReplyAuthorWidth := MinAuthorColumnWidth - 3
-	authorLayout := CalculateAuthorLayout(len(reply.Author), minReplyAuthorWidth)
-
-	padding := ""
-	if authorLayout.Padding > 0 {
-		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
-	}
-
-	identity := m.styleAuthor(reply.Author)
-	authorRig := padding + identity
-
-	// Calculate content layout
+// formatPostSlack: Author left, time right
+func (m Model) formatPostSlack(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
-	contentLayout := CalculateContentLayout(replyPrefix+TimeColumnWidth, authorLayout.ColWidth, termWidth, MinContentWidth)
 
-	// Wrap content
-	contentLines := wrapText(reply.Content, contentLayout.Width)
+	author := m.styleAuthor(post.Author)
+	timeStr := m.styleTimestamp(formatTimestamp(post))
+
+	authorLen := len(post.Author)
+	timeLen := 5
+	gap := termWidth - authorLen - timeLen
+	if gap < 1 {
+		gap = 1
+	}
+	contentLines := wrapText(post.Content, termWidth-2)
+
+	lines := make([]string, 0, 1+len(contentLines))
+	lines = append(lines, author+strings.Repeat(" ", gap)+timeStr)
+	for _, line := range contentLines {
+		lines = append(lines, HighlightAll(line, true))
+	}
+
+	return lines
+}
+
+// formatPostMinimal: Compact inline format
+func (m Model) formatPostMinimal(post *Post) []string {
+	var lines []string
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+
+	timeStr := m.styleTimestamp(formatTimestamp(post))
+	author := m.styleAuthor(post.Author)
+	prefix := fmt.Sprintf("%s %s: ", timeStr, author)
+	prefixLen := len(formatTimestamp(post)) + len(post.Author) + 3
+
+	contentWidth := termWidth - prefixLen
+	if contentWidth < MinContentWidth {
+		contentWidth = MinContentWidth
+	}
+	contentLines := wrapText(post.Content, contentWidth)
+
 	for i, line := range contentLines {
-		highlightedLine := HighlightAll(line, true)
+		highlighted := HighlightAll(line, true)
 		if i == 0 {
-			lines = append(lines, fmt.Sprintf("  └─ %s %s  %s", timestamp, authorRig, highlightedLine))
+			lines = append(lines, prefix+highlighted)
 		} else {
-			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
-			lines = append(lines, fmt.Sprintf("%s%s", indent, highlightedLine))
+			lines = append(lines, strings.Repeat(" ", prefixLen)+highlighted)
 		}
 	}
 
@@ -296,7 +455,7 @@ func (m Model) formatReplyForTUI(_ *Post, reply *Post) []string {
 
 // styleTimestamp applies theme styling to timestamp
 func (m Model) styleTimestamp(s string) string {
-	style := lipgloss.NewStyle().Foreground(m.theme.Dim)
+	style := lipgloss.NewStyle().Foreground(m.theme.TextMuted)
 	return style.Render(s)
 }
 
@@ -305,58 +464,45 @@ func (m Model) styleAuthor(author string) string {
 	return ColorizeIdentity(author, m.theme, m.contrast)
 }
 
-// renderStatusBar creates the right-aligned status bar
-func (m Model) renderStatusBar() string {
-	statusText := "q:quit  r:refresh  t:theme  c:contrast  ?:help"
-
-	// Show error briefly if save failed
-	if m.err != nil {
-		statusText = "config save failed  " + statusText
-	}
-
-	// Right-align within terminal width
-	padding := ""
-	if len(statusText) < m.width {
-		padding = strings.Repeat(" ", m.width-len(statusText))
-	}
-
-	// Apply theme styling
-	style := lipgloss.NewStyle().
-		Foreground(m.theme.Foreground).
-		Background(m.theme.Dim)
-
-	return style.Render(padding + statusText)
-}
-
-// renderHelpOverlay creates a centered help overlay with keyboard shortcuts.
-// T039-T042: Help overlay with theme and contrast display
+// renderHelpOverlay creates a centered help overlay
 func (m Model) renderHelpOverlay() string {
-	// Build help content
+	autoStr := "OFF"
+	if m.autoRefresh {
+		autoStr = "ON"
+	}
+
+	styleName := "header"
+	if m.style != nil {
+		styleName = m.style.DisplayName
+	}
+
 	helpContent := strings.Builder{}
 	helpContent.WriteString("\n")
 	helpContent.WriteString("          Smoke Feed\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString("   q    Quit\n")
+	helpContent.WriteString("   a    Toggle auto-refresh\n")
+	helpContent.WriteString("   s    Cycle style\n")
 	helpContent.WriteString("   t    Cycle theme\n")
 	helpContent.WriteString("   c    Cycle contrast\n")
 	helpContent.WriteString("   r    Refresh now\n")
 	helpContent.WriteString("   ?    Close this help\n")
 	helpContent.WriteString("\n")
+	helpContent.WriteString(fmt.Sprintf("   Auto: %s\n", autoStr))
+	helpContent.WriteString(fmt.Sprintf("   Style: %s\n", styleName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
 	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
 	helpContent.WriteString("\n")
 	helpContent.WriteString("       Press any key to close\n")
 
-	// T042: Style help overlay with lipgloss
 	helpStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.Foreground).
+		BorderForeground(m.theme.Text).
 		Padding(1, 2).
 		Width(helpBoxInnerWidth)
 
 	styledBox := helpStyle.Render(helpContent.String())
 
-	// Center the overlay on screen
 	boxHeight := strings.Count(styledBox, "\n") + 1
 	boxWidth := helpBoxInnerWidth + helpBoxPadding
 	topPadding := (m.height - boxHeight) / 2
@@ -369,15 +515,11 @@ func (m Model) renderHelpOverlay() string {
 		topPadding = 0
 	}
 
-	// Build final output with centered box
 	var result strings.Builder
-
-	// Add top padding
 	for i := 0; i < topPadding; i++ {
 		result.WriteString("\n")
 	}
 
-	// Add each line with left padding
 	for _, line := range strings.Split(styledBox, "\n") {
 		if line != "" || strings.HasSuffix(styledBox, "\n") {
 			result.WriteString(strings.Repeat(" ", leftPadding))
