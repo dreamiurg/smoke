@@ -48,6 +48,11 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
         env:
