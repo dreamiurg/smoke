@@ -470,6 +470,22 @@ func (m Model) renderContent(availableHeight int) string {
 	return lipgloss.JoinVertical(lipgloss.Left, styledLines...)
 }
 
+// LayoutFormatter defines formatting parameters for different layout styles
+type LayoutFormatter struct {
+	// separateIdentity: true if identity should be on separate line from content
+	separateIdentity bool
+	// identityAfterTime: true if identity comes after time on same line (only used if !separateIdentity)
+	identityAfterTime bool
+	// useSeparator: true if separator (": ") should appear after identity (only used if !separateIdentity)
+	useSeparator bool
+	// continuationIndent: padding width for continuation lines (0 = no padding, full width)
+	continuationIndent int
+	// useVariableFirstLineWidth: true if first line width should be shorter than continuation lines
+	useVariableFirstLineWidth bool
+	// spacing: spacing string between time and identity (e.g., " " or "  ")
+	spacing string
+}
+
 // formatPost formats a post according to the current layout
 func (m Model) formatPost(post *Post) []string {
 	if m.layout == nil {
@@ -503,38 +519,15 @@ func (m Model) formatReply(reply *Post) []string {
 // Format: HH:MM author@project: message...
 // Continuation lines wrap to column 0 (no alignment padding)
 func (m Model) formatPostDense(post *Post) []string {
-	termWidth := m.width
-	if termWidth <= 0 {
-		termWidth = DefaultTerminalWidth
+	formatter := LayoutFormatter{
+		separateIdentity:          false,
+		identityAfterTime:         true,
+		useSeparator:              true,
+		continuationIndent:        0, // No padding, wrap to column 0
+		useVariableFirstLineWidth: true,
+		spacing:                   " ",
 	}
-
-	timeStr := m.styleTimestamp(formatTimestamp(post))
-	identity := m.styleIdentity(post)
-	prefix := fmt.Sprintf("%s %s: ", timeStr, identity)
-	// Calculate raw prefix length (without ANSI codes)
-	prefixLen := len(formatTimestamp(post)) + 1 + len(post.Author) + 2 // "HH:MM author: "
-
-	// First line has less space due to prefix
-	firstLineWidth := termWidth - prefixLen
-	if firstLineWidth < MinContentWidth {
-		firstLineWidth = MinContentWidth
-	}
-
-	// Continuation lines use full width (wrap to column 0)
-	contentLines := wrapTextFirstLineShorter(post.Content, firstLineWidth, termWidth)
-
-	lines := make([]string, 0, len(contentLines))
-	for i, line := range contentLines {
-		highlighted := HighlightAll(line, true)
-		if i == 0 {
-			lines = append(lines, prefix+highlighted)
-		} else {
-			// No padding - wrap to column 0
-			lines = append(lines, highlighted)
-		}
-	}
-
-	return lines
+	return m.formatPostWithLayout(post, formatter)
 }
 
 // formatPostComfy: Balanced - message starts on same line as identity
@@ -542,35 +535,15 @@ func (m Model) formatPostDense(post *Post) []string {
 //
 //	message continues here...
 func (m Model) formatPostComfy(post *Post) []string {
-	termWidth := m.width
-	if termWidth <= 0 {
-		termWidth = DefaultTerminalWidth
+	formatter := LayoutFormatter{
+		separateIdentity:          false,
+		identityAfterTime:         true,
+		useSeparator:              false,
+		continuationIndent:        -1, // -1 means align with first character of content
+		useVariableFirstLineWidth: false,
+		spacing:                   "  ",
 	}
-
-	timeStr := m.styleTimestamp(formatTimestamp(post))
-	identity := m.styleIdentity(post)
-	// Calculate prefix for first line: "HH:MM  identity "
-	prefix := fmt.Sprintf("%s  %s ", timeStr, identity)
-	prefixLen := len(formatTimestamp(post)) + 2 + len(post.Author) + 1 + len(post.Suffix) + 1
-
-	contentWidth := termWidth - prefixLen
-	if contentWidth < MinContentWidth {
-		contentWidth = MinContentWidth
-	}
-	contentLines := wrapText(post.Content, contentWidth)
-
-	lines := make([]string, 0, len(contentLines))
-	for i, line := range contentLines {
-		highlighted := HighlightAll(line, true)
-		if i == 0 {
-			lines = append(lines, prefix+highlighted)
-		} else {
-			// Continuation lines align with message start
-			lines = append(lines, strings.Repeat(" ", prefixLen)+highlighted)
-		}
-	}
-
-	return lines
+	return m.formatPostWithLayout(post, formatter)
 }
 
 // formatPostRelaxed: Most spacious - author on separate line, content below
@@ -578,6 +551,19 @@ func (m Model) formatPostComfy(post *Post) []string {
 //
 //	message on next line...
 func (m Model) formatPostRelaxed(post *Post) []string {
+	formatter := LayoutFormatter{
+		separateIdentity:          true,
+		identityAfterTime:         false,
+		useSeparator:              false,
+		continuationIndent:        0, // No padding for content, it stands alone
+		useVariableFirstLineWidth: false,
+		spacing:                   "  ",
+	}
+	return m.formatPostWithLayout(post, formatter)
+}
+
+// formatPostWithLayout formats a post using the given layout formatter parameters
+func (m Model) formatPostWithLayout(post *Post, formatter LayoutFormatter) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
@@ -585,14 +571,64 @@ func (m Model) formatPostRelaxed(post *Post) []string {
 
 	timeStr := m.styleTimestamp(formatTimestamp(post))
 	identity := m.styleIdentity(post)
-	contentLines := wrapText(post.Content, termWidth-2)
 
-	lines := make([]string, 0, 1+len(contentLines))
-	// First line: timestamp and identity only
-	lines = append(lines, fmt.Sprintf("%s  %s", timeStr, identity))
-	// Content on subsequent lines
-	for _, line := range contentLines {
-		lines = append(lines, HighlightAll(line, true))
+	// Handle separate identity layout (relaxed)
+	if formatter.separateIdentity {
+		contentLines := wrapText(post.Content, termWidth-2)
+		lines := make([]string, 0, 1+len(contentLines))
+		lines = append(lines, fmt.Sprintf("%s%s%s", timeStr, formatter.spacing, identity))
+		for _, line := range contentLines {
+			lines = append(lines, HighlightAll(line, true))
+		}
+		return lines
+	}
+
+	// Build prefix for non-separate identity layouts (dense, comfy)
+	var prefix string
+	var prefixLen int
+	var continuationPadding string
+
+	if formatter.useSeparator {
+		// Dense: "HH:MM author: "
+		prefix = fmt.Sprintf("%s%s%s: ", timeStr, formatter.spacing, identity)
+		prefixLen = len(formatTimestamp(post)) + len(formatter.spacing) + len(post.Author) + 2
+		continuationPadding = ""
+	} else {
+		// Comfy: "HH:MM  author "
+		prefix = fmt.Sprintf("%s%s%s ", timeStr, formatter.spacing, identity)
+		prefixLen = len(formatTimestamp(post)) + len(formatter.spacing) + len(post.Author) + 1 + len(post.Suffix) + 1
+		// For comfy, continuation lines align with content start
+		continuationPadding = strings.Repeat(" ", prefixLen)
+	}
+
+	// Calculate content width for wrapping
+	var contentLines []string
+	if formatter.useVariableFirstLineWidth {
+		// Dense: first line gets reduced width, continuations get full width
+		firstLineWidth := termWidth - prefixLen
+		if firstLineWidth < MinContentWidth {
+			firstLineWidth = MinContentWidth
+		}
+		contentLines = wrapTextFirstLineShorter(post.Content, firstLineWidth, termWidth)
+	} else {
+		// Comfy: all lines same width
+		contentWidth := termWidth - prefixLen
+		if contentWidth < MinContentWidth {
+			contentWidth = MinContentWidth
+		}
+		contentLines = wrapText(post.Content, contentWidth)
+	}
+
+	// Build result lines
+	lines := make([]string, 0, len(contentLines))
+	for i, line := range contentLines {
+		highlighted := HighlightAll(line, true)
+		if i == 0 {
+			lines = append(lines, prefix+highlighted)
+		} else {
+			// Apply continuation padding
+			lines = append(lines, continuationPadding+highlighted)
+		}
 	}
 
 	return lines

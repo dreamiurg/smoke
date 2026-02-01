@@ -72,7 +72,9 @@ func runFeed(_ *cobra.Command, _ []string) error {
 		return runTailMode(store)
 	}
 
-	// T011: Mode detection - launch TUI if stdout is TTY and not in tail mode
+	// Launch interactive TUI if stdout is a TTY (terminal), otherwise use plain text output.
+	// This provides a better user experience with navigation and formatting when the
+	// output is not being piped or redirected.
 	if feed.IsTerminal(os.Stdout.Fd()) {
 		return runTUIMode(store)
 	}

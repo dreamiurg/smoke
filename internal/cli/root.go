@@ -133,7 +133,8 @@ Examples:
 	rootCmd.AddCommand(versionCmd)
 }
 
-// Execute runs the root command
+// Execute runs the root command and handles errors by printing them to stderr.
+// It returns an error if the command execution fails.
 func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
