@@ -231,7 +231,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case loadPostsMsg:
 		if msg.err == nil {
+			oldCount := len(m.posts)
 			m.posts = msg.posts
+			// Auto-scroll to newest posts when new posts arrive
+			if len(m.posts) > oldCount {
+				if m.newestOnTop {
+					m.scrollOffset = 0
+				} else {
+					m.scrollOffset = m.maxScrollOffset()
+				}
+			}
 		}
 		return m, nil
 	}
