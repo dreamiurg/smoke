@@ -1,4 +1,4 @@
-.PHONY: build install test lint vet fmt clean coverage help setup-hooks ci tidy-check vulncheck
+.PHONY: build install test lint fmt clean coverage help setup-hooks ci tidy-check vulncheck
 
 # Binary name
 BINARY=smoke
@@ -12,8 +12,7 @@ GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
-GOVET=$(GOCMD) vet
-GOFMT=gofmt
+GOIMPORTS=goimports
 GOMOD=$(GOCMD) mod
 
 # Linker flags for version injection
@@ -52,17 +51,14 @@ coverage-check: ## Check coverage meets 70% threshold (MUST), aim for 80% (SHOUL
 		exit 1; \
 	fi
 
-lint: ## Run golangci-lint
+lint: ## Run golangci-lint (includes vet, imports check, etc.)
 	golangci-lint run ./...
 
-vet: ## Run go vet
-	$(GOVET) ./...
-
-fmt: ## Format code
-	$(GOFMT) -s -w .
+fmt: ## Format code with goimports (matches CI)
+	$(GOIMPORTS) -l -w .
 
 fmt-check: ## Check if code is formatted
-	@test -z "$$($(GOFMT) -l .)" || (echo "Code is not formatted. Run 'make fmt'" && exit 1)
+	@test -z "$$($(GOIMPORTS) -l .)" || (echo "Code is not formatted. Run 'make fmt'" && exit 1)
 
 tidy: ## Tidy go modules
 	$(GOMOD) tidy
@@ -72,13 +68,13 @@ clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
 
-all: fmt vet lint test build ## Run all checks and build
+all: fmt lint test build ## Run all checks and build
 
-pre-commit: fmt-check vet lint ## Pre-commit checks (format, lint, vet)
+pre-commit: fmt-check lint ## Pre-commit checks (format, lint)
 
-pre-push: pre-commit test ## Pre-push checks (format, lint, vet, tests)
+pre-push: pre-commit test ## Pre-push checks (format, lint, tests)
 
-ci: fmt-check tidy-check vet lint test coverage-check build ## Run full CI pipeline locally
+ci: fmt-check tidy-check lint test coverage-check build ## Run full CI pipeline locally
 	@echo "All CI checks passed!"
 
 tidy-check: ## Check if go.mod is tidy
