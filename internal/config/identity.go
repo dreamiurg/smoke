@@ -302,35 +302,19 @@ func detectAgent() string {
 }
 
 // getSessionSeed returns a stable seed for the current session.
-// When running under Claude Code, uses PPID for per-session identity and
-// writes to a session file so other processes (like ccstatusline) can use the same identity.
-// When not running under Claude Code, walks the process tree to find a Claude ancestor.
+// Walks the process tree to find a Claude Code ancestor, ensuring all commands
+// within the same Claude session get the same identity regardless of their
+// immediate parent process (which changes for each shell invocation).
 func getSessionSeed() string {
 	termSessionID := os.Getenv("TERM_SESSION_ID")
 
-	// If running under Claude Code, use PPID for per-session identity.
-	// Each Claude Code session has a unique PID, so smoke gets a fresh
-	// identity per conversation even in the same terminal.
-	if os.Getenv("CLAUDECODE") == "1" {
-		ppid := os.Getppid()
-		if ppid > 0 {
-			seed := fmt.Sprintf("claude-ppid-%d", ppid)
-			// Write session info so other processes can use the same identity
-			_ = writeSessionInfo(&sessionInfo{
-				PID:           ppid,
-				TermSessionID: termSessionID,
-				Seed:          seed,
-			})
-			return seed
-		}
-	}
-
-	// Check if we're a descendant of a Claude process (indirect invocation).
-	// This is more reliable than the session file for cases like ccstatusline
-	// where smoke is called before Claude has run any direct smoke commands.
+	// Always walk up the process tree to find Claude Code ancestor.
+	// This is essential because each command Claude runs gets a different
+	// shell as its immediate parent, but they all share the same Claude
+	// Code ancestor process whose PID is stable for the entire session.
 	if claudePID := findClaudeAncestor(); claudePID > 0 {
 		seed := fmt.Sprintf("claude-ppid-%d", claudePID)
-		// Update session file for consistency
+		// Write session info so other processes can use the same identity
 		_ = writeSessionInfo(&sessionInfo{
 			PID:           claudePID,
 			TermSessionID: termSessionID,

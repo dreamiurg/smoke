@@ -62,6 +62,13 @@ func TestWhoamiDeterminism(t *testing.T) {
 // TestWhoamiStyleVariety verifies that different session seeds produce usernames
 // with varied formatting styles (e.g., lowercase, snake_case, CamelCase).
 func TestWhoamiStyleVariety(t *testing.T) {
+	// When running under Claude Code, identity is based on Claude's PID
+	// (which is stable), not TERM_SESSION_ID. Skip this test since it
+	// tests TERM_SESSION_ID-based variety.
+	if os.Getenv("CLAUDECODE") == "1" {
+		t.Skip("Cannot test TERM_SESSION_ID variation when running under Claude Code")
+	}
+
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
@@ -363,6 +370,13 @@ func TestWhoamiNameFlag(t *testing.T) {
 // TestWhoamiMultipleSessionSeeds verifies that different TERM_SESSION_ID values
 // produce different usernames (testing the hash-based generation)
 func TestWhoamiMultipleSessionSeeds(t *testing.T) {
+	// When running under Claude Code, identity is based on Claude's PID
+	// (which is stable), not TERM_SESSION_ID. Skip this test since it
+	// tests non-Claude behavior.
+	if os.Getenv("CLAUDECODE") == "1" {
+		t.Skip("Cannot test TERM_SESSION_ID variation when running under Claude Code")
+	}
+
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
