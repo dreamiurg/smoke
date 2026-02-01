@@ -142,6 +142,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move cursor up (select previous post)
 			if m.selectedPostIndex > 0 {
 				m.selectedPostIndex--
+				m.ensureSelectedVisible()
 			}
 			return m, nil
 
@@ -149,6 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move cursor down (select next post)
 			if m.selectedPostIndex < len(m.displayedPosts)-1 {
 				m.selectedPostIndex++
+				m.ensureSelectedVisible()
 			}
 			return m, nil
 
@@ -436,6 +438,67 @@ func (m *Model) updateDisplayedPosts() {
 	}
 	if m.selectedPostIndex < 0 {
 		m.selectedPostIndex = 0
+	}
+}
+
+// ensureSelectedVisible adjusts scrollOffset to keep the selected post visible in the viewport.
+func (m *Model) ensureSelectedVisible() {
+	if m.height == 0 || len(m.displayedPosts) == 0 {
+		return
+	}
+
+	// Get content lines to find which lines belong to selected post
+	contentLines := m.buildAllContentLinesWithPosts()
+	if len(contentLines) == 0 {
+		return
+	}
+
+	// Find first and last line indices of the selected post
+	firstLine := -1
+	lastLine := -1
+	for i, cl := range contentLines {
+		if cl.postIndex == m.selectedPostIndex {
+			if firstLine == -1 {
+				firstLine = i
+			}
+			lastLine = i
+		}
+	}
+
+	if firstLine == -1 {
+		// Selected post not found in content (shouldn't happen)
+		return
+	}
+
+	// Calculate visible range
+	availableHeight := m.height - 2 // Account for header and status bar
+	if availableHeight <= 0 {
+		return
+	}
+
+	visibleStart := m.scrollOffset
+	visibleEnd := m.scrollOffset + availableHeight - 1
+
+	// Scroll up if selected post starts above visible area
+	if firstLine < visibleStart {
+		m.scrollOffset = firstLine
+	}
+
+	// Scroll down if selected post ends below visible area
+	if lastLine > visibleEnd {
+		m.scrollOffset = lastLine - availableHeight + 1
+	}
+
+	// Clamp scroll offset to valid range
+	maxOffset := len(contentLines) - availableHeight
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if m.scrollOffset > maxOffset {
+		m.scrollOffset = maxOffset
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
 	}
 }
 
