@@ -42,6 +42,7 @@ jobs:
         with:
           version: v2.1.6
           args: --timeout=5m
+          skip-cache: true
 
       - name: Run govulncheck
         run: |
