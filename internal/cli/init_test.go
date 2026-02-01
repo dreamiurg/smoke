@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRunInitDryRun(t *testing.T) {
@@ -36,28 +37,20 @@ func TestRunInitDryRun(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runInit() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify dry-run output
-	if !strings.Contains(output, "[dry-run]") {
-		t.Error("runInit() dry-run output should contain [dry-run] prefix")
-	}
-	if !strings.Contains(output, "Would") {
-		t.Error("runInit() dry-run output should contain 'Would' actions")
-	}
+	assert.Contains(t, output, "[dry-run]")
+	assert.Contains(t, output, "Would")
 
 	// Verify nothing was actually created
 	configDir := filepath.Join(tempDir, ".config", "smoke")
-	if _, err := os.Stat(configDir); err == nil {
-		t.Error("runInit() dry-run should not create config directory")
-	}
+	_, err = os.Stat(configDir)
+	assert.True(t, os.IsNotExist(err))
 }
 
 func TestRunInitFresh(t *testing.T) {
@@ -85,35 +78,27 @@ func TestRunInitFresh(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runInit() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify output
-	if !strings.Contains(output, "Initialized smoke") {
-		t.Error("runInit() output should contain 'Initialized smoke'")
-	}
+	assert.Contains(t, output, "Initialized smoke")
 
 	// Verify files were created
 	configDir := filepath.Join(tempDir, ".config", "smoke")
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		t.Error("runInit() should create config directory")
-	}
+	_, err = os.Stat(configDir)
+	assert.False(t, os.IsNotExist(err))
 
 	feedPath := filepath.Join(configDir, "feed.jsonl")
-	if _, err := os.Stat(feedPath); os.IsNotExist(err) {
-		t.Error("runInit() should create feed file")
-	}
+	_, err = os.Stat(feedPath)
+	assert.False(t, os.IsNotExist(err))
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Error("runInit() should create config file")
-	}
+	_, err = os.Stat(configPath)
+	assert.False(t, os.IsNotExist(err))
 }
 
 func TestRunInitAlreadyInitialized(t *testing.T) {
@@ -143,22 +128,15 @@ func TestRunInitAlreadyInitialized(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runInit() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify already initialized message
-	if !strings.Contains(output, "already initialized") {
-		t.Error("runInit() should indicate already initialized")
-	}
-	if !strings.Contains(output, "--force") {
-		t.Error("runInit() should mention --force option")
-	}
+	assert.Contains(t, output, "already initialized")
+	assert.Contains(t, output, "--force")
 }
 
 func TestRunInitForce(t *testing.T) {
@@ -195,19 +173,14 @@ func TestRunInitForce(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runInit() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify reinitialized
-	if !strings.Contains(output, "Initialized smoke") {
-		t.Error("runInit() with --force should reinitialize")
-	}
+	assert.Contains(t, output, "Initialized smoke")
 }
 
 func TestInitCommandRegistered(t *testing.T) {
@@ -218,19 +191,13 @@ func TestInitCommandRegistered(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Error("init command not registered with root")
-	}
+	assert.True(t, found)
 }
 
 func TestInitFlagsRegistered(t *testing.T) {
 	forceFlag := initCmd.Flags().Lookup("force")
-	if forceFlag == nil {
-		t.Error("--force flag not registered")
-	}
+	assert.NotNil(t, forceFlag)
 
 	dryRunFlag := initCmd.Flags().Lookup("dry-run")
-	if dryRunFlag == nil {
-		t.Error("--dry-run flag not registered")
-	}
+	assert.NotNil(t, dryRunFlag)
 }

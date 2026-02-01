@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func setupSmokeEnv(t *testing.T) (cleanup func()) {
@@ -50,19 +52,14 @@ func TestRunPost(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runPost() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify output contains confirmation
-	if !strings.Contains(output, "smk-") {
-		t.Error("runPost() output should contain post ID (smk-*)")
-	}
+	assert.Contains(t, output, "smk-")
 }
 
 func TestRunPostWithAuthor(t *testing.T) {
@@ -83,19 +80,14 @@ func TestRunPostWithAuthor(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runPost() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Output shows "Posted smk-xxx" confirmation
-	if !strings.Contains(output, "Posted smk-") {
-		t.Error("runPost() output should contain post confirmation")
-	}
+	assert.Contains(t, output, "Posted smk-")
 }
 
 func TestRunPostNotInitialized(t *testing.T) {
@@ -108,9 +100,7 @@ func TestRunPostNotInitialized(t *testing.T) {
 
 	err := runPost(nil, []string{"test message"})
 
-	if err == nil {
-		t.Error("runPost() should return error when not initialized")
-	}
+	assert.Error(t, err)
 }
 
 func TestRunPostMessageTooLong(t *testing.T) {
@@ -125,12 +115,8 @@ func TestRunPostMessageTooLong(t *testing.T) {
 
 	err := runPost(nil, []string{longMessage})
 
-	if err == nil {
-		t.Error("runPost() should return error for message > 280 chars")
-	}
-	if !strings.Contains(err.Error(), "280") {
-		t.Errorf("error should mention 280 char limit, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "280")
 }
 
 func TestPostCommandRegistered(t *testing.T) {
@@ -141,14 +127,10 @@ func TestPostCommandRegistered(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Error("post command not registered with root")
-	}
+	assert.True(t, found)
 }
 
 func TestPostFlagsRegistered(t *testing.T) {
 	authorFlag := postCmd.Flags().Lookup("author")
-	if authorFlag == nil {
-		t.Error("--author flag not registered")
-	}
+	assert.NotNil(t, authorFlag)
 }

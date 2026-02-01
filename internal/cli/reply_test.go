@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dreamiurg/smoke/internal/feed"
 )
 
@@ -64,19 +66,14 @@ func TestRunReply(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runReply() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify output contains reply confirmation
-	if !strings.Contains(output, "smk-") {
-		t.Error("runReply() output should contain reply ID (smk-*)")
-	}
+	assert.Contains(t, output, "smk-")
 }
 
 func TestRunReplyWithAuthor(t *testing.T) {
@@ -97,19 +94,14 @@ func TestRunReplyWithAuthor(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Errorf("runReply() error = %v", err)
-		return
-	}
+	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	output := buf.String()
 
 	// Output shows "Replied smk-xxx -> smk-yyy" confirmation
-	if !strings.Contains(output, "Replied smk-") {
-		t.Error("runReply() output should contain reply confirmation")
-	}
+	assert.Contains(t, output, "Replied smk-")
 }
 
 func TestRunReplyNotInitialized(t *testing.T) {
@@ -122,9 +114,7 @@ func TestRunReplyNotInitialized(t *testing.T) {
 
 	err := runReply(nil, []string{"smk-abc123", "test reply"})
 
-	if err == nil {
-		t.Error("runReply() should return error when not initialized")
-	}
+	assert.Error(t, err)
 }
 
 func TestRunReplyInvalidPostID(t *testing.T) {
@@ -133,12 +123,8 @@ func TestRunReplyInvalidPostID(t *testing.T) {
 
 	err := runReply(nil, []string{"invalid-id", "test reply"})
 
-	if err == nil {
-		t.Error("runReply() should return error for invalid post ID format")
-	}
-	if !strings.Contains(err.Error(), "invalid post ID") {
-		t.Errorf("error should mention invalid post ID, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid post ID")
 }
 
 func TestRunReplyPostNotFound(t *testing.T) {
@@ -147,12 +133,8 @@ func TestRunReplyPostNotFound(t *testing.T) {
 
 	err := runReply(nil, []string{"smk-notfnd", "test reply"})
 
-	if err == nil {
-		t.Error("runReply() should return error when parent post not found")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("error should mention post not found, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestRunReplyMessageTooLong(t *testing.T) {
@@ -167,12 +149,8 @@ func TestRunReplyMessageTooLong(t *testing.T) {
 
 	err := runReply(nil, []string{postID, longMessage})
 
-	if err == nil {
-		t.Error("runReply() should return error for message > 280 chars")
-	}
-	if !strings.Contains(err.Error(), "280") {
-		t.Errorf("error should mention 280 char limit, got: %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "280")
 }
 
 func TestReplyCommandRegistered(t *testing.T) {
@@ -183,14 +161,10 @@ func TestReplyCommandRegistered(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Error("reply command not registered with root")
-	}
+	assert.True(t, found)
 }
 
 func TestReplyFlagsRegistered(t *testing.T) {
 	authorFlag := replyCmd.Flags().Lookup("author")
-	if authorFlag == nil {
-		t.Error("--author flag not registered")
-	}
+	assert.NotNil(t, authorFlag)
 }
