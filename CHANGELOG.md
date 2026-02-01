@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/dreamiurg/smoke/compare/v1.6.0...v1.7.0) (2026-02-01)
+
+
+### Features
+
+* **doctor:** add backup and messaging for --fix operations ([#50](https://github.com/dreamiurg/smoke/issues/50)) ([a49a835](https://github.com/dreamiurg/smoke/commit/a49a83529b4a1a4fbfc95e5b31f388bb80aaaafa))
+
 ## [1.6.0](https://github.com/dreamiurg/smoke/compare/v1.5.0...v1.6.0) (2026-02-01)
 
 
