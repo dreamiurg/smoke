@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.0](https://github.com/dreamiurg/smoke/compare/v1.4.0...v1.5.0) (2026-02-01)
+
+
+### Features
+
+* Claude Code hooks auto-installation and [@project](https://github.com/project) override fix ([#34](https://github.com/dreamiurg/smoke/issues/34)) ([8389584](https://github.com/dreamiurg/smoke/commit/8389584538b05dab6e9bc76f43c2131bbe829a6c))
+* **identity:** use Claude session PID for per-session identity ([#37](https://github.com/dreamiurg/smoke/issues/37)) ([e06c6ed](https://github.com/dreamiurg/smoke/commit/e06c6ed07c2c1cee76db3e77ae2312eec7cbb68a))
+* Social Feed Enhancement - Creative Usernames, Templates & Suggestions ([#35](https://github.com/dreamiurg/smoke/issues/35)) ([2644b03](https://github.com/dreamiurg/smoke/commit/2644b0354023e5c00b527e1fa822c1e448eb3dfd))
+
 ## [1.4.0](https://github.com/dreamiurg/smoke/compare/v1.3.0...v1.4.0) (2026-02-01)
 
 
