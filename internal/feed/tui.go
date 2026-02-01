@@ -35,6 +35,9 @@ type Model struct {
 	pressure          int // Current pressure level (0-4)
 	version           string
 	err               error
+	// Unread tracking fields
+	lastReadPostID string // Post ID marking read/unread boundary (set at TUI start)
+	unreadCount    int    // Count of unread posts (for status bar display)
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
@@ -51,16 +54,20 @@ type loadPostsMsg struct {
 
 // NewModel creates a new TUI model with the given store, theme, contrast, layout, and version.
 func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *LayoutStyle, cfg *config.TUIConfig, version string) Model {
+	// Load last read post ID from read state
+	lastReadID := config.LoadLastReadPostID()
+
 	return Model{
-		theme:       theme,
-		contrast:    contrast,
-		layout:      layout,
-		autoRefresh: cfg.AutoRefresh,
-		newestOnTop: cfg.NewestOnTop,
-		store:       store,
-		config:      cfg,
-		pressure:    config.GetPressure(),
-		version:     version,
+		theme:          theme,
+		contrast:       contrast,
+		layout:         layout,
+		autoRefresh:    cfg.AutoRefresh,
+		newestOnTop:    cfg.NewestOnTop,
+		store:          store,
+		config:         cfg,
+		pressure:       config.GetPressure(),
+		version:        version,
+		lastReadPostID: lastReadID,
 	}
 }
 
@@ -228,6 +235,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "?":
 			m.showHelp = !m.showHelp
 			return m, nil
+
+		case "m":
+			// Mark all as read: save latest post ID
+			if len(m.posts) > 0 {
+				// Posts are sorted newest first, so first post is the latest
+				latestPostID := m.posts[0].ID
+				if err := config.SaveLastReadPostID(latestPostID); err == nil {
+					// Keep the marker in memory so new posts arriving
+					// during this session will be properly marked as unread
+					m.lastReadPostID = latestPostID
+					m.unreadCount = 0
+				} else {
+					m.err = err
+				}
+			}
+			return m, nil
+
+		case "M":
+			// Mark read to current scroll position
+			postID := m.getPostAtScrollPosition()
+			if postID != "" {
+				if err := config.SaveLastReadPostID(postID); err == nil {
+					m.lastReadPostID = postID
+					m.unreadCount = m.countUnread()
+				} else {
+					m.err = err
+				}
+			}
+			return m, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -257,6 +293,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			oldCount := len(m.posts)
 			m.posts = msg.posts
+			m.unreadCount = m.countUnread() // Update unread count when posts load
 			// Set initial scroll position once we have posts and know height
 			if !m.initialScrollDone && m.height > 0 && len(m.posts) > 0 {
 				m.initialScrollDone = true
@@ -377,12 +414,19 @@ func (m Model) renderStatusBar() string {
 		layoutName = m.layout.Name
 	}
 
+	// Build mark indicator with unread count
+	markStr := "(m)ark"
+	if m.unreadCount > 0 {
+		markStr = fmt.Sprintf("(m)ark: %d new", m.unreadCount)
+	}
+
 	parts := []string{
 		fmt.Sprintf("(a)uto: %s", autoStr),
 		fmt.Sprintf("(s)ort: %s", sortStr),
 		fmt.Sprintf("(l)ayout: %s", layoutName),
 		fmt.Sprintf("(t)heme: %s", m.theme.Name),
 		fmt.Sprintf("(c)ontrast: %s", m.contrast.Name),
+		markStr,
 		"(?) help",
 		"(q)uit",
 	}
@@ -420,7 +464,19 @@ func (m Model) buildAllContentLines() []string {
 
 	var lines []string
 	var lastDay time.Time
+	var separatorInserted bool
+
 	for i, thread := range threads {
+		// In newestOnTop mode: insert separator BEFORE the last-read thread
+		// (because unread posts appear above, so separator marks the boundary)
+		if !separatorInserted && m.lastReadPostID != "" && m.newestOnTop {
+			if thread.post.ID == m.lastReadPostID {
+				lines = append(lines, "")
+				lines = append(lines, m.formatUnreadSeparator())
+				separatorInserted = true
+			}
+		}
+
 		// Get post time for day separator (convert to local time for consistent day comparison)
 		postTime, err := thread.post.GetCreatedTime()
 		if err == nil {
@@ -445,6 +501,16 @@ func (m Model) buildAllContentLines() []string {
 		for _, reply := range thread.replies {
 			replyLines := m.formatReply(reply)
 			lines = append(lines, replyLines...)
+		}
+
+		// In oldestFirst mode: insert separator AFTER the last-read thread
+		// (because unread posts appear below, so separator marks the boundary)
+		if !separatorInserted && m.lastReadPostID != "" && !m.newestOnTop {
+			if thread.post.ID == m.lastReadPostID {
+				lines = append(lines, "")
+				lines = append(lines, m.formatUnreadSeparator())
+				separatorInserted = true
+			}
 		}
 
 		// Blank line between threads (within same day)
@@ -490,6 +556,117 @@ func (m Model) formatDaySeparator(t time.Time) string {
 		Background(m.theme.Background)
 
 	return style.Render(separator)
+}
+
+// formatUnreadSeparator creates a styled "NEW" separator line.
+// Format: "──── NEW ────" centered with decorative lines
+func (m Model) formatUnreadSeparator() string {
+	label := "NEW"
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+
+	// Build separator: "──── NEW ────"
+	minDecor := 4
+	labelWithSpace := " " + label + " "
+	availableForDecor := termWidth - len(labelWithSpace)
+
+	var leftDecor, rightDecor string
+	if availableForDecor >= minDecor*2 {
+		decorLen := availableForDecor / 2
+		leftDecor = strings.Repeat("─", decorLen)
+		rightDecor = strings.Repeat("─", availableForDecor-decorLen)
+	} else {
+		leftDecor = "──"
+		rightDecor = "──"
+	}
+
+	separator := leftDecor + labelWithSpace + rightDecor
+
+	// Style with accent color for visibility
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.Accent).
+		Background(m.theme.Background)
+
+	return style.Render(separator)
+}
+
+// countUnread counts the number of unread posts based on lastReadPostID.
+// Returns 0 if lastReadPostID is empty (first-time user) or not found.
+func (m Model) countUnread() int {
+	if m.lastReadPostID == "" {
+		return 0
+	}
+
+	// Posts are ordered by time. Count posts that come before lastReadPostID.
+	// With newestOnTop=true, newer posts come first, so we count until we find the marker.
+	count := 0
+	for _, post := range m.posts {
+		if post.ID == m.lastReadPostID {
+			break
+		}
+		count++
+	}
+	return count
+}
+
+// getPostAtScrollPosition finds the post ID at the current scroll position.
+// Returns empty string if no post is visible.
+func (m Model) getPostAtScrollPosition() string {
+	if len(m.posts) == 0 {
+		return ""
+	}
+
+	// Build threads in display order
+	threads := buildThreads(m.posts)
+	if !m.newestOnTop {
+		for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
+			threads[i], threads[j] = threads[j], threads[i]
+		}
+	}
+
+	// Calculate which line is at the scroll position
+	availableHeight := m.height - 2
+	if availableHeight <= 0 {
+		availableHeight = 1
+	}
+
+	// Find the visible viewport center line
+	targetLine := m.scrollOffset + availableHeight/2
+
+	// Walk through threads, counting lines until we find the target
+	currentLine := 0
+	for _, thread := range threads {
+		// Count lines for day separator (estimate ~2 lines including blank)
+		currentLine += 2
+
+		// Count lines for main post (estimate based on layout)
+		postLines := m.formatPost(thread.post)
+		threadStartLine := currentLine
+		currentLine += len(postLines)
+
+		// Count reply lines
+		for _, reply := range thread.replies {
+			replyLines := m.formatReply(reply)
+			currentLine += len(replyLines)
+		}
+
+		// Add blank line between threads
+		currentLine++
+
+		// Check if target line falls within this thread
+		if targetLine < currentLine && targetLine >= threadStartLine {
+			return thread.post.ID
+		}
+	}
+
+	// If we're past the end, return the last thread's post ID
+	if len(threads) > 0 {
+		return threads[len(threads)-1].post.ID
+	}
+
+	return ""
 }
 
 // maxScrollOffset returns the maximum scroll offset based on content size
@@ -759,6 +936,11 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("   c/C    Cycle contrast\n")
 	helpContent.WriteString("   +/-    Adjust pressure\n")
 	helpContent.WriteString("   r      Refresh now\n")
+	helpContent.WriteString("\n")
+	helpContent.WriteString("  Read Status\n")
+	helpContent.WriteString("   m      Mark all as read\n")
+	helpContent.WriteString("   M      Mark read to here\n")
+	helpContent.WriteString("\n")
 	helpContent.WriteString("   q      Quit\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString("\n")
