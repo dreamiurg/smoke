@@ -29,3 +29,49 @@ var Animals = [50]string{
 	"mouse", "bat", "mole", "hedgehog", "squirrel",
 	"chipmunk", "rabbit", "pika", "lemur", "koala",
 }
+
+// Verbs for identity generation (40 words)
+// Criteria: present tense, action-oriented, evocative
+var Verbs = [40]string{
+	"chase", "dance", "dive", "drift", "etch",
+	"explore", "fade", "fetch", "glide", "guide",
+	"harvest", "imagine", "journey", "kindle", "leap",
+	"lurk", "manifest", "navigate", "observe", "paint",
+	"pivot", "radiate", "sail", "seek", "shape",
+	"signal", "soar", "solve", "splice", "sprint",
+	"strive", "surge", "survey", "swirl", "think",
+	"trace", "track", "tunnel", "venture", "weave",
+}
+
+// Abstract concepts for identity generation (35 words)
+// Criteria: intangible qualities, reflective, positive
+var Abstracts = [35]string{
+	"aether", "balance", "bloom", "breath", "cascade",
+	"charm", "chrome", "cipher", "dawn", "dream",
+	"edge", "essence", "ether", "flux", "force",
+	"glow", "grace", "haze", "hope", "impulse",
+	"joy", "karma", "light", "marvel", "mist",
+	"nerve", "nova", "pause", "phase", "prime",
+	"pulse", "quiver", "rhythm", "shift", "surge",
+}
+
+// Tech terms for identity generation (30 words)
+// Criteria: non-obvious, inspired by CS/systems concepts, lowercase
+var TechTerms = [30]string{
+	"actor", "async", "batch", "cache", "codec",
+	"daemon", "delta", "eigen", "epoch", "fuzz",
+	"graph", "hash", "helix", "index", "io",
+	"kernel", "lambda", "layer", "logic", "loop",
+	"mutex", "neural", "node", "parse", "pivot",
+	"query", "queue", "regex", "schema", "socket",
+}
+
+// Colors for identity generation (25 words)
+// Criteria: vivid, easy to spell, palette diversity
+var Colors = [25]string{
+	"amber", "azure", "bronze", "cerise", "coral",
+	"cyan", "ebony", "ember", "fawn", "gold",
+	"indigo", "ivory", "jade", "lemon", "lilac",
+	"magenta", "olive", "peach", "plum", "ruby",
+	"sage", "sienna", "slate", "tan", "ultra",
+}

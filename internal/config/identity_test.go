@@ -28,8 +28,8 @@ func TestGetIdentity_WithSmokeAuthor(t *testing.T) {
 	if identity.Suffix != "test-user" {
 		t.Errorf("Expected suffix 'test-user', got %q", identity.Suffix)
 	}
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 }
 
@@ -47,8 +47,8 @@ func TestGetIdentityWithOverride(t *testing.T) {
 	if identity.Suffix != "my-custom-name" {
 		t.Errorf("Expected suffix 'my-custom-name', got %q", identity.Suffix)
 	}
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 }
 
@@ -151,9 +151,9 @@ func TestGetIdentity_AutoDetect(t *testing.T) {
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty suffix from auto-detection")
 	}
-	// Should have detected agent
-	if identity.Agent == "" {
-		t.Error("Expected non-empty agent")
+	// Auto-detection no longer sets Agent (removed "claude" prefix)
+	if identity.Agent != "" {
+		t.Error("Expected empty agent for auto-detected identity")
 	}
 	// Should have detected project
 	if identity.Project == "" {
@@ -183,8 +183,9 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty suffix even with PPID fallback")
 	}
-	if identity.Agent != "claude" && identity.Agent != "unknown" {
-		t.Errorf("Expected agent to be either 'claude' or 'unknown', got %q", identity.Agent)
+	// Auto-detection no longer sets Agent (removed "claude" prefix)
+	if identity.Agent != "" {
+		t.Errorf("Expected empty agent for auto-detected identity, got %q", identity.Agent)
 	}
 	t.Logf("Identity with PPID fallback: %s", identity.String())
 }
@@ -294,8 +295,8 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 	if identity.Suffix != "custom-brave" {
 		t.Errorf("Expected suffix 'custom-brave', got %q", identity.Suffix)
@@ -475,8 +476,8 @@ func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
 
 	// With the new behavior, "claude-brave" is treated as the full suffix
 	// @project is stripped but we don't parse agent-suffix anymore in overrides
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 	if identity.Suffix != "claude-brave" {
 		t.Errorf("Expected suffix 'claude-brave', got %q", identity.Suffix)
@@ -583,8 +584,8 @@ func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 	if identity.Suffix != "agent-name" {
 		t.Errorf("Expected suffix 'agent-name', got %q", identity.Suffix)
@@ -617,8 +618,9 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify all components are populated
-	if identity.Agent == "" {
-		t.Error("Expected non-empty Agent in auto-detect path")
+	// Auto-detection no longer sets Agent (removed "claude" prefix)
+	if identity.Agent != "" {
+		t.Errorf("Expected empty Agent in auto-detect path, got %q", identity.Agent)
 	}
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty Suffix in auto-detect path")

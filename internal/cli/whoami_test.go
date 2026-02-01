@@ -36,14 +36,14 @@ func TestWhoamiCommand(t *testing.T) {
 			bdActor:    "testbot@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   false,
-			wantOutput: "custom-testbot@" + actualProject, // @project is auto-detected
+			wantOutput: "testbot@" + actualProject, // @project is auto-detected
 		},
 		{
 			name:       "name only with BD_ACTOR",
 			bdActor:    "testbot@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   true,
-			wantOutput: "custom-testbot", // agent is "custom", suffix is full name
+			wantOutput: "testbot", // agent is "", suffix is full name
 		},
 		{
 			name:     "json format with BD_ACTOR (project override ignored)",
@@ -51,7 +51,7 @@ func TestWhoamiCommand(t *testing.T) {
 			jsonFlag: true,
 			nameFlag: false,
 			wantJSON: map[string]string{
-				"name":    "custom-testbot",
+				"name":    "testbot",
 				"project": actualProject, // @project is auto-detected
 			},
 		},
@@ -60,14 +60,14 @@ func TestWhoamiCommand(t *testing.T) {
 			bdActor:    "claude-swift-fox@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   false,
-			wantOutput: "custom-claude-swift-fox@" + actualProject, // Full name as suffix, project auto-detected
+			wantOutput: "claude-swift-fox@" + actualProject, // Full name as suffix, project auto-detected
 		},
 		{
 			name:       "agent-suffix name only",
 			bdActor:    "claude-swift-fox@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   true,
-			wantOutput: "custom-claude-swift-fox", // Full name as suffix
+			wantOutput: "claude-swift-fox", // Full name as suffix
 		},
 		{
 			name:     "agent-suffix json format (project override ignored)",
@@ -75,7 +75,7 @@ func TestWhoamiCommand(t *testing.T) {
 			jsonFlag: true,
 			nameFlag: false,
 			wantJSON: map[string]string{
-				"name":    "custom-claude-swift-fox",
+				"name":    "claude-swift-fox",
 				"project": actualProject, // @project is auto-detected
 			},
 		},
