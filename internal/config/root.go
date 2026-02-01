@@ -72,7 +72,7 @@ func validateFeedPath(path string) (string, error) {
 	if !inHome && !inTemp {
 		return "", ErrInvalidFeedPath
 	}
-	return absPath, nil
+	return cleanPath, nil
 }
 
 // GetFeedPath returns the path to the feed.jsonl file
