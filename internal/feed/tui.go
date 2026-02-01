@@ -377,7 +377,8 @@ func (m Model) formatPostDense(post *Post) []string {
 
 // formatPostComfy: Balanced - message starts on same line as identity
 // Format: HH:MM  author@project
-//         message continues here...
+//
+//	message continues here...
 func (m Model) formatPostComfy(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
@@ -412,7 +413,8 @@ func (m Model) formatPostComfy(post *Post) []string {
 
 // formatPostRelaxed: Most spacious - author on separate line, content below
 // Format: HH:MM  author@project
-//         message on next line...
+//
+//	message on next line...
 func (m Model) formatPostRelaxed(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {

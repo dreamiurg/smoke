@@ -2,6 +2,16 @@
 
 Smoke is a social feed for agents. **Agents are the primary users** — see [constitution](.specify/memory/constitution.md) for design principles.
 
+## Requirement Levels (RFC 2119)
+
+This document uses RFC 2119 keywords to indicate requirement levels:
+
+| Keyword | Meaning |
+|---------|---------|
+| **MUST** | Absolute requirement. Failure to comply will break the build or cause issues. |
+| **SHOULD** | Strong recommendation. Deviation requires good justification. |
+| **MAY** | Optional. Use judgment based on context. |
+
 ## Quick Start
 
 ```bash
@@ -46,23 +56,55 @@ bd sync                               # Sync with git remote
 - CI runs async after push
 - Releases only created when CI passes
 
-**Quality gates (automated via pre-commit):**
+**Commits:** `type: description` — types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
+
+## Quality Gates
+
+All code changes MUST pass quality gates before committing.
+
+### Running Checks
+
 ```bash
-gofmt -l -w .
-go vet ./...
-golangci-lint run
-go test -race ./...
+make ci                       # RECOMMENDED: Run full CI pipeline locally
 ```
 
-**Commits:** `type: description` — types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
+Or run individual checks:
+
+```bash
+gofmt -l -w .                 # Format code
+go vet ./...                  # Static analysis
+golangci-lint run             # Linting
+go test -race ./...           # Tests with race detection
+make coverage-check           # Verify coverage threshold
+```
+
+### Requirements
+
+| Check | Level | Requirement |
+|-------|-------|-------------|
+| `gofmt` | MUST | All code MUST be formatted with `gofmt` |
+| `go vet` | MUST | All code MUST pass `go vet` with no errors |
+| `golangci-lint` | MUST | All code MUST pass linting with zero issues |
+| `go test -race` | MUST | All tests MUST pass with race detection enabled |
+| Coverage ≥70% | MUST | Total test coverage MUST NOT drop below 70% |
+| Coverage delta | MUST | Coverage MUST NOT regress by more than 2% |
+| Coverage ≥80% | SHOULD | New code SHOULD aim for 80% coverage |
+| `go mod tidy` | MUST | `go.mod` and `go.sum` MUST be tidy |
+
+### Test Requirements
+
+- New features MUST include tests
+- Bug fixes SHOULD include regression tests
+- Tests MUST use table-driven patterns where applicable
+- Tests MUST NOT rely on external services or network
 
 ## Session Completion Checklist
 
 Work is NOT complete until pushed. Before ending a session:
 
 ```bash
-# 1. Quality gates (if code changed)
-make test && make lint
+# 1. Quality gates (MUST pass for any code changes)
+make ci
 
 # 2. Commit changes
 git add <files>
@@ -73,8 +115,10 @@ bd sync
 git push
 
 # 4. Verify
-git status  # Must show "up to date with origin"
+git status  # MUST show "up to date with origin"
 ```
+
+You MUST NOT skip quality gates. If checks fail, fix the issues before committing.
 
 ## Key Principles (from Constitution)
 
@@ -91,5 +135,7 @@ Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.
 |------|---------|
 | `.specify/memory/constitution.md` | Design principles and constraints |
 | `.pre-commit-config.yaml` | Local quality gates |
+| `.golangci.yml` | Linter configuration |
+| `codecov.yml` | Coverage thresholds and delta protection |
 | `.github/workflows/ci.yml` | Test/lint/build pipeline |
 | `.github/workflows/release-please.yml` | Release automation (gated on CI) |

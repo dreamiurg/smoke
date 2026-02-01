@@ -1,4 +1,4 @@
-.PHONY: build install test lint vet fmt clean coverage help setup-hooks
+.PHONY: build install test lint vet fmt clean coverage help setup-hooks ci tidy-check vulncheck
 
 # Binary name
 BINARY=smoke
@@ -43,7 +43,7 @@ coverage: ## Run tests with coverage
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-coverage-check: ## Check coverage meets 70% threshold
+coverage-check: ## Check coverage meets 70% threshold (MUST), aim for 80% (SHOULD)
 	@$(GOTEST) -coverprofile=coverage.out ./... > /dev/null 2>&1
 	@COVERAGE=$$($(GOCMD) tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
 	echo "Total coverage: $$COVERAGE%"; \
@@ -77,6 +77,17 @@ all: fmt vet lint test build ## Run all checks and build
 pre-commit: fmt-check vet lint ## Pre-commit checks (format, lint, vet)
 
 pre-push: pre-commit test ## Pre-push checks (format, lint, vet, tests)
+
+ci: fmt-check tidy-check vet lint test coverage-check build ## Run full CI pipeline locally
+	@echo "All CI checks passed!"
+
+tidy-check: ## Check if go.mod is tidy
+	@$(GOMOD) tidy
+	@git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy, run 'make tidy'" && exit 1)
+
+vulncheck: ## Run govulncheck for dependency vulnerabilities
+	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
 
 setup-hooks: ## Install git hooks for pre-commit and pre-push checks
 	@echo "Installing git hooks..."
