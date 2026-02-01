@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 // ErrPostNotFound is returned when a post is not found
@@ -145,13 +145,13 @@ func (s *Store) doReadAll() ([]*Post, error) {
 		var post Post
 		if err := json.Unmarshal([]byte(line), &post); err != nil {
 			// Skip invalid lines with warning (per spec: skip invalid, warn, continue)
-			log.Warn("skipping invalid line", "line", lineNum, "error", err)
+			logging.LogWarn("skipping invalid line", "line", lineNum, "error", err)
 			continue
 		}
 
 		// Validate post after unmarshal
 		if err := post.Validate(); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "warning: skipping invalid post at line %d: %v\n", lineNum, err)
+			logging.LogWarn("skipping invalid post", "line", lineNum, "error", err)
 			continue
 		}
 

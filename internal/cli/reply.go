@@ -8,6 +8,7 @@ import (
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 var (
@@ -39,8 +40,11 @@ func runReply(_ *cobra.Command, args []string) error {
 	parentID := args[0]
 	message := args[1]
 
+	logging.LogCommand("reply", args)
+
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
+		logging.LogError("smoke not initialized", err)
 		return err
 	}
 
@@ -82,8 +86,11 @@ func runReply(_ *cobra.Command, args []string) error {
 
 	// Store reply
 	if err := store.Append(reply); err != nil {
+		logging.LogError("failed to save reply", err)
 		return fmt.Errorf("failed to save reply: %w", err)
 	}
+
+	logging.LogPostCreated(reply.ID, reply.Author)
 
 	// Output confirmation
 	feed.FormatReplied(os.Stdout, reply)

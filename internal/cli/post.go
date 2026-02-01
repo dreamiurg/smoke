@@ -8,6 +8,7 @@ import (
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 var (
@@ -38,8 +39,12 @@ func init() {
 func runPost(_ *cobra.Command, args []string) error {
 	message := args[0]
 
+	logging.LogCommand("post", args)
+	logging.Verbose("Creating post with message length: %d", len(message))
+
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
+		logging.LogError("smoke not initialized", err)
 		return err
 	}
 
@@ -48,6 +53,7 @@ func runPost(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	logging.Verbose("Resolved identity: %s", identity.String())
 
 	// Create post
 	post, err := feed.NewPost(identity.String(), identity.Project, identity.Suffix, message)
@@ -66,8 +72,11 @@ func runPost(_ *cobra.Command, args []string) error {
 	store := feed.NewStoreWithPath(feedPath)
 
 	if err := store.Append(post); err != nil {
+		logging.LogError("failed to save post", err)
 		return fmt.Errorf("failed to save post: %w", err)
 	}
+
+	logging.LogPostCreated(post.ID, post.Author)
 
 	// Output confirmation
 	feed.FormatPosted(os.Stdout, post)

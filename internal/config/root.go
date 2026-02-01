@@ -126,3 +126,12 @@ func EnsureInitialized() error {
 	}
 	return nil
 }
+
+// GetLogPath returns the path to the smoke.log file
+func GetLogPath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, DefaultLogFile), nil
+}

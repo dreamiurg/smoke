@@ -13,6 +13,7 @@ import (
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 var (
@@ -57,9 +58,12 @@ func init() {
 	rootCmd.AddCommand(feedCmd)
 }
 
-func runFeed(_ *cobra.Command, _ []string) error {
+func runFeed(_ *cobra.Command, args []string) error {
+	logging.LogCommand("feed", args)
+
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
+		logging.LogError("smoke not initialized", err)
 		return err
 	}
 
