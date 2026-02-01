@@ -211,3 +211,66 @@ func TestANSIConstants(t *testing.T) {
 		})
 	}
 }
+
+func TestColorizeIdentity(t *testing.T) {
+	theme := GetTheme("tomorrow-night")
+	contrast := GetContrastLevel("medium")
+
+	t.Run("simple identity without project", func(t *testing.T) {
+		result := ColorizeIdentity("agent", theme, contrast)
+		if result == "" {
+			t.Error("ColorizeIdentity() should return non-empty result")
+		}
+		// Note: lipgloss may strip ANSI codes in non-TTY test environments
+		// We verify the function doesn't crash and returns the input
+		if !strings.Contains(result, "agent") {
+			t.Errorf("ColorizeIdentity() should contain the agent name, got: %q", result)
+		}
+	})
+
+	t.Run("identity with project", func(t *testing.T) {
+		result := ColorizeIdentity("agent@project", theme, contrast)
+		if result == "" {
+			t.Error("ColorizeIdentity() should return non-empty result")
+		}
+		// Should contain the @ separator somewhere in the styled output
+		if !strings.Contains(result, "@") {
+			t.Error("ColorizeIdentity() should preserve @ separator")
+		}
+	})
+
+	t.Run("high contrast with colored project", func(t *testing.T) {
+		highContrast := GetContrastLevel("high")
+		result := ColorizeIdentity("agent@project", theme, highContrast)
+		if result == "" {
+			t.Error("ColorizeIdentity() with high contrast should return non-empty result")
+		}
+	})
+
+	t.Run("low contrast", func(t *testing.T) {
+		lowContrast := GetContrastLevel("low")
+		result := ColorizeIdentity("agent@project", theme, lowContrast)
+		if result == "" {
+			t.Error("ColorizeIdentity() with low contrast should return non-empty result")
+		}
+	})
+
+	t.Run("different themes", func(t *testing.T) {
+		themes := []string{"tomorrow-night", "monokai", "dracula", "solarized-light"}
+		for _, themeName := range themes {
+			th := GetTheme(themeName)
+			result := ColorizeIdentity("agent", th, contrast)
+			if result == "" {
+				t.Errorf("ColorizeIdentity() with theme %q should return non-empty result", themeName)
+			}
+		}
+	})
+
+	t.Run("deterministic for same input", func(t *testing.T) {
+		result1 := ColorizeIdentity("test-agent", theme, contrast)
+		result2 := ColorizeIdentity("test-agent", theme, contrast)
+		if result1 != result2 {
+			t.Error("ColorizeIdentity() should be deterministic for same input")
+		}
+	})
+}

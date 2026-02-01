@@ -645,3 +645,53 @@ func TestFormatPostWithTerminalWidth(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildThreadsWithInvalidTimestamps(t *testing.T) {
+	// Posts with invalid timestamps should still be handled gracefully
+	posts := []*Post{
+		{
+			ID:        "smk-post1",
+			Author:    "author1",
+			Project:   "smoke",
+			Suffix:    "post1",
+			Content:   "post 1",
+			CreatedAt: "invalid-timestamp",
+		},
+		{
+			ID:        "smk-post2",
+			Author:    "author2",
+			Project:   "smoke",
+			Suffix:    "post2",
+			Content:   "post 2",
+			CreatedAt: "2026-01-30T09:24:00Z",
+		},
+		{
+			ID:        "smk-reply1",
+			Author:    "author3",
+			Project:   "smoke",
+			Suffix:    "reply1",
+			Content:   "reply to post1",
+			CreatedAt: "invalid-timestamp",
+			ParentID:  "smk-post1",
+		},
+	}
+
+	threads := buildThreads(posts)
+
+	// Should still create threads despite invalid timestamps
+	if len(threads) != 2 {
+		t.Errorf("buildThreads() with invalid timestamps: got %d threads, want 2", len(threads))
+	}
+
+	// Check that reply is still associated with parent
+	foundReply := false
+	for _, thread := range threads {
+		if thread.post.ID == "smk-post1" && len(thread.replies) > 0 {
+			foundReply = true
+			break
+		}
+	}
+	if !foundReply {
+		t.Error("buildThreads() should associate replies even with invalid timestamps")
+	}
+}

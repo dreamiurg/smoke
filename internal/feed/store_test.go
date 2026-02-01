@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -382,5 +383,65 @@ func TestNewStore(t *testing.T) {
 	}
 	if len(posts) != 1 {
 		t.Errorf("NewStore() store.ReadAll() returned %d posts, want 1", len(posts))
+	}
+}
+
+func TestCountWithPosts(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := tmpDir + "/feed.jsonl"
+
+	// Create feed file
+	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to create feed file: %v", err)
+	}
+
+	store := NewStoreWithPath(feedPath)
+
+	// Add some posts with valid IDs
+	for i := 0; i < 5; i++ {
+		post, err := NewPost("test-author", "smoke", "test", fmt.Sprintf("post %d", i))
+		if err != nil {
+			t.Fatalf("Failed to create post: %v", err)
+		}
+		if err := store.Append(post); err != nil {
+			t.Fatalf("Failed to append post: %v", err)
+		}
+	}
+
+	count, err := store.Count()
+	if err != nil {
+		t.Errorf("Count() unexpected error: %v", err)
+	}
+	if count != 5 {
+		t.Errorf("Count() = %d, want 5", count)
+	}
+}
+
+func TestExistsTrue(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := tmpDir + "/feed.jsonl"
+
+	// Create feed file
+	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to create feed file: %v", err)
+	}
+
+	store := NewStoreWithPath(feedPath)
+
+	// Add a post
+	post, err := NewPost("test-author", "smoke", "test", "test content")
+	if err != nil {
+		t.Fatalf("Failed to create post: %v", err)
+	}
+	if err := store.Append(post); err != nil {
+		t.Fatalf("Failed to append post: %v", err)
+	}
+
+	exists, err := store.Exists(post.ID)
+	if err != nil {
+		t.Errorf("Exists() unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("Exists() should return true for existing post")
 	}
 }
