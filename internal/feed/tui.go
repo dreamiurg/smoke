@@ -136,10 +136,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.copyConfirmation = "Copied as text!"
 							m.showCopyMenu = false
 						}
-					case 1: // Square image (placeholder for T5.x)
-						m.copyConfirmation = "Image copy not yet implemented"
-					case 2: // Landscape image (placeholder for T5.x)
-						m.copyConfirmation = "Image copy not yet implemented"
+					case 1: // Square image
+						pngData, err := RenderShareCard(post, m.theme, SquareImage)
+						if err != nil {
+							m.copyConfirmation = "Error: " + err.Error()
+						} else if err := CopyImageToClipboard(pngData); err != nil {
+							m.copyConfirmation = "Error: " + err.Error()
+						} else {
+							m.copyConfirmation = "Copied as 1200×1200 image!"
+							m.showCopyMenu = false
+						}
+					case 2: // Landscape image
+						pngData, err := RenderShareCard(post, m.theme, LandscapeImage)
+						if err != nil {
+							m.copyConfirmation = "Error: " + err.Error()
+						} else if err := CopyImageToClipboard(pngData); err != nil {
+							m.copyConfirmation = "Error: " + err.Error()
+						} else {
+							m.copyConfirmation = "Copied as 1200×630 image!"
+							m.showCopyMenu = false
+						}
 					}
 				}
 				return m, nil
