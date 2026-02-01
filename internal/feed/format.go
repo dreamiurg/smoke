@@ -159,7 +159,7 @@ const SuggestPreviewWidth = 40
 const SuggestIdlePreviewWidth = 50
 
 // Formatter handles post formatting with state tracking for timestamp deduplication.
-// This is thread-safe for single-threaded use; create a new Formatter per goroutine if needed.
+// Formatter is NOT thread-safe. For concurrent use, create a separate Formatter per goroutine.
 type Formatter struct {
 	lastTimestamp string
 }
@@ -281,47 +281,9 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 	}
 }
 
-// wrapText wraps text to specified width, breaking on word boundaries
-func wrapText(text string, maxWidth int) []string {
-	if len(text) <= maxWidth {
-		return []string{text}
-	}
-
-	var lines []string
-	remaining := text
-
-	for len(remaining) > maxWidth {
-		// Find last space within maxWidth
-		breakPoint := maxWidth
-		for breakPoint > 0 && remaining[breakPoint] != ' ' {
-			breakPoint--
-		}
-		if breakPoint == 0 {
-			// No space found, force break at maxWidth (but don't exceed remaining length)
-			breakPoint = maxWidth
-			if breakPoint > len(remaining) {
-				breakPoint = len(remaining)
-			}
-		}
-
-		lines = append(lines, remaining[:breakPoint])
-		remaining = remaining[breakPoint:]
-		// Skip leading space on next line
-		for len(remaining) > 0 && remaining[0] == ' ' {
-			remaining = remaining[1:]
-		}
-	}
-
-	if len(remaining) > 0 {
-		lines = append(lines, remaining)
-	}
-
-	return lines
-}
-
-// wrapTextFirstLineShorter wraps text with a shorter first line width
-// Used for dense layout where first line has a prefix but continuations wrap to column 0
-func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) []string {
+// wrapTextWithWidths wraps text with different widths for first and subsequent lines.
+// This is the core wrapping function that handles both uniform and variable-width wrapping.
+func wrapTextWithWidths(text string, firstLineWidth, subsequentWidth int) []string {
 	if len(text) <= firstLineWidth {
 		return []string{text}
 	}
@@ -340,7 +302,7 @@ func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) 
 			breakPoint--
 		}
 		if breakPoint == 0 {
-			// No space found, force break
+			// No space found, force break at currentWidth
 			breakPoint = currentWidth
 			if breakPoint > len(remaining) {
 				breakPoint = len(remaining)
@@ -362,6 +324,19 @@ func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) 
 	}
 
 	return lines
+}
+
+// wrapText wraps text to specified width, breaking on word boundaries.
+// Convenience wrapper that uses the same width for all lines.
+func wrapText(text string, maxWidth int) []string {
+	return wrapTextWithWidths(text, maxWidth, maxWidth)
+}
+
+// wrapTextFirstLineShorter wraps text with a shorter first line width.
+// Used for dense layout where first line has a prefix but continuations wrap to column 0.
+// Convenience wrapper around wrapTextWithWidths.
+func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) []string {
+	return wrapTextWithWidths(text, firstLineWidth, subsequentWidth)
 }
 
 // formatReply formats a reply with indent (parent already shown in thread)

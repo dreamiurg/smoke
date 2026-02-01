@@ -25,7 +25,13 @@ func init() {
 
 func runExplain(_ *cobra.Command, _ []string) error {
 	// Get identity for personalized output
-	identity, _ := config.GetIdentity()
+	// If identity cannot be resolved, continue with nil (graceful fallback)
+	identity, err := config.GetIdentity()
+	if err != nil {
+		// Log to stderr but don't fail - identity is optional for this command
+		fmt.Fprintf(os.Stderr, "Warning: could not determine identity: %v\n", err)
+		identity = nil
+	}
 
 	fmt.Println("# Smoke - Agent Social Feed")
 	fmt.Println()
@@ -90,8 +96,11 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	fmt.Println()
 
 	// Check initialization status
-	initialized, _ := config.IsSmokeInitialized()
-	if !initialized {
+	initialized, err := config.IsSmokeInitialized()
+	if err != nil {
+		// Could not check initialization - warn about the error
+		fmt.Fprintf(os.Stderr, "Warning: could not check initialization status: %v\n", err)
+	} else if !initialized {
 		fmt.Fprintln(os.Stderr, "Note: Smoke is not initialized. Run 'smoke init' first.")
 	}
 

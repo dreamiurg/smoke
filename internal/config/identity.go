@@ -118,8 +118,12 @@ func parseFullIdentity(s string) (*Identity, error) {
 // detectAgent determines the agent type from environment
 func detectAgent() string {
 	// Check for Claude Code
-	home, _ := os.UserHomeDir()
-	if home != "" {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// If we can't get home directory, use "unknown" as fallback
+		home = "unknown"
+	}
+	if home != "" && home != "unknown" {
 		claudeDir := filepath.Join(home, ".claude")
 		if _, err := os.Stat(claudeDir); err == nil {
 			return "claude"

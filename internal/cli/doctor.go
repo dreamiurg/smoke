@@ -132,8 +132,8 @@ func runDoctor(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-// checkVersion returns the smoke version as a check
-func checkVersion() Check {
+// performVersionCheck returns the smoke version as a check
+func performVersionCheck() Check {
 	return Check{
 		Name:    "Smoke Version",
 		Status:  StatusPass,
@@ -142,28 +142,33 @@ func checkVersion() Check {
 	}
 }
 
+// checkVersion is kept for backward compatibility with tests
+func checkVersion() Check {
+	return performVersionCheck()
+}
+
 // runChecks executes all health checks and returns categories
 func runChecks() []Category {
 	return []Category{
 		{
 			Name: "INSTALLATION",
 			Checks: []Check{
-				checkConfigDir(),
-				checkFeedFile(),
+				performConfigDirCheck(),
+				performFeedFileCheck(),
 			},
 		},
 		{
 			Name: "DATA",
 			Checks: []Check{
-				checkFeedFormat(),
-				checkConfigFile(),
-				checkTUIConfig(),
+				performFeedFormatCheck(),
+				performConfigFileCheck(),
+				performTUIConfigCheck(),
 			},
 		},
 		{
 			Name: "VERSION",
 			Checks: []Check{
-				checkVersion(),
+				performVersionCheck(),
 			},
 		},
 	}
@@ -296,138 +301,167 @@ func applyFixes(categories []Category, dryRun bool) (int, error) {
 	return fixCount, nil
 }
 
-// checkConfigDir verifies the config directory exists and is writable
-func checkConfigDir() Check {
-	check := Check{
-		Name:   "Config Directory",
-		CanFix: true,
-		Fix:    fixConfigDir,
-	}
-
+// performConfigDirCheck verifies the config directory exists and is writable
+func performConfigDirCheck() Check {
 	configDir, err := config.GetConfigDir()
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot determine config directory"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "Config Directory",
+			Status:  StatusFail,
+			Message: "cannot determine config directory",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	info, err := os.Stat(configDir)
 	if os.IsNotExist(err) {
-		check.Status = StatusFail
-		check.Message = "not found"
-		check.Detail = fmt.Sprintf("Run 'smoke doctor --fix' to create %s", configDir)
-		return check
+		return Check{
+			Name:    "Config Directory",
+			Status:  StatusFail,
+			Message: "not found",
+			Detail:  fmt.Sprintf("Run 'smoke doctor --fix' to create %s", configDir),
+			CanFix:  true,
+			Fix:     fixConfigDir,
+		}
 	}
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot access"
-		check.Detail = err.Error()
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Config Directory",
+			Status:  StatusFail,
+			Message: "cannot access",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 	if !info.IsDir() {
-		check.Status = StatusFail
-		check.Message = "not a directory"
-		check.Detail = configDir
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Config Directory",
+			Status:  StatusFail,
+			Message: "not a directory",
+			Detail:  configDir,
+			CanFix:  false,
+		}
 	}
 
 	// Check if writable by creating a temp file
 	testFile := filepath.Join(configDir, ".doctor-test")
 	f, err := os.Create(testFile)
 	if err != nil {
-		check.Status = StatusWarn
-		check.Message = fmt.Sprintf("%s (not writable)", configDir)
-		check.Detail = "Permission denied - check directory permissions"
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Config Directory",
+			Status:  StatusWarn,
+			Message: fmt.Sprintf("%s (not writable)", configDir),
+			Detail:  "Permission denied - check directory permissions",
+			CanFix:  false,
+		}
 	}
 	_ = f.Close()
 	_ = os.Remove(testFile)
 
-	check.Status = StatusPass
-	check.Message = configDir
-	check.CanFix = false
-	return check
+	return Check{
+		Name:    "Config Directory",
+		Status:  StatusPass,
+		Message: configDir,
+		CanFix:  false,
+	}
 }
 
-// checkFeedFile verifies the feed file exists and is readable
-func checkFeedFile() Check {
-	check := Check{
-		Name:   "Feed File",
-		CanFix: true,
-		Fix:    fixFeedFile,
-	}
+// checkConfigDir kept for backward compatibility with tests
+func checkConfigDir() Check {
+	return performConfigDirCheck()
+}
 
+// performFeedFileCheck verifies the feed file exists and is readable
+func performFeedFileCheck() Check {
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot determine feed path"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "Feed File",
+			Status:  StatusFail,
+			Message: "cannot determine feed path",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	info, err := os.Stat(feedPath)
 	if os.IsNotExist(err) {
-		check.Status = StatusFail
-		check.Message = "not found"
-		check.Detail = fmt.Sprintf("Run 'smoke doctor --fix' to create %s", feedPath)
-		return check
+		return Check{
+			Name:    "Feed File",
+			Status:  StatusFail,
+			Message: "not found",
+			Detail:  fmt.Sprintf("Run 'smoke doctor --fix' to create %s", feedPath),
+			CanFix:  true,
+			Fix:     fixFeedFile,
+		}
 	}
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot access"
-		check.Detail = err.Error()
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Feed File",
+			Status:  StatusFail,
+			Message: "cannot access",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 	if info.IsDir() {
-		check.Status = StatusFail
-		check.Message = "is a directory, expected file"
-		check.Detail = feedPath
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Feed File",
+			Status:  StatusFail,
+			Message: "is a directory, expected file",
+			Detail:  feedPath,
+			CanFix:  false,
+		}
 	}
 
 	// Check if readable
 	f, err := os.Open(feedPath)
 	if err != nil {
-		check.Status = StatusWarn
-		check.Message = fmt.Sprintf("%s (not readable)", feedPath)
-		check.Detail = "Permission denied - check file permissions"
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Feed File",
+			Status:  StatusWarn,
+			Message: fmt.Sprintf("%s (not readable)", feedPath),
+			Detail:  "Permission denied - check file permissions",
+			CanFix:  false,
+		}
 	}
 	_ = f.Close()
 
-	check.Status = StatusPass
-	check.Message = feedPath
-	check.CanFix = false
-	return check
+	return Check{
+		Name:    "Feed File",
+		Status:  StatusPass,
+		Message: feedPath,
+		CanFix:  false,
+	}
 }
 
-// checkFeedFormat validates JSONL integrity of the feed file
-func checkFeedFormat() Check {
-	check := Check{
-		Name:   "Feed Format",
-		CanFix: false,
-	}
+// checkFeedFile kept for backward compatibility with tests
+func checkFeedFile() Check {
+	return performFeedFileCheck()
+}
 
+// performFeedFormatCheck validates JSONL integrity of the feed file
+func performFeedFormatCheck() Check {
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot determine feed path"
-		return check
+		return Check{
+			Name:    "Feed Format",
+			Status:  StatusFail,
+			Message: "cannot determine feed path",
+			CanFix:  false,
+		}
 	}
 
 	f, err := os.Open(feedPath)
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot open feed file"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "Feed Format",
+			Status:  StatusFail,
+			Message: "cannot open feed file",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 	defer func() { _ = f.Close() }()
 
@@ -451,86 +485,115 @@ func checkFeedFormat() Check {
 	}
 
 	if err := scanner.Err(); err != nil {
-		check.Status = StatusFail
-		check.Message = "error reading feed"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "Feed Format",
+			Status:  StatusFail,
+			Message: "error reading feed",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	if totalLines == 0 {
-		check.Status = StatusPass
-		check.Message = "empty (0 posts)"
-		return check
+		return Check{
+			Name:    "Feed Format",
+			Status:  StatusPass,
+			Message: "empty (0 posts)",
+			CanFix:  false,
+		}
 	}
 
 	if invalidLines > 0 {
-		check.Status = StatusWarn
-		check.Message = fmt.Sprintf("%d/%d lines valid", validLines, totalLines)
-		check.Detail = "Some lines contain invalid JSON - manual inspection recommended"
-		return check
+		return Check{
+			Name:    "Feed Format",
+			Status:  StatusWarn,
+			Message: fmt.Sprintf("%d/%d lines valid", validLines, totalLines),
+			Detail:  "Some lines contain invalid JSON - manual inspection recommended",
+			CanFix:  false,
+		}
 	}
 
-	check.Status = StatusPass
-	check.Message = fmt.Sprintf("%d posts, all valid", validLines)
-	return check
+	return Check{
+		Name:    "Feed Format",
+		Status:  StatusPass,
+		Message: fmt.Sprintf("%d posts, all valid", validLines),
+		CanFix:  false,
+	}
 }
 
-// checkTUIConfig verifies tui.yaml exists and has correct field names
-func checkTUIConfig() Check {
-	check := Check{
-		Name:   "TUI Config",
-		CanFix: false,
-	}
+// checkFeedFormat kept for backward compatibility with tests
+func checkFeedFormat() Check {
+	return performFeedFormatCheck()
+}
 
+// performTUIConfigCheck verifies tui.yaml exists and has correct field names
+func performTUIConfigCheck() Check {
 	tuiPath, err := config.GetTUIConfigPath()
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot determine TUI config path"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "TUI Config",
+			Status:  StatusFail,
+			Message: "cannot determine TUI config path",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	data, err := os.ReadFile(tuiPath)
 	if os.IsNotExist(err) {
 		// TUI config is optional, missing is fine
-		check.Status = StatusPass
-		check.Message = "not present (using defaults)"
-		return check
+		return Check{
+			Name:    "TUI Config",
+			Status:  StatusPass,
+			Message: "not present (using defaults)",
+			CanFix:  false,
+		}
 	}
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot read"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "TUI Config",
+			Status:  StatusFail,
+			Message: "cannot read",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	// Parse as generic map to check for deprecated fields
 	var parsed map[string]interface{}
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		check.Status = StatusFail
-		check.Message = "invalid YAML"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "TUI Config",
+			Status:  StatusFail,
+			Message: "invalid YAML",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	// Check for deprecated "style" field (should be "layout")
 	if _, hasStyle := parsed["style"]; hasStyle {
 		if _, hasLayout := parsed["layout"]; !hasLayout {
 			// Has style but no layout - needs migration
-			check.Status = StatusWarn
-			check.Message = "deprecated 'style' field (should be 'layout')"
-			check.Detail = "Run 'smoke doctor --fix' to migrate to new field name"
-			check.CanFix = true
-			check.Fix = func() error {
-				return fixTUIConfigStyleToLayout(tuiPath)
+			return Check{
+				Name:    "TUI Config",
+				Status:  StatusWarn,
+				Message: "deprecated 'style' field (should be 'layout')",
+				Detail:  "Run 'smoke doctor --fix' to migrate to new field name",
+				CanFix:  true,
+				Fix: func() error {
+					return fixTUIConfigStyleToLayout(tuiPath)
+				},
 			}
-			return check
 		}
 	}
 
-	check.Status = StatusPass
-	check.Message = tuiPath
-	return check
+	return Check{
+		Name:    "TUI Config",
+		Status:  StatusPass,
+		Message: tuiPath,
+		CanFix:  false,
+	}
 }
 
 // fixTUIConfigStyleToLayout migrates tui.yaml from "style" to "layout" field
@@ -563,49 +626,61 @@ func fixTUIConfigStyleToLayout(tuiPath string) error {
 	return os.WriteFile(tuiPath, newData, 0644)
 }
 
-// checkConfigFile verifies config.yaml exists and is valid YAML
-func checkConfigFile() Check {
-	check := Check{
-		Name:   "Config File",
-		CanFix: true,
-		Fix:    fixConfigFile,
-	}
-
+// performConfigFileCheck verifies config.yaml exists and is valid YAML
+func performConfigFileCheck() Check {
 	configPath, err := config.GetConfigPath()
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot determine config path"
-		check.Detail = err.Error()
-		return check
+		return Check{
+			Name:    "Config File",
+			Status:  StatusFail,
+			Message: "cannot determine config path",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	data, err := os.ReadFile(configPath)
 	if os.IsNotExist(err) {
-		check.Status = StatusWarn
-		check.Message = "missing (using defaults)"
-		check.Detail = fmt.Sprintf("Run 'smoke doctor --fix' to create %s", configPath)
-		return check
+		return Check{
+			Name:    "Config File",
+			Status:  StatusWarn,
+			Message: "missing (using defaults)",
+			Detail:  fmt.Sprintf("Run 'smoke doctor --fix' to create %s", configPath),
+			CanFix:  true,
+			Fix:     fixConfigFile,
+		}
 	}
 	if err != nil {
-		check.Status = StatusFail
-		check.Message = "cannot read"
-		check.Detail = err.Error()
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Config File",
+			Status:  StatusFail,
+			Message: "cannot read",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
 	// Validate YAML syntax
 	var parsed interface{}
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		check.Status = StatusFail
-		check.Message = "invalid YAML"
-		check.Detail = err.Error()
-		check.CanFix = false
-		return check
+		return Check{
+			Name:    "Config File",
+			Status:  StatusFail,
+			Message: "invalid YAML",
+			Detail:  err.Error(),
+			CanFix:  false,
+		}
 	}
 
-	check.Status = StatusPass
-	check.Message = configPath
-	check.CanFix = false
-	return check
+	return Check{
+		Name:    "Config File",
+		Status:  StatusPass,
+		Message: configPath,
+		CanFix:  false,
+	}
+}
+
+// checkConfigFile kept for backward compatibility with tests
+func checkConfigFile() Check {
+	return performConfigFileCheck()
 }
