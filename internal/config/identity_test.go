@@ -41,7 +41,7 @@ func TestGetIdentityWithOverride(t *testing.T) {
 	// Ensure we have a session seed so auto-detection doesn't fail
 	os.Setenv("TERM_SESSION_ID", "test-session-123")
 
-	identity, err := GetIdentityWithOverride("my-custom-name")
+	identity, err := GetIdentity("my-custom-name")
 	require.NoError(t, err)
 
 	if identity.Suffix != "my-custom-name" {
@@ -287,7 +287,7 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	// Set session for fallback
 	os.Setenv("TERM_SESSION_ID", "test-session-456")
 
-	identity, err := GetIdentityWithOverride("custom-brave@test")
+	identity, err := GetIdentity("custom-brave@test")
 	require.NoError(t, err)
 
 	if identity.Agent != "custom" {
@@ -314,7 +314,7 @@ func TestGetIdentityWithOverride_Empty(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "default-author")
 	os.Setenv("TERM_SESSION_ID", "")
 
-	identity, err := GetIdentityWithOverride("")
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	// Should fall back to GetIdentity

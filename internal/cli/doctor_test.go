@@ -197,16 +197,16 @@ func TestComputeExitCode(t *testing.T) {
 }
 
 func TestCheckVersion(t *testing.T) {
-	check := checkVersion()
+	check := performVersionCheck()
 
 	if check.Name != "Smoke Version" {
-		t.Errorf("checkVersion().Name = %q, want %q", check.Name, "Smoke Version")
+		t.Errorf("performVersionCheck().Name = %q, want %q", check.Name, "Smoke Version")
 	}
 	if check.Status != StatusPass {
-		t.Errorf("checkVersion().Status = %v, want StatusPass", check.Status)
+		t.Errorf("performVersionCheck().Status = %v, want StatusPass", check.Status)
 	}
 	if check.CanFix {
-		t.Error("checkVersion().CanFix should be false")
+		t.Error("performVersionCheck().CanFix should be false")
 	}
 }
 

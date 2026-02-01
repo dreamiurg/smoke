@@ -77,12 +77,6 @@ func GetIdentity(override string) (*Identity, error) {
 	}, nil
 }
 
-// GetIdentityWithOverride is a backward-compatibility wrapper around GetIdentity.
-// Deprecated: use GetIdentity(override) directly.
-func GetIdentityWithOverride(authorOverride string) (*Identity, error) {
-	return GetIdentity(authorOverride)
-}
-
 // parseFullIdentity parses "agent-suffix@project" or "name@project" format
 func parseFullIdentity(s string) (*Identity, error) {
 	parts := strings.SplitN(s, "@", 2)
@@ -117,14 +111,12 @@ func detectAgent() string {
 	// Check for Claude Code
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// If we can't get home directory, use "unknown" as fallback
-		home = "unknown"
+		return "unknown"
 	}
-	if home != "" && home != "unknown" {
-		claudeDir := filepath.Join(home, ".claude")
-		if _, err := os.Stat(claudeDir); err == nil {
-			return "claude"
-		}
+
+	claudeDir := filepath.Join(home, ".claude")
+	if _, err := os.Stat(claudeDir); err == nil {
+		return "claude"
 	}
 
 	return "unknown"

@@ -15,13 +15,15 @@ var (
 	initDryRun bool
 )
 
-// exists returns true if the path exists
+// exists returns true if the path exists. All errors (including permission
+// errors) are treated as non-existence for simplicity.
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// isDirectory returns true if the path exists and is a directory
+// isDirectory returns true if the path exists and is a directory. All errors
+// (including permission errors) are treated as non-existence for simplicity.
 func isDirectory(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
