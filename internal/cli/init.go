@@ -158,19 +158,19 @@ func runInit(_ *cobra.Command, _ []string) error {
 		actions = append(actions, action)
 	}
 
-	// Create config.yaml with defaults
+	// Create config.yaml with defaults (contexts and examples)
 	configExists := exists(configPath)
 
 	if !configExists {
-		action := fmt.Sprintf("create file %s", configPath)
+		action := fmt.Sprintf("create file %s (with default contexts and examples)", configPath)
 		if initDryRun {
 			fmt.Printf("%sWould %s\n", prefix, action)
 		} else {
-			defaultConfig := "# Smoke configuration\n# See: smoke explain\n"
+			defaultConfig := config.DefaultSuggestConfigYAML()
 			if writeErr := os.WriteFile(configPath, []byte(defaultConfig), 0600); writeErr != nil {
 				return fmt.Errorf("creating config file: %w", writeErr)
 			}
-			fmt.Printf("Created file: %s\n", configPath)
+			fmt.Printf("Created file: %s (with default contexts and examples)\n", configPath)
 		}
 		actions = append(actions, action)
 	}
