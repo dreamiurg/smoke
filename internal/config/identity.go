@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,14 +54,13 @@ func GetIdentity(override string) (*Identity, error) {
 		}
 		project := detectProject()
 		return &Identity{
-			Agent:   "custom",
+			Agent:   "",
 			Suffix:  sanitizeName(author),
 			Project: project,
 		}, nil
 	}
 
 	// Auto-detect identity
-	agent := detectAgent()
 	seed := getSessionSeed()
 	project := detectProject()
 
@@ -68,11 +68,24 @@ func GetIdentity(override string) (*Identity, error) {
 		return nil, ErrNoIdentity
 	}
 
-	suffix := identity.Generate(seed)
+	// Select pattern deterministically based on seed
+	pattern := identity.SelectPattern(seed)
 
+	// Generate suffix using the selected pattern
+	suffix, err := identity.GenerateWithPattern(seed, pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate suffix: %w", err)
+	}
+
+	// Apply style formatting deterministically based on seed
+	words := splitSuffixIntoWords(suffix)
+	styleFunc := selectStyleFunc(seed)
+	styledSuffix := styleFunc(words)
+
+	// Return identity without agent prefix (remove "claude" from output)
 	return &Identity{
-		Agent:   agent,
-		Suffix:  suffix,
+		Agent:   "",
+		Suffix:  styledSuffix,
 		Project: project,
 	}, nil
 }
@@ -206,4 +219,42 @@ func sanitizeName(name string) string {
 	}
 
 	return strings.ToLower(result.String())
+}
+
+// splitSuffixIntoWords splits a hyphen-separated suffix into words.
+// Examples: "swift-fox" -> ["swift", "fox"], "quantum_seeker" -> ["quantum_seeker"], "QuantumSeeker" -> ["QuantumSeeker"]
+func splitSuffixIntoWords(suffix string) []string {
+	if strings.Contains(suffix, "-") {
+		return strings.Split(suffix, "-")
+	}
+	// If no hyphens, return as single word
+	return []string{suffix}
+}
+
+// selectStyleFunc selects a style formatting function deterministically based on seed.
+// Uses hash-based selection across 6 available styles.
+func selectStyleFunc(seed string) func([]string) string {
+	h := fnv.New32a()
+	h.Write([]byte(seed))
+	hash := h.Sum32()
+
+	// 6 style options: Lowercase, SnakeCase, CamelCase, LowerCamel, KebabCase, WithNumber
+	styleIdx := hash % 6
+
+	switch styleIdx {
+	case 0:
+		return identity.Lowercase
+	case 1:
+		return identity.SnakeCase
+	case 2:
+		return identity.CamelCase
+	case 3:
+		return identity.LowerCamel
+	case 4:
+		return identity.KebabCase
+	case 5:
+		return identity.WithNumber
+	default:
+		return identity.Lowercase
+	}
 }
