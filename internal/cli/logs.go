@@ -46,30 +46,51 @@ func init() {
 }
 
 func runLogs(_ *cobra.Command, args []string) error {
-	logging.LogCommand("logs", args)
+	// Start command tracking
+	tracker := logging.StartCommand("logs", args)
 
 	logPath, err := config.GetLogPath()
 	if err != nil {
+		tracker.Fail(fmt.Errorf("failed to get log path: %w", err))
 		return fmt.Errorf("failed to get log path: %w", err)
 	}
 
 	// Handle --clear flag
 	if logsClear {
-		return clearLogFile(logPath)
+		err = clearLogFile(logPath)
+		if err != nil {
+			tracker.Fail(err)
+		} else {
+			tracker.Complete()
+		}
+		return err
 	}
 
 	// Check if log file exists
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(logPath); os.IsNotExist(statErr) {
 		fmt.Println("No log file found. Logs are created when smoke commands run.")
 		fmt.Printf("Log path: %s\n", logPath)
+		tracker.Complete()
 		return nil
 	}
 
 	if logsTail {
-		return tailLogFile(logPath)
+		err = tailLogFile(logPath)
+		if err != nil {
+			tracker.Fail(err)
+		} else {
+			tracker.Complete()
+		}
+		return err
 	}
 
-	return showLogFile(logPath, logsLines)
+	err = showLogFile(logPath, logsLines)
+	if err != nil {
+		tracker.Fail(err)
+	} else {
+		tracker.Complete()
+	}
+	return err
 }
 
 // showLogFile displays the last n lines of the log file

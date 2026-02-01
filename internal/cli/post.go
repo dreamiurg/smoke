@@ -39,44 +39,49 @@ func init() {
 func runPost(_ *cobra.Command, args []string) error {
 	message := args[0]
 
-	logging.LogCommand("post", args)
-	logging.Verbose("Creating post with message length: %d", len(message))
+	// Start command tracking
+	tracker := logging.StartCommand("post", args)
 
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
-		logging.LogError("smoke not initialized", err)
+		tracker.Fail(err)
 		return err
 	}
 
 	// Get identity
 	identity, err := config.GetIdentity(postAuthor)
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
-	logging.Verbose("Resolved identity: %s", identity.String())
+	tracker.SetIdentity(identity.String(), identity.Agent, identity.Project)
 
 	// Create post
 	post, err := feed.NewPost(identity.String(), identity.Project, identity.Suffix, message)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
-			return fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
+			err = fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
 		}
+		tracker.Fail(err)
 		return err
 	}
 
 	// Store post
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
 	store := feed.NewStoreWithPath(feedPath)
 
 	if err := store.Append(post); err != nil {
-		logging.LogError("failed to save post", err)
+		tracker.Fail(fmt.Errorf("failed to save post: %w", err))
 		return fmt.Errorf("failed to save post: %w", err)
 	}
 
-	logging.LogPostCreated(post.ID, post.Author)
+	// Add post metrics and complete tracking
+	tracker.AddPostMetrics(post.ID, post.Author)
+	tracker.Complete()
 
 	// Output confirmation
 	feed.FormatPosted(os.Stdout, post)

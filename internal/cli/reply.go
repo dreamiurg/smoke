@@ -40,22 +40,26 @@ func runReply(_ *cobra.Command, args []string) error {
 	parentID := args[0]
 	message := args[1]
 
-	logging.LogCommand("reply", args)
+	// Start command tracking
+	tracker := logging.StartCommand("reply", args)
 
 	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
-		logging.LogError("smoke not initialized", err)
+		tracker.Fail(err)
 		return err
 	}
 
 	// Validate parent ID format
 	if !feed.ValidateID(parentID) {
-		return fmt.Errorf("invalid post ID format: %s", parentID)
+		err := fmt.Errorf("invalid post ID format: %s", parentID)
+		tracker.Fail(err)
+		return err
 	}
 
 	// Get store
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
 	store := feed.NewStoreWithPath(feedPath)
@@ -63,34 +67,42 @@ func runReply(_ *cobra.Command, args []string) error {
 	// Check if parent post exists
 	exists, err := store.Exists(parentID)
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("post %s not found", parentID)
+		err = fmt.Errorf("post %s not found", parentID)
+		tracker.Fail(err)
+		return err
 	}
 
 	// Get identity
 	identity, err := config.GetIdentity(replyAuthor)
 	if err != nil {
+		tracker.Fail(err)
 		return err
 	}
+	tracker.SetIdentity(identity.String(), identity.Agent, identity.Project)
 
 	// Create reply
 	reply, err := feed.NewReply(identity.String(), identity.Project, identity.Suffix, message, parentID)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
-			return fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
+			err = fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
 		}
+		tracker.Fail(err)
 		return err
 	}
 
 	// Store reply
 	if err := store.Append(reply); err != nil {
-		logging.LogError("failed to save reply", err)
+		tracker.Fail(fmt.Errorf("failed to save reply: %w", err))
 		return fmt.Errorf("failed to save reply: %w", err)
 	}
 
-	logging.LogPostCreated(reply.ID, reply.Author)
+	// Add post metrics and complete tracking
+	tracker.AddPostMetrics(reply.ID, reply.Author)
+	tracker.Complete()
 
 	// Output confirmation
 	feed.FormatReplied(os.Stdout, reply)
