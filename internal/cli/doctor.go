@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -178,6 +179,12 @@ func runChecks() []Category {
 				performFeedFormatCheck(),
 				performConfigFileCheck(),
 				performTUIConfigCheck(),
+			},
+		},
+		{
+			Name: "MIGRATIONS",
+			Checks: []Check{
+				performMigrationCheck(),
 			},
 		},
 		{
@@ -555,6 +562,70 @@ func fixTUIConfigStyleToLayout(tuiPath string) (*FixResult, error) {
 		BackupPath:  backupPath,
 	}
 	return result, nil
+}
+
+// performMigrationCheck checks if config needs migration updates
+func performMigrationCheck() Check {
+	const name = "Config Migrations"
+
+	configMap, err := config.GetConfigAsMap()
+	if err != nil {
+		return failCheck(name, "cannot read config", err.Error(), false, nil)
+	}
+
+	// Check for future schema version
+	if validationErr := config.ValidateSchemaVersion(configMap); validationErr != nil {
+		return warnCheck(name, "config from future version", validationErr.Error())
+	}
+
+	pending, err := config.GetPendingMigrations()
+	if err != nil {
+		// Handle error - could be missing config dir, invalid YAML, etc.
+		return failCheck(name, "cannot check migrations", err.Error(), false, nil)
+	}
+
+	if len(pending) == 0 {
+		// Get current schema version for display
+		version, _ := config.GetSchemaVersion(configMap)
+		return passCheck(name, fmt.Sprintf("up to date (schema v%d)", version))
+	}
+
+	// Build list of pending migration names
+	names := make([]string, len(pending))
+	for i, m := range pending {
+		names[i] = m.Name
+	}
+
+	return Check{
+		Name:    name,
+		Status:  StatusWarn,
+		Message: fmt.Sprintf("%d pending", len(pending)),
+		Detail:  fmt.Sprintf("Pending: %s. Run 'smoke doctor --fix' to apply.", strings.Join(names, ", ")),
+		CanFix:  true,
+		Fix:     fixMigrations,
+	}
+}
+
+// fixMigrations applies all pending config migrations
+func fixMigrations() (*FixResult, error) {
+	applied, err := config.ApplyMigrations(false) // not dry-run
+	if err != nil {
+		return nil, err
+	}
+
+	if len(applied) == 0 {
+		return &FixResult{Description: "No migrations to apply"}, nil
+	}
+
+	// Build list of applied migration names
+	names := make([]string, len(applied))
+	for i, m := range applied {
+		names[i] = m.Name
+	}
+
+	return &FixResult{
+		Description: fmt.Sprintf("Applied %d migration(s): %s", len(applied), strings.Join(names, ", ")),
+	}, nil
 }
 
 // performConfigFileCheck verifies config.yaml exists and is valid YAML

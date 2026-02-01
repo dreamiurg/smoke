@@ -858,3 +858,83 @@ func TestSmokeDoctorDryRunNoModify(t *testing.T) {
 		t.Error("doctor --fix --dry-run should not create feed.jsonl")
 	}
 }
+
+func TestSmokeDoctorDetectsPendingMigrations(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Create config without _schema_version and without pressure field
+	// to simulate an old config that needs migration
+	configPath := filepath.Join(h.configDir, "config.yaml")
+	oldConfig := "# Old config without schema version\n"
+	if err := os.WriteFile(configPath, []byte(oldConfig), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// Run doctor
+	stdout, _, exitCode := h.RunWithExitCode("doctor")
+
+	// Should show pending migration
+	if !strings.Contains(stdout, "MIGRATIONS") {
+		t.Errorf("doctor output missing MIGRATIONS category: %s", stdout)
+	}
+	if !strings.Contains(stdout, "pending") {
+		t.Errorf("doctor output missing 'pending' indicator: %s", stdout)
+	}
+	if !strings.Contains(stdout, "add_pressure") {
+		t.Errorf("doctor output missing migration name 'add_pressure': %s", stdout)
+	}
+
+	// Exit code should be 1 for warnings
+	if exitCode != 1 {
+		t.Errorf("doctor exit code = %d, want 1 for pending migrations", exitCode)
+	}
+}
+
+func TestSmokeDoctorFixAppliesMigrations(t *testing.T) {
+	h := NewTestHelper(t)
+	defer h.Cleanup()
+
+	// Initialize smoke
+	if _, _, err := h.Run("init"); err != nil {
+		t.Fatalf("smoke init failed: %v", err)
+	}
+
+	// Create config without _schema_version
+	configPath := filepath.Join(h.configDir, "config.yaml")
+	oldConfig := "# Old config\n"
+	if err := os.WriteFile(configPath, []byte(oldConfig), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// Run doctor --fix
+	stdout, _, exitCode := h.RunWithExitCode("doctor", "--fix")
+
+	// Should show migration was applied
+	if !strings.Contains(stdout, "Fixed:") || !strings.Contains(stdout, "Config Migrations") {
+		t.Errorf("doctor --fix output missing migration fix message: %s", stdout)
+	}
+	if !strings.Contains(stdout, "add_pressure") {
+		t.Errorf("doctor --fix output missing applied migration name: %s", stdout)
+	}
+
+	// After fix, exit code should be 0
+	if exitCode != 0 {
+		t.Errorf("doctor --fix exit code = %d, want 0 after migrations applied", exitCode)
+	}
+
+	// Run doctor again - should show up to date
+	stdout2, _, exitCode2 := h.RunWithExitCode("doctor")
+
+	if !strings.Contains(stdout2, "up to date") || !strings.Contains(stdout2, "schema v1") {
+		t.Errorf("doctor output after fix should show 'up to date (schema v1)': %s", stdout2)
+	}
+	if exitCode2 != 0 {
+		t.Errorf("doctor exit code after fix = %d, want 0", exitCode2)
+	}
+}
