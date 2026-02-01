@@ -725,3 +725,209 @@ func TestComputeStats_Empty(t *testing.T) {
 		t.Errorf("ComputeStats(nil).ProjectCount = %d, want 0", stats.ProjectCount)
 	}
 }
+
+func TestModelFormatPost_AllStyles(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	post := &Post{
+		ID:        "smk-test123",
+		Author:    "test-author",
+		Project:   "smoke",
+		Suffix:    "test",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	styles := []string{"header", "irc", "slack", "minimal"}
+
+	for _, styleName := range styles {
+		t.Run(styleName, func(t *testing.T) {
+			model := testModel(store)
+			model.width = 80
+			model.style = GetStyle(styleName)
+
+			lines := model.formatPost(post)
+
+			if len(lines) == 0 {
+				t.Errorf("formatPost() with style %q should return at least one line", styleName)
+			}
+
+			combined := strings.Join(lines, "\n")
+			if !strings.Contains(combined, "hello world") {
+				t.Errorf("formatPost() with style %q should include post content", styleName)
+			}
+		})
+	}
+}
+
+func TestFormatPostIRC(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.style = GetStyle("irc")
+
+	post := &Post{
+		ID:        "smk-test123",
+		Author:    "test-author",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	lines := model.formatPostIRC(post)
+
+	if len(lines) == 0 {
+		t.Error("formatPostIRC() should return at least one line")
+	}
+
+	combined := strings.Join(lines, "\n")
+	if !strings.Contains(combined, "<") || !strings.Contains(combined, ">") {
+		t.Error("formatPostIRC() should include angle brackets around author")
+	}
+	if !strings.Contains(combined, "hello world") {
+		t.Error("formatPostIRC() should include post content")
+	}
+}
+
+func TestFormatPostSlack(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.style = GetStyle("slack")
+
+	post := &Post{
+		ID:        "smk-test123",
+		Author:    "test-author",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	lines := model.formatPostSlack(post)
+
+	if len(lines) < 2 {
+		t.Error("formatPostSlack() should return at least 2 lines (author + content)")
+	}
+	combined := strings.Join(lines, "\n")
+	if !strings.Contains(combined, "hello world") {
+		t.Error("formatPostSlack() should include post content")
+	}
+}
+
+func TestFormatPostMinimal(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.style = GetStyle("minimal")
+
+	post := &Post{
+		ID:        "smk-test123",
+		Author:    "test-author",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	lines := model.formatPostMinimal(post)
+
+	if len(lines) == 0 {
+		t.Error("formatPostMinimal() should return at least one line")
+	}
+	combined := strings.Join(lines, "\n")
+	if !strings.Contains(combined, "hello world") {
+		t.Error("formatPostMinimal() should include post content")
+	}
+	if !strings.Contains(combined, ":") {
+		t.Error("formatPostMinimal() should include colon separator")
+	}
+}
+
+func TestFormatPostHeader(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.style = GetStyle("header")
+
+	post := &Post{
+		ID:        "smk-test123",
+		Author:    "test-author",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	lines := model.formatPostHeader(post)
+
+	if len(lines) < 2 {
+		t.Error("formatPostHeader() should return at least 2 lines (header + content)")
+	}
+	combined := strings.Join(lines, "\n")
+	if !strings.Contains(combined, "hello world") {
+		t.Error("formatPostHeader() should include post content")
+	}
+}
+
+func TestGetStyle(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"valid header", "header", "header"},
+		{"valid irc", "irc", "irc"},
+		{"valid slack", "slack", "slack"},
+		{"valid minimal", "minimal", "minimal"},
+		{"invalid returns default", "nonexistent", "header"},
+		{"empty returns default", "", "header"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			style := GetStyle(tt.input)
+			if style == nil {
+				t.Fatal("GetStyle() returned nil")
+			}
+			if style.Name != tt.want {
+				t.Errorf("GetStyle(%q).Name = %q, want %q", tt.input, style.Name, tt.want)
+			}
+		})
+	}
+}
+
+func TestNextStyle(t *testing.T) {
+	tests := []struct {
+		name    string
+		current string
+		want    string
+	}{
+		{"next after header", "header", "irc"},
+		{"next after irc", "irc", "slack"},
+		{"next after slack", "slack", "minimal"},
+		{"next after minimal wraps", "minimal", "header"},
+		{"invalid returns first", "nonexistent", "header"},
+		{"empty returns first", "", "header"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NextStyle(tt.current)
+			if got != tt.want {
+				t.Errorf("NextStyle(%q) = %q, want %q", tt.current, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderContent(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 24
+
+	post, _ := NewPost("test-author", "smoke", "test", "test content")
+	model.posts = []*Post{post}
+
+	result := model.renderContent(20)
+
+	if result == "" {
+		t.Error("renderContent() should return content")
+	}
+	if !strings.Contains(result, "test content") {
+		t.Error("renderContent() should include post content")
+	}
+}
