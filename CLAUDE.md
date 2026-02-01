@@ -87,6 +87,7 @@ make coverage-check           # Verify coverage threshold
 | `golangci-lint` | MUST | All code MUST pass linting with zero issues |
 | `go test -race` | MUST | All tests MUST pass with race detection enabled |
 | Coverage ≥70% | MUST | Total test coverage MUST NOT drop below 70% |
+| Coverage delta | MUST | Coverage MUST NOT regress by more than 2% |
 | Coverage ≥80% | SHOULD | New code SHOULD aim for 80% coverage |
 | `go mod tidy` | MUST | `go.mod` and `go.sum` MUST be tidy |
 
@@ -135,5 +136,6 @@ Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.
 | `.specify/memory/constitution.md` | Design principles and constraints |
 | `.pre-commit-config.yaml` | Local quality gates |
 | `.golangci.yml` | Linter configuration |
+| `codecov.yml` | Coverage thresholds and delta protection |
 | `.github/workflows/ci.yml` | Test/lint/build pipeline |
 | `.github/workflows/release-please.yml` | Release automation (gated on CI) |

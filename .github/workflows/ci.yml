@@ -68,7 +68,10 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.out
-          fail_ci_if_error: false
+          fail_ci_if_error: true
+          # Coverage delta checks configured in codecov.yml:
+          # - Project coverage MUST NOT drop below 70%
+          # - Coverage MUST NOT regress by more than 2%
 
   build:
     name: Build
