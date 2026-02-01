@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/dreamiurg/smoke/internal/config"
 )
 
 func TestWhoamiCommand(t *testing.T) {
@@ -17,6 +19,10 @@ func TestWhoamiCommand(t *testing.T) {
 		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
 	}()
 
+	// Get the actual auto-detected project for assertions
+	// @project override is now ignored, always auto-detected
+	actualProject := detectProject()
+
 	tests := []struct {
 		name       string
 		bdActor    string
@@ -26,51 +32,51 @@ func TestWhoamiCommand(t *testing.T) {
 		wantJSON   map[string]string
 	}{
 		{
-			name:       "default format with BD_ACTOR",
-			bdActor:    "testbot@myproject",
+			name:       "default format with BD_ACTOR (project override ignored)",
+			bdActor:    "testbot@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   false,
-			wantOutput: "testbot@myproject",
+			wantOutput: "custom-testbot@" + actualProject, // @project is auto-detected
 		},
 		{
 			name:       "name only with BD_ACTOR",
-			bdActor:    "testbot@myproject",
+			bdActor:    "testbot@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   true,
-			wantOutput: "testbot",
+			wantOutput: "custom-testbot", // agent is "custom", suffix is full name
 		},
 		{
-			name:     "json format with BD_ACTOR",
-			bdActor:  "testbot@myproject",
+			name:     "json format with BD_ACTOR (project override ignored)",
+			bdActor:  "testbot@ignored-project",
 			jsonFlag: true,
 			nameFlag: false,
 			wantJSON: map[string]string{
-				"name":    "testbot",
-				"project": "myproject",
+				"name":    "custom-testbot",
+				"project": actualProject, // @project is auto-detected
 			},
 		},
 		{
-			name:       "agent-suffix format",
-			bdActor:    "claude-swift-fox@smoke",
+			name:       "agent-suffix format (project override ignored)",
+			bdActor:    "claude-swift-fox@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   false,
-			wantOutput: "claude-swift-fox@smoke",
+			wantOutput: "custom-claude-swift-fox@" + actualProject, // Full name as suffix, project auto-detected
 		},
 		{
 			name:       "agent-suffix name only",
-			bdActor:    "claude-swift-fox@smoke",
+			bdActor:    "claude-swift-fox@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   true,
-			wantOutput: "claude-swift-fox",
+			wantOutput: "custom-claude-swift-fox", // Full name as suffix
 		},
 		{
-			name:     "agent-suffix json format",
-			bdActor:  "claude-swift-fox@smoke",
+			name:     "agent-suffix json format (project override ignored)",
+			bdActor:  "claude-swift-fox@ignored-project",
 			jsonFlag: true,
 			nameFlag: false,
 			wantJSON: map[string]string{
-				"name":    "claude-swift-fox",
-				"project": "smoke",
+				"name":    "custom-claude-swift-fox",
+				"project": actualProject, // @project is auto-detected
 			},
 		},
 	}
@@ -149,4 +155,13 @@ func TestWhoamiCommandRegistered(t *testing.T) {
 	if !found {
 		t.Error("whoami command not registered with root")
 	}
+}
+
+// detectProject is a test helper to get the auto-detected project name
+func detectProject() string {
+	id, err := config.GetIdentity()
+	if err != nil {
+		return "unknown"
+	}
+	return id.Project
 }

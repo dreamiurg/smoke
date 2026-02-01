@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -52,15 +53,17 @@ func TestGetIdentityWithOverride(t *testing.T) {
 }
 
 func TestParseFullIdentity(t *testing.T) {
+	// Get the actual auto-detected project for comparison
+	actualProject := detectProject()
+
 	tests := []struct {
-		input   string
-		agent   string
-		suffix  string
-		project string
+		input  string
+		agent  string
+		suffix string
 	}{
-		{"claude-swift-fox@smoke", "claude", "swift-fox", "smoke"},
-		{"unknown-calm-owl@myproject", "unknown", "calm-owl", "myproject"},
-		{"custom@test", "", "custom", "test"},
+		{"claude-swift-fox@smoke", "claude", "swift-fox"},
+		{"unknown-calm-owl@myproject", "unknown", "calm-owl"},
+		{"custom@test", "", "custom"},
 	}
 
 	for _, tt := range tests {
@@ -73,8 +76,9 @@ func TestParseFullIdentity(t *testing.T) {
 			if id.Suffix != tt.suffix {
 				t.Errorf("Suffix: got %q, want %q", id.Suffix, tt.suffix)
 			}
-			if id.Project != tt.project {
-				t.Errorf("Project: got %q, want %q", id.Project, tt.project)
+			// Project should ALWAYS be auto-detected, not from input
+			if id.Project != actualProject {
+				t.Errorf("Project: got %q, want auto-detected %q (input @project should be ignored)", id.Project, actualProject)
 			}
 		})
 	}
@@ -186,42 +190,48 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 }
 
 func TestParseFullIdentity_AllComponents(t *testing.T) {
+	// Get the actual auto-detected project
+	actualProject := detectProject()
+
 	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-		wantID  *Identity
+		name   string
+		input  string
+		wantID *Identity
 	}{
 		{
-			name:  "valid format",
-			input: "agent-suffix@project",
+			name:  "valid format with @project (project ignored)",
+			input: "agent-suffix@ignored-project",
 			wantID: &Identity{
 				Agent:   "agent",
 				Suffix:  "suffix",
-				Project: "project",
+				Project: actualProject, // ALWAYS auto-detected
 			},
 		},
 		{
-			name:  "no agent dash",
-			input: "agent@project",
+			name:  "no agent dash with @project (project ignored)",
+			input: "agent@ignored-project",
 			wantID: &Identity{
 				Agent:   "",
 				Suffix:  "agent",
-				Project: "project",
+				Project: actualProject, // ALWAYS auto-detected
 			},
 		},
 		{
-			name:    "no project separator",
-			input:   "agent-suffix",
-			wantErr: true,
-		},
-		{
-			name:  "case insensitive",
-			input: "Agent-Suffix@Project",
+			name:  "no project separator (project auto-detected)",
+			input: "agent-suffix",
 			wantID: &Identity{
 				Agent:   "agent",
 				Suffix:  "suffix",
-				Project: "project",
+				Project: actualProject, // ALWAYS auto-detected
+			},
+		},
+		{
+			name:  "case insensitive with @project (project ignored)",
+			input: "Agent-Suffix@Ignored-Project",
+			wantID: &Identity{
+				Agent:   "agent",
+				Suffix:  "suffix",
+				Project: actualProject, // ALWAYS auto-detected
 			},
 		},
 	}
@@ -229,13 +239,7 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseFullIdentity(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseFullIdentity() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr {
-				return
-			}
+			require.NoError(t, err)
 			if id.Agent != tt.wantID.Agent {
 				t.Errorf("Agent: got %q, want %q", id.Agent, tt.wantID.Agent)
 			}
@@ -243,7 +247,7 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 				t.Errorf("Suffix: got %q, want %q", id.Suffix, tt.wantID.Suffix)
 			}
 			if id.Project != tt.wantID.Project {
-				t.Errorf("Project: got %q, want %q", id.Project, tt.wantID.Project)
+				t.Errorf("Project: got %q, want %q (should be auto-detected)", id.Project, tt.wantID.Project)
 			}
 		})
 	}
@@ -262,15 +266,16 @@ func TestDetectProject_InGitRepo(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// Create a .git directory marker
-	dotGit := filepath.Join(gitDir, ".git")
-	if err := os.MkdirAll(dotGit, 0755); err != nil {
-		t.Fatalf("Failed to create .git dir: %v", err)
-	}
-
-	// Change to the git repo directory
+	// Initialize a real git repo (needed for detectProject to work)
 	if err := os.Chdir(gitDir); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Run git init to create a real .git directory
+	cmd := exec.Command("git", "init")
+	cmd.Dir = gitDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to git init: %v", err)
 	}
 
 	project := detectProject()
@@ -287,17 +292,23 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	// Set session for fallback
 	os.Setenv("TERM_SESSION_ID", "test-session-456")
 
-	identity, err := GetIdentityWithOverride("custom-brave@test")
+	// Get the actual auto-detected project
+	actualProject := detectProject()
+
+	identity, err := GetIdentityWithOverride("custom-brave@ignored-project")
 	require.NoError(t, err)
 
+	// With the new behavior, "custom-brave" is treated as the full suffix
+	// @project is stripped but we don't parse agent-suffix anymore in overrides
 	if identity.Agent != "custom" {
 		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
 	}
-	if identity.Suffix != "brave" {
-		t.Errorf("Expected suffix 'brave', got %q", identity.Suffix)
+	if identity.Suffix != "custom-brave" {
+		t.Errorf("Expected suffix 'custom-brave', got %q", identity.Suffix)
 	}
-	if identity.Project != "test" {
-		t.Errorf("Expected project 'test', got %q", identity.Project)
+	// Project should be auto-detected, not from override
+	if identity.Project != actualProject {
+		t.Errorf("Expected project to be auto-detected as %q, got %q", actualProject, identity.Project)
 	}
 }
 
@@ -455,23 +466,29 @@ func TestIdentityString_WithoutAgent(t *testing.T) {
 
 func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
 	// Test GetIdentity with full identity in SMOKE_AUTHOR env var
-	// This covers the parseFullIdentity path (line 42-44)
+	// @project should be ignored and auto-detected
 	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
 	defer os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
 
-	os.Setenv("SMOKE_AUTHOR", "claude-brave@myproject")
+	os.Setenv("SMOKE_AUTHOR", "claude-brave@ignored-project")
+
+	// Get the actual auto-detected project
+	actualProject := detectProject()
 
 	identity, err := GetIdentity()
 	require.NoError(t, err)
 
-	if identity.Agent != "claude" {
-		t.Errorf("Expected agent 'claude', got %q", identity.Agent)
+	// With the new behavior, "claude-brave" is treated as the full suffix
+	// @project is stripped but we don't parse agent-suffix anymore in overrides
+	if identity.Agent != "custom" {
+		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
 	}
-	if identity.Suffix != "brave" {
-		t.Errorf("Expected suffix 'brave', got %q", identity.Suffix)
+	if identity.Suffix != "claude-brave" {
+		t.Errorf("Expected suffix 'claude-brave', got %q", identity.Suffix)
 	}
-	if identity.Project != "myproject" {
-		t.Errorf("Expected project 'myproject', got %q", identity.Project)
+	// Project should be auto-detected, not from SMOKE_AUTHOR
+	if identity.Project != actualProject {
+		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in SMOKE_AUTHOR)", actualProject, identity.Project)
 	}
 }
 
@@ -556,6 +573,7 @@ func TestGetIdentity_WithBdActorOverride(t *testing.T) {
 
 func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 	// Test that BD_ACTOR with full identity format is parsed correctly
+	// @project should be ignored and auto-detected
 	origBDActor := os.Getenv("BD_ACTOR")
 	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
 	defer func() {
@@ -563,20 +581,26 @@ func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
 	}()
 
-	os.Setenv("BD_ACTOR", "agent-name@project")
+	os.Setenv("BD_ACTOR", "agent-name@ignored-project")
 	os.Setenv("SMOKE_AUTHOR", "")
+
+	// Get the actual auto-detected project
+	actualProject := detectProject()
 
 	identity, err := GetIdentity()
 	require.NoError(t, err)
 
-	if identity.Agent != "agent" {
-		t.Errorf("Expected agent 'agent', got %q", identity.Agent)
+	// With the new behavior, "agent-name" is treated as the full suffix
+	// @project is stripped but we don't parse agent-suffix anymore in overrides
+	if identity.Agent != "custom" {
+		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
 	}
-	if identity.Suffix != "name" {
-		t.Errorf("Expected suffix 'name', got %q", identity.Suffix)
+	if identity.Suffix != "agent-name" {
+		t.Errorf("Expected suffix 'agent-name', got %q", identity.Suffix)
 	}
-	if identity.Project != "project" {
-		t.Errorf("Expected project 'project', got %q", identity.Project)
+	// Project should be auto-detected, not from BD_ACTOR
+	if identity.Project != actualProject {
+		t.Errorf("Expected project to be auto-detected as %q, got %q (should ignore @project in BD_ACTOR)", actualProject, identity.Project)
 	}
 }
 
@@ -612,4 +636,89 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	}
 
 	t.Logf("Auto-detected identity: %s", identity.String())
+}
+
+// Test that @project override is ignored in BD_ACTOR
+func TestGetIdentity_BdActorIgnoresProjectOverride(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	defer os.Setenv("BD_ACTOR", origBDActor)
+
+	actualProject := detectProject()
+
+	// Try to override with @fake-project
+	os.Setenv("BD_ACTOR", "alice@fake-project")
+
+	identity, err := GetIdentity()
+	require.NoError(t, err)
+
+	// Should use name "alice" but ignore project override
+	if identity.Suffix != "alice" {
+		t.Errorf("Expected suffix 'alice', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @fake-project)", actualProject, identity.Project)
+	}
+}
+
+// Test that @project override is ignored in SMOKE_AUTHOR
+func TestGetIdentity_SmokeAuthorIgnoresProjectOverride(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	defer func() {
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+	}()
+
+	actualProject := detectProject()
+
+	// Clear BD_ACTOR to ensure SMOKE_AUTHOR is used
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "bob@other-repo")
+
+	identity, err := GetIdentity()
+	require.NoError(t, err)
+
+	// Should use name "bob" but ignore project override
+	if identity.Suffix != "bob" {
+		t.Errorf("Expected suffix 'bob', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @other-repo)", actualProject, identity.Project)
+	}
+}
+
+// Test that --as flag ignores @project override
+func TestGetIdentityWithOverride_IgnoresProjectOverride(t *testing.T) {
+	actualProject := detectProject()
+
+	identity, err := GetIdentityWithOverride("charlie@ignored-project")
+	require.NoError(t, err)
+
+	// Should use name "charlie" but ignore project override
+	if identity.Suffix != "charlie" {
+		t.Errorf("Expected suffix 'charlie', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q (should ignore @ignored-project)", actualProject, identity.Project)
+	}
+}
+
+// Test that name without @ works normally
+func TestGetIdentity_NameWithoutAt(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	defer os.Setenv("BD_ACTOR", origBDActor)
+
+	actualProject := detectProject()
+
+	os.Setenv("BD_ACTOR", "dave")
+
+	identity, err := GetIdentity()
+	require.NoError(t, err)
+
+	if identity.Suffix != "dave" {
+		t.Errorf("Expected suffix 'dave', got %q", identity.Suffix)
+	}
+	if identity.Project != actualProject {
+		t.Errorf("Expected project %q (auto-detected), got %q", actualProject, identity.Project)
+	}
 }

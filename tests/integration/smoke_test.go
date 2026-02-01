@@ -259,7 +259,8 @@ func TestSmokeFeed(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("ember@testrig")
+	// Note: @testrig is ignored, project is auto-detected
+	h.SetIdentity("ember@ignored-testrig")
 
 	// Post a few messages
 	h.Run("post", "first post")
@@ -279,8 +280,9 @@ func TestSmokeFeed(t *testing.T) {
 	if !strings.Contains(stdout, "third post") {
 		t.Errorf("feed missing third post: %s", stdout)
 	}
-	if !strings.Contains(stdout, "ember@testrig") {
-		t.Errorf("feed missing author: %s", stdout)
+	// Note: project is auto-detected, so check for custom-ember@ instead
+	if !strings.Contains(stdout, "custom-ember@") {
+		t.Errorf("feed missing author (should be custom-ember@{auto-detected}): %s", stdout)
 	}
 }
 
@@ -293,7 +295,8 @@ func TestSmokeFeedLimit(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("ember@testrig")
+	// Note: @testrig is ignored, project is auto-detected
+	h.SetIdentity("ember@ignored-testrig")
 
 	// Post 5 messages
 	for i := 0; i < 5; i++ {
@@ -307,7 +310,8 @@ func TestSmokeFeedLimit(t *testing.T) {
 	}
 
 	// Count posts in output (look for author pattern)
-	count := strings.Count(stdout, "ember@testrig")
+	// Note: project is auto-detected, so check for custom-ember@ instead
+	count := strings.Count(stdout, "custom-ember@")
 	if count != 2 {
 		t.Errorf("feed -n 2 returned %d posts, want 2", count)
 	}
@@ -503,7 +507,8 @@ func TestSmokeFeedBoxDrawing(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	h.SetIdentity("ember@testrig")
+	// Note: @testrig is ignored, project is auto-detected
+	h.SetIdentity("ember@ignored-testrig")
 	h.Run("post", "box drawing test")
 
 	// Read feed
@@ -513,8 +518,9 @@ func TestSmokeFeedBoxDrawing(t *testing.T) {
 	}
 
 	// Check for compact format elements
-	if !strings.Contains(stdout, "ember@testrig") {
-		t.Errorf("feed missing author@project: %s", stdout)
+	// Note: project is auto-detected from git/cwd, not from BD_ACTOR
+	if !strings.Contains(stdout, "custom-ember@") {
+		t.Errorf("feed missing author@project (should be custom-ember@{auto-detected}): %s", stdout)
 	}
 	if !strings.Contains(stdout, "box drawing test") {
 		t.Errorf("feed missing post content: %s", stdout)
