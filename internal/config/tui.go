@@ -9,11 +9,11 @@ import (
 
 // TUIConfig stores user preferences for the TUI feed.
 type TUIConfig struct {
-	Theme         string `yaml:"theme"`
-	Contrast      string `yaml:"contrast"`
-	Layout        string `yaml:"layout"`
-	AutoRefresh   bool   `yaml:"auto_refresh"`
-	NewestOnTop   bool   `yaml:"newest_on_top"` // Sort order: true=newest first, false=oldest first (default)
+	Theme       string `yaml:"theme"`
+	Contrast    string `yaml:"contrast"`
+	Layout      string `yaml:"layout"`
+	AutoRefresh bool   `yaml:"auto_refresh"`
+	NewestOnTop bool   `yaml:"newest_on_top"` // Sort order: true=newest first, false=oldest first (default)
 }
 
 // TUIConfigFile is the name of the TUI config file

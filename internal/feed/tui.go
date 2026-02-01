@@ -19,19 +19,20 @@ const (
 
 // Model is the Bubbletea model for the TUI feed.
 type Model struct {
-	posts       []*Post
-	theme       *Theme
-	contrast    *ContrastLevel
-	layout      *LayoutStyle
-	showHelp    bool
-	autoRefresh bool
-	newestOnTop bool // Sort order: true=newest first, false=oldest first
-	width       int
-	height      int
-	store       *Store
-	config      *config.TUIConfig
-	version     string
-	err         error
+	posts        []*Post
+	theme        *Theme
+	contrast     *ContrastLevel
+	layout       *LayoutStyle
+	showHelp     bool
+	autoRefresh  bool
+	newestOnTop  bool // Sort order: true=newest first, false=oldest first
+	scrollOffset int  // Number of lines scrolled from top
+	width        int
+	height       int
+	store        *Store
+	config       *config.TUIConfig
+	version      string
+	err          error
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
@@ -117,10 +118,60 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "s":
-			// Toggle sort order
+			// Toggle sort order and scroll to show newest posts
 			m.newestOnTop = !m.newestOnTop
 			m.config.NewestOnTop = m.newestOnTop
 			m.err = config.SaveTUIConfig(m.config)
+			// Scroll to show newest posts: top if newestOnTop, bottom otherwise
+			if m.newestOnTop {
+				m.scrollOffset = 0
+			} else {
+				m.scrollOffset = m.maxScrollOffset()
+			}
+			return m, nil
+
+		case "up", "k":
+			// Scroll up one line
+			if m.scrollOffset > 0 {
+				m.scrollOffset--
+			}
+			return m, nil
+
+		case "down", "j":
+			// Scroll down one line
+			maxOffset := m.maxScrollOffset()
+			if m.scrollOffset < maxOffset {
+				m.scrollOffset++
+			}
+			return m, nil
+
+		case "pgup", "ctrl+u":
+			// Scroll up one page
+			pageSize := m.height - 2 // Account for header and status bar
+			m.scrollOffset -= pageSize
+			if m.scrollOffset < 0 {
+				m.scrollOffset = 0
+			}
+			return m, nil
+
+		case "pgdown", "ctrl+d":
+			// Scroll down one page
+			pageSize := m.height - 2
+			maxOffset := m.maxScrollOffset()
+			m.scrollOffset += pageSize
+			if m.scrollOffset > maxOffset {
+				m.scrollOffset = maxOffset
+			}
+			return m, nil
+
+		case "home", "g":
+			// Scroll to top
+			m.scrollOffset = 0
+			return m, nil
+
+		case "end", "G":
+			// Scroll to bottom
+			m.scrollOffset = m.maxScrollOffset()
 			return m, nil
 
 		case "l":
@@ -293,64 +344,96 @@ func (m Model) renderStatusBar() string {
 	return style.Render(statusText)
 }
 
-// renderContent renders the feed content area
-func (m Model) renderContent(availableHeight int) string {
-	var content strings.Builder
-
+// buildAllContentLines builds all content lines for the feed (used for scrolling)
+func (m Model) buildAllContentLines() []string {
 	if len(m.posts) == 0 {
-		content.WriteString("No posts yet. Exit TUI (q) and try: smoke post \"hello world\"\n")
-	} else {
-		threads := buildThreads(m.posts)
+		return []string{"No posts yet. Exit TUI (q) and try: smoke post \"hello world\""}
+	}
 
-		// Reverse thread order if newestOnTop is true
-		// Default (newestOnTop=false): oldest at top, newest at bottom
-		// newestOnTop=true: newest at top, oldest at bottom
-		if m.newestOnTop {
-			for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
-				threads[i], threads[j] = threads[j], threads[i]
-			}
+	threads := buildThreads(m.posts)
+
+	// Reverse thread order if newestOnTop is true
+	if m.newestOnTop {
+		for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
+			threads[i], threads[j] = threads[j], threads[i]
+		}
+	}
+
+	var lines []string
+	for i, thread := range threads {
+		// Format main post
+		postLines := m.formatPost(thread.post)
+		lines = append(lines, postLines...)
+
+		// Format replies (indented)
+		for _, reply := range thread.replies {
+			replyLines := m.formatReply(reply)
+			lines = append(lines, replyLines...)
 		}
 
-		lineCount := 0
-
-		for i, thread := range threads {
-			if lineCount >= availableHeight {
-				break
-			}
-
-			// Format main post using current style
-			postLines := m.formatPost(thread.post)
-			for _, line := range postLines {
-				if lineCount >= availableHeight {
-					break
-				}
-				content.WriteString(line)
-				content.WriteString("\n")
-				lineCount++
-			}
-
-			// Format replies (indented)
-			for _, reply := range thread.replies {
-				if lineCount >= availableHeight {
-					break
-				}
-				replyLines := m.formatReply(reply)
-				for _, line := range replyLines {
-					if lineCount >= availableHeight {
-						break
-					}
-					content.WriteString(line)
-					content.WriteString("\n")
-					lineCount++
-				}
-			}
-
-			// Blank line between threads
-			if i < len(threads)-1 && lineCount < availableHeight {
-				content.WriteString("\n")
-				lineCount++
-			}
+		// Blank line between threads
+		if i < len(threads)-1 {
+			lines = append(lines, "")
 		}
+	}
+
+	return lines
+}
+
+// maxScrollOffset returns the maximum scroll offset based on content size
+func (m Model) maxScrollOffset() int {
+	allLines := m.buildAllContentLines()
+	availableHeight := m.height - 2 // header + status bar
+	if availableHeight <= 0 {
+		availableHeight = 1
+	}
+	maxOffset := len(allLines) - availableHeight
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	return maxOffset
+}
+
+// renderContent renders the feed content area with scroll support
+func (m Model) renderContent(availableHeight int) string {
+	allLines := m.buildAllContentLines()
+
+	// Clamp scroll offset
+	maxOffset := len(allLines) - availableHeight
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	offset := m.scrollOffset
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Extract visible lines
+	endIdx := offset + availableHeight
+	if endIdx > len(allLines) {
+		endIdx = len(allLines)
+	}
+	visibleLines := allLines[offset:endIdx]
+
+	// Build content with each line having background color
+	contentStyle := lipgloss.NewStyle().
+		Background(m.theme.Background).
+		Width(m.width)
+
+	var content strings.Builder
+	for _, line := range visibleLines {
+		content.WriteString(contentStyle.Render(line))
+		content.WriteString("\n")
+	}
+
+	// Fill remaining lines with background color if content is shorter than available height
+	linesRendered := len(visibleLines)
+	for i := linesRendered; i < availableHeight; i++ {
+		content.WriteString(contentStyle.Render(""))
+		content.WriteString("\n")
 	}
 
 	return content.String()
@@ -523,22 +606,31 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("\n")
 	helpContent.WriteString("          Smoke Feed\n")
 	helpContent.WriteString("\n")
-	helpContent.WriteString("   q      Quit\n")
+	helpContent.WriteString("  Navigation\n")
+	helpContent.WriteString("   ↑/k    Scroll up\n")
+	helpContent.WriteString("   ↓/j    Scroll down\n")
+	helpContent.WriteString("   PgUp   Page up\n")
+	helpContent.WriteString("   PgDn   Page down\n")
+	helpContent.WriteString("   g/G    Top/bottom\n")
+	helpContent.WriteString("\n")
+	helpContent.WriteString("  Settings\n")
 	helpContent.WriteString("   a      Toggle auto-refresh\n")
 	helpContent.WriteString("   s      Toggle sort order\n")
-	helpContent.WriteString("   l/L    Cycle layout (fwd/back)\n")
-	helpContent.WriteString("   t/T    Cycle theme (fwd/back)\n")
-	helpContent.WriteString("   c/C    Cycle contrast (fwd/back)\n")
+	helpContent.WriteString("   l/L    Cycle layout\n")
+	helpContent.WriteString("   t/T    Cycle theme\n")
+	helpContent.WriteString("   c/C    Cycle contrast\n")
 	helpContent.WriteString("   r      Refresh now\n")
-	helpContent.WriteString("   ?      Close this help\n")
+	helpContent.WriteString("   q      Quit\n")
 	helpContent.WriteString("\n")
+	helpContent.WriteString("\n")
+	helpContent.WriteString("  Current Settings\n")
 	helpContent.WriteString(fmt.Sprintf("   Auto: %s\n", autoStr))
 	helpContent.WriteString(fmt.Sprintf("   Sort: %s\n", sortStr))
 	helpContent.WriteString(fmt.Sprintf("   Layout: %s\n", layoutName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
 	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
 	helpContent.WriteString("\n")
-	helpContent.WriteString("       Press any key to close\n")
+	helpContent.WriteString("      Press any key to close\n")
 
 	helpStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
