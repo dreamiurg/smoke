@@ -46,20 +46,20 @@ func GetIdentity(override string) (*Identity, error) {
 		}
 	}
 
-	// If we have an explicit author (from override or env), parse it
+	// If we have an explicit author (from override or env), use as custom identity
 	if author != "" {
-		// Parse if it's a full identity (contains @)
-		if strings.Contains(author, "@") {
-			return parseFullIdentity(author)
+		// Strip @project if present (always ignore it)
+		name := author
+		if idx := strings.Index(author, "@"); idx != -1 {
+			name = author[:idx] // Take only the name part before @
 		}
 
-		// Otherwise use as-is with detected project
-		project := detectProject()
+		project := detectProject() // ALWAYS auto-detect
 
 		// Use as custom identity (don't try to split agent-suffix for overrides)
 		return &Identity{
 			Agent:   "custom",
-			Suffix:  sanitizeName(author),
+			Suffix:  sanitizeName(name),
 			Project: project,
 		}, nil
 	}

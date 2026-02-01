@@ -293,12 +293,12 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	identity, err := GetIdentity("custom-brave@test")
 	require.NoError(t, err)
 
-	// The function will parse the full identity
+	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
 	if identity.Agent != "custom" {
 		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
 	}
-	if identity.Suffix != "brave" {
-		t.Errorf("Expected suffix 'brave', got %q", identity.Suffix)
+	if identity.Suffix != "custom-brave" {
+		t.Errorf("Expected suffix 'custom-brave', got %q", identity.Suffix)
 	}
 	// Project should be auto-detected, not from override
 	actualProject := detectProject()
@@ -582,12 +582,12 @@ func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
-	// The function will parse the full identity
-	if identity.Agent != "agent" {
-		t.Errorf("Expected agent 'agent', got %q", identity.Agent)
+	// Overrides use agent="custom" with full name as suffix (don't parse agent-suffix)
+	if identity.Agent != "custom" {
+		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
 	}
-	if identity.Suffix != "name" {
-		t.Errorf("Expected suffix 'name', got %q", identity.Suffix)
+	if identity.Suffix != "agent-name" {
+		t.Errorf("Expected suffix 'agent-name', got %q", identity.Suffix)
 	}
 	// Project should be auto-detected, not from BD_ACTOR
 	actualProject := detectProject()
