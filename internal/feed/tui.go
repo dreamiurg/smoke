@@ -380,8 +380,8 @@ func (m Model) buildAllContentLines() []string {
 
 	threads := buildThreads(m.posts)
 
-	// Reverse thread order if newestOnTop is true
-	if m.newestOnTop {
+	// Reverse thread order if newestOnTop is false (threads come newest-first from buildThreads)
+	if !m.newestOnTop {
 		for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
 			threads[i], threads[j] = threads[j], threads[i]
 		}
@@ -446,7 +446,7 @@ func (m Model) renderContent(availableHeight int) string {
 	}
 	visibleLines := allLines[offset:endIdx]
 
-	// Style for background - applied to each line individually
+	// Style for background padding
 	bgStyle := lipgloss.NewStyle().Background(m.theme.Background)
 
 	// Build styled lines - each line gets background applied separately
@@ -457,13 +457,15 @@ func (m Model) renderContent(availableHeight int) string {
 		if i < len(visibleLines) {
 			line = visibleLines[i]
 		}
-		// Pad to full width (lipgloss.Width accounts for ANSI codes)
+		// Pad to full width with STYLED spaces (not plain spaces)
+		// This ensures background is maintained after any inner ANSI resets
 		visibleLen := lipgloss.Width(line)
 		if visibleLen < m.width {
-			line += strings.Repeat(" ", m.width-visibleLen)
+			// Style the padding separately so it has its own background
+			padding := bgStyle.Render(strings.Repeat(" ", m.width-visibleLen))
+			line += padding
 		}
-		// Apply background to the padded line
-		styledLines[i] = bgStyle.Render(line)
+		styledLines[i] = line
 	}
 
 	// Use JoinVertical which handles line joining without extra newlines
@@ -491,9 +493,9 @@ func (m Model) formatReply(reply *Post) []string {
 	indented := make([]string, len(lines))
 	for i, line := range lines {
 		if i == 0 {
-			indented[i] = "  └─ " + line
+			indented[i] = m.styleSpace("  └─ ") + line
 		} else {
-			indented[i] = "     " + line
+			indented[i] = m.styleSpace("     ") + line
 		}
 	}
 	return indented
@@ -511,8 +513,8 @@ func (m Model) formatPostDense(post *Post) []string {
 	timeStr := m.styleTimestamp(formatTimestamp(post))
 	identity := m.styleIdentity(post)
 
-	// Build prefix: "HH:MM author: "
-	prefix := fmt.Sprintf("%s %s: ", timeStr, identity)
+	// Build prefix with styled spaces to avoid black gaps: "HH:MM author: "
+	prefix := timeStr + m.styleSpace(" ") + identity + m.styleSpace(": ")
 	prefixLen := len(formatTimestamp(post)) + 1 + len(post.Author) + 2
 
 	// Calculate content width for first line
@@ -527,7 +529,8 @@ func (m Model) formatPostDense(post *Post) []string {
 	// Build result lines
 	lines := make([]string, 0, len(contentLines))
 	for i, line := range contentLines {
-		highlighted := HighlightAll(line, true)
+		// Apply background to message content (HighlightAll only adds foreground colors)
+		highlighted := m.styleSpace(HighlightWithTheme(line, m.theme))
 		if i == 0 {
 			lines = append(lines, prefix+highlighted)
 		} else {
@@ -551,8 +554,8 @@ func (m Model) formatPostComfy(post *Post) []string {
 	timeStr := m.styleTimestamp(formatTimestamp(post))
 	identity := m.styleIdentity(post)
 
-	// Build prefix: "HH:MM  author "
-	prefix := fmt.Sprintf("%s  %s ", timeStr, identity)
+	// Build prefix with styled spaces to avoid black gaps: "HH:MM  author "
+	prefix := timeStr + m.styleSpace("  ") + identity + m.styleSpace(" ")
 	prefixLen := len(formatTimestamp(post)) + 2 + len(post.Author) + 1 + len(post.Suffix) + 1
 
 	// Calculate content width
@@ -568,12 +571,13 @@ func (m Model) formatPostComfy(post *Post) []string {
 	continuationPadding := strings.Repeat(" ", prefixLen)
 	lines := make([]string, 0, len(contentLines))
 	for i, line := range contentLines {
-		highlighted := HighlightAll(line, true)
+		// Apply background to message content (HighlightAll only adds foreground colors)
+		highlighted := m.styleSpace(HighlightWithTheme(line, m.theme))
 		if i == 0 {
 			lines = append(lines, prefix+highlighted)
 		} else {
-			// Continuation lines aligned with content
-			lines = append(lines, continuationPadding+highlighted)
+			// Continuation lines aligned with content (styled to avoid black gaps)
+			lines = append(lines, m.styleSpace(continuationPadding)+highlighted)
 		}
 	}
 
@@ -593,8 +597,8 @@ func (m Model) formatPostRelaxed(post *Post) []string {
 	timeStr := m.styleTimestamp(formatTimestamp(post))
 	identity := m.styleIdentity(post)
 
-	// First line: time and identity
-	headerLine := fmt.Sprintf("%s  %s", timeStr, identity)
+	// First line: time and identity (styled spaces to avoid black gaps)
+	headerLine := timeStr + m.styleSpace("  ") + identity
 
 	// Content lines: wrap to full width minus small margin
 	contentLines := wrapText(post.Content, termWidth-2)
@@ -603,7 +607,7 @@ func (m Model) formatPostRelaxed(post *Post) []string {
 	lines := make([]string, 0, 1+len(contentLines))
 	lines = append(lines, headerLine)
 	for _, line := range contentLines {
-		lines = append(lines, HighlightAll(line, true))
+		lines = append(lines, m.styleSpace(HighlightWithTheme(line, m.theme)))
 	}
 
 	return lines
@@ -611,7 +615,15 @@ func (m Model) formatPostRelaxed(post *Post) []string {
 
 // styleTimestamp applies theme styling to timestamp
 func (m Model) styleTimestamp(s string) string {
-	style := lipgloss.NewStyle().Foreground(m.theme.TextMuted)
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.TextMuted).
+		Background(m.theme.Background)
+	return style.Render(s)
+}
+
+// styleSpace applies theme background to spacing
+func (m Model) styleSpace(s string) string {
+	style := lipgloss.NewStyle().Background(m.theme.Background)
 	return style.Render(s)
 }
 

@@ -81,6 +81,22 @@ func TestNewPost(t *testing.T) {
 			content: "  hello world  ",
 			wantErr: nil,
 		},
+		{
+			name:    "content with ANSI stripped",
+			author:  "ember",
+			project: "smoke",
+			rig:     "swift-fox",
+			content: "\x1b[2J\x1b[Hhello world",
+			wantErr: nil,
+		},
+		{
+			name:    "content only ANSI becomes empty",
+			author:  "ember",
+			project: "smoke",
+			rig:     "swift-fox",
+			content: "\x1b[2J\x1b[H",
+			wantErr: ErrEmptyContent,
+		},
 	}
 
 	for _, tt := range tests {
@@ -98,6 +114,43 @@ func TestNewPost(t *testing.T) {
 			assert.True(t, ValidateID(post.ID))
 			assert.NotEmpty(t, post.CreatedAt)
 			assert.Empty(t, post.ParentID)
+		})
+	}
+}
+
+func TestNewPost_ANSISanitization(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		wantContent string
+	}{
+		{
+			name:        "clear screen sequence stripped",
+			content:     "\x1b[2J\x1b[Hhello",
+			wantContent: "hello",
+		},
+		{
+			name:        "color codes stripped",
+			content:     "\x1b[31mred\x1b[0m text",
+			wantContent: "red text",
+		},
+		{
+			name:        "terminal title stripped",
+			content:     "\x1b]0;Malicious Title\x07hello",
+			wantContent: "hello",
+		},
+		{
+			name:        "no ANSI unchanged",
+			content:     "hello world",
+			wantContent: "hello world",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			post, err := NewPost("ember", "smoke", "swift-fox", tt.content)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantContent, post.Content)
 		})
 	}
 }

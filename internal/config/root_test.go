@@ -25,12 +25,26 @@ func TestGetFeedPath(t *testing.T) {
 	defer os.Setenv("SMOKE_FEED", origSmokeFeed)
 
 	t.Run("SMOKE_FEED override", func(t *testing.T) {
-		customPath := "/some/custom/feed.jsonl"
+		// Use temp dir as HOME to test path validation
+		tmpHome := t.TempDir()
+		oldHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpHome)
+		defer os.Setenv("HOME", oldHome)
+
+		customPath := filepath.Join(tmpHome, "custom", "feed.jsonl")
 		os.Setenv("SMOKE_FEED", customPath)
 
 		got, err := GetFeedPath()
 		assert.NoError(t, err)
 		assert.Equal(t, customPath, got)
+	})
+
+	t.Run("SMOKE_FEED outside home rejected", func(t *testing.T) {
+		customPath := "/some/custom/feed.jsonl"
+		os.Setenv("SMOKE_FEED", customPath)
+
+		_, err := GetFeedPath()
+		assert.ErrorIs(t, err, ErrInvalidFeedPath)
 	})
 
 	t.Run("no override uses global config", func(t *testing.T) {
