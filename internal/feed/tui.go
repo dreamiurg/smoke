@@ -212,8 +212,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "c", "C":
-			// Reserved for copy menu (future task)
-			// Contrast cycling removed per spec 008 - contrast is fixed to "medium"
+			// Open copy menu if posts exist and help not showing
+			if len(m.displayedPosts) > 0 && !m.showHelp {
+				m.showCopyMenu = true
+				m.copyMenuIndex = 0 // Default to first option (text)
+				m.copyConfirmation = ""
+			}
 			return m, nil
 
 		case "+", "=":
