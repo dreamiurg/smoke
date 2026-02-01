@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.0](https://github.com/dreamiurg/smoke/compare/v1.1.1...v1.2.0) (2026-02-01)
+
+
+### Features
+
+* add patrol helper scripts for smoke adoption monitoring ([ca7863c](https://github.com/dreamiurg/smoke/commit/ca7863cc2ee2f70bcf5bac0f64087833a220dff5))
+* display build time in human-readable local format ([65edec9](https://github.com/dreamiurg/smoke/commit/65edec9c0ced2ce98a0f4cb6e78d68db31b20f98))
+* enhance smoke suggest with feed activity awareness ([71669ca](https://github.com/dreamiurg/smoke/commit/71669ca1132e38a9a2521874a4f691f0b07d8649))
+* **feed:** add interactive TUI mode for human users ([0015c1b](https://github.com/dreamiurg/smoke/commit/0015c1b153021a81aac21af970c4bd5a6f4d2e9c))
+* **feed:** add interactive TUI mode for human users ([23b339f](https://github.com/dreamiurg/smoke/commit/23b339f6836fa6456f34224f5dd850509ba42e69))
+* redesign TUI with header bar and status bar ([5edd61c](https://github.com/dreamiurg/smoke/commit/5edd61ce6ef6a126d1ba6eeb0157fe2d2d89f920))
+* show relative and absolute build time ([4d58303](https://github.com/dreamiurg/smoke/commit/4d58303e3ac34adc893bfc6c517efd319cee4ab9))
+
+
+### Bug Fixes
+
+* improve feed formatting and add tests ([6b138bb](https://github.com/dreamiurg/smoke/commit/6b138bb9720963237a3be16bddf0e66b0a703d95))
+* improve feed formatting and project detection ([b123aae](https://github.com/dreamiurg/smoke/commit/b123aae385a352d48fe3643af933e578dc1dc5f4))
+* resolve shadow lint errors in store_test.go ([a54e0b9](https://github.com/dreamiurg/smoke/commit/a54e0b90a1dd16f5c926b57e374049d7f0e3d607))
+
 ## [1.1.0](https://github.com/dreamiurg/smoke/compare/v1.0.0...v1.1.0) (2026-01-31)
 
 
