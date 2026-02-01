@@ -11,7 +11,7 @@ import (
 type TUIConfig struct {
 	Theme       string `yaml:"theme"`
 	Contrast    string `yaml:"contrast"`
-	Style       string `yaml:"style"`
+	Layout      string `yaml:"layout"`
 	AutoRefresh bool   `yaml:"auto_refresh"`
 }
 
@@ -22,7 +22,7 @@ const TUIConfigFile = "tui.yaml"
 const (
 	defaultTheme       = "dracula"
 	defaultContrast    = "medium"
-	defaultStyle       = "header"
+	defaultLayout      = "comfy"
 	defaultAutoRefresh = true
 )
 
@@ -68,8 +68,8 @@ func LoadTUIConfig() *TUIConfig {
 	if cfg.Contrast == "" {
 		cfg.Contrast = defaultContrast
 	}
-	if cfg.Style == "" {
-		cfg.Style = defaultStyle
+	if cfg.Layout == "" {
+		cfg.Layout = defaultLayout
 	}
 	// AutoRefresh defaults to true (bool zero value is false, so we need special handling)
 	// We use a sentinel approach: if the file was parsed but AutoRefresh is false,
@@ -99,7 +99,7 @@ func defaultTUIConfig() *TUIConfig {
 	return &TUIConfig{
 		Theme:       defaultTheme,
 		Contrast:    defaultContrast,
-		Style:       defaultStyle,
+		Layout:      defaultLayout,
 		AutoRefresh: defaultAutoRefresh,
 	}
 }

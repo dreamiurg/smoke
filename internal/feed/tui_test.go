@@ -12,33 +12,33 @@ import (
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
-// testModel creates a test model with default theme, contrast, style, and config
+// testModel creates a test model with default theme, contrast, layout, and config
 func testModel(store *Store) Model {
 	theme := GetTheme("dracula")
 	contrast := GetContrastLevel("medium")
-	style := GetStyle("header")
+	layout := GetLayout("comfy")
 	cfg := &config.TUIConfig{
 		Theme:       "dracula",
 		Contrast:    "medium",
-		Style:       "header",
+		Layout:      "comfy",
 		AutoRefresh: true,
 	}
-	return NewModel(store, theme, contrast, style, cfg, "test")
+	return NewModel(store, theme, contrast, layout, cfg, "test")
 }
 
 func TestNewModel(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	theme := GetTheme("dracula")
 	contrast := GetContrastLevel("medium")
-	style := GetStyle("header")
+	layout := GetLayout("comfy")
 	cfg := &config.TUIConfig{
 		Theme:       "dracula",
 		Contrast:    "medium",
-		Style:       "header",
+		Layout:      "comfy",
 		AutoRefresh: true,
 	}
 
-	model := NewModel(store, theme, contrast, style, cfg, "1.0.0")
+	model := NewModel(store, theme, contrast, layout, cfg, "1.0.0")
 
 	if model.theme != theme {
 		t.Error("NewModel() did not set theme")
@@ -46,8 +46,8 @@ func TestNewModel(t *testing.T) {
 	if model.contrast != contrast {
 		t.Error("NewModel() did not set contrast")
 	}
-	if model.style != style {
-		t.Error("NewModel() did not set style")
+	if model.layout != layout {
+		t.Error("NewModel() did not set layout")
 	}
 	if model.store != store {
 		t.Error("NewModel() did not set store")
@@ -148,20 +148,20 @@ func TestModelUpdate_ContrastCycling(t *testing.T) {
 	}
 }
 
-func TestModelUpdate_StyleCycling(t *testing.T) {
+func TestModelUpdate_LayoutCycling(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
-	initialStyle := model.config.Style
+	initialLayout := model.config.Layout
 
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")}
 	updated, _ := model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.config.Style == initialStyle {
-		t.Error("Update(s) should cycle style")
+	if updatedModel.config.Layout == initialLayout {
+		t.Error("Update(l) should cycle layout")
 	}
-	if updatedModel.style.Name != updatedModel.config.Style {
-		t.Error("Update(s) should update model style to match config")
+	if updatedModel.layout.Name != updatedModel.config.Layout {
+		t.Error("Update(l) should update model layout to match config")
 	}
 }
 
@@ -460,6 +460,18 @@ func TestStyleAuthor(t *testing.T) {
 	}
 }
 
+func TestStyleIdentity(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+
+	post := &Post{Author: "test-author", Suffix: "smoke"}
+	result := model.styleIdentity(post)
+
+	if result == "" {
+		t.Error("styleIdentity() should return styled text")
+	}
+}
+
 func TestRenderStatusBar(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
@@ -469,6 +481,9 @@ func TestRenderStatusBar(t *testing.T) {
 
 	if result == "" {
 		t.Error("renderStatusBar() should return status bar")
+	}
+	if !strings.Contains(result, "(l) layout:") {
+		t.Error("renderStatusBar() should show layout keybinding")
 	}
 }
 
@@ -523,8 +538,11 @@ func TestRenderHelpOverlay(t *testing.T) {
 	if !strings.Contains(result, "Auto:") {
 		t.Error("renderHelpOverlay() should show auto-refresh status")
 	}
-	if !strings.Contains(result, "Style:") {
-		t.Error("renderHelpOverlay() should show style")
+	if !strings.Contains(result, "Layout:") {
+		t.Error("renderHelpOverlay() should show layout")
+	}
+	if !strings.Contains(result, "Cycle layout") {
+		t.Error("renderHelpOverlay() should show layout cycling keybinding")
 	}
 }
 
@@ -726,7 +744,7 @@ func TestComputeStats_Empty(t *testing.T) {
 	}
 }
 
-func TestModelFormatPost_AllStyles(t *testing.T) {
+func TestModelFormatPost_AllLayouts(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	post := &Post{
 		ID:        "smk-test123",
@@ -737,177 +755,151 @@ func TestModelFormatPost_AllStyles(t *testing.T) {
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
 
-	styles := []string{"header", "irc", "slack", "minimal"}
+	layouts := []string{"dense", "comfy", "relaxed"}
 
-	for _, styleName := range styles {
-		t.Run(styleName, func(t *testing.T) {
+	for _, layoutName := range layouts {
+		t.Run(layoutName, func(t *testing.T) {
 			model := testModel(store)
 			model.width = 80
-			model.style = GetStyle(styleName)
+			model.layout = GetLayout(layoutName)
 
 			lines := model.formatPost(post)
 
 			if len(lines) == 0 {
-				t.Errorf("formatPost() with style %q should return at least one line", styleName)
+				t.Errorf("formatPost() with layout %q should return at least one line", layoutName)
 			}
 
 			combined := strings.Join(lines, "\n")
 			if !strings.Contains(combined, "hello world") {
-				t.Errorf("formatPost() with style %q should include post content", styleName)
+				t.Errorf("formatPost() with layout %q should include post content", layoutName)
 			}
 		})
 	}
 }
 
-func TestFormatPostIRC(t *testing.T) {
+func TestFormatPostDense(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 80
-	model.style = GetStyle("irc")
+	model.layout = GetLayout("dense")
 
 	post := &Post{
 		ID:        "smk-test123",
 		Author:    "test-author",
+		Suffix:    "smoke",
 		Content:   "hello world",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
 
-	lines := model.formatPostIRC(post)
+	lines := model.formatPostDense(post)
 
 	if len(lines) == 0 {
-		t.Error("formatPostIRC() should return at least one line")
+		t.Error("formatPostDense() should return at least one line")
 	}
 
 	combined := strings.Join(lines, "\n")
-	if !strings.Contains(combined, "<") || !strings.Contains(combined, ">") {
-		t.Error("formatPostIRC() should include angle brackets around author")
-	}
 	if !strings.Contains(combined, "hello world") {
-		t.Error("formatPostIRC() should include post content")
-	}
-}
-
-func TestFormatPostSlack(t *testing.T) {
-	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	model := testModel(store)
-	model.width = 80
-	model.style = GetStyle("slack")
-
-	post := &Post{
-		ID:        "smk-test123",
-		Author:    "test-author",
-		Content:   "hello world",
-		CreatedAt: "2026-01-30T09:24:00Z",
-	}
-
-	lines := model.formatPostSlack(post)
-
-	if len(lines) < 2 {
-		t.Error("formatPostSlack() should return at least 2 lines (author + content)")
-	}
-	combined := strings.Join(lines, "\n")
-	if !strings.Contains(combined, "hello world") {
-		t.Error("formatPostSlack() should include post content")
-	}
-}
-
-func TestFormatPostMinimal(t *testing.T) {
-	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	model := testModel(store)
-	model.width = 80
-	model.style = GetStyle("minimal")
-
-	post := &Post{
-		ID:        "smk-test123",
-		Author:    "test-author",
-		Content:   "hello world",
-		CreatedAt: "2026-01-30T09:24:00Z",
-	}
-
-	lines := model.formatPostMinimal(post)
-
-	if len(lines) == 0 {
-		t.Error("formatPostMinimal() should return at least one line")
-	}
-	combined := strings.Join(lines, "\n")
-	if !strings.Contains(combined, "hello world") {
-		t.Error("formatPostMinimal() should include post content")
+		t.Error("formatPostDense() should include post content")
 	}
 	if !strings.Contains(combined, ":") {
-		t.Error("formatPostMinimal() should include colon separator")
+		t.Error("formatPostDense() should include colon separator")
 	}
 }
 
-func TestFormatPostHeader(t *testing.T) {
+func TestFormatPostComfy(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 80
-	model.style = GetStyle("header")
+	model.layout = GetLayout("comfy")
 
 	post := &Post{
 		ID:        "smk-test123",
 		Author:    "test-author",
+		Suffix:    "smoke",
 		Content:   "hello world",
 		CreatedAt: "2026-01-30T09:24:00Z",
 	}
 
-	lines := model.formatPostHeader(post)
+	lines := model.formatPostComfy(post)
 
-	if len(lines) < 2 {
-		t.Error("formatPostHeader() should return at least 2 lines (header + content)")
+	if len(lines) == 0 {
+		t.Error("formatPostComfy() should return at least one line")
 	}
 	combined := strings.Join(lines, "\n")
 	if !strings.Contains(combined, "hello world") {
-		t.Error("formatPostHeader() should include post content")
+		t.Error("formatPostComfy() should include post content")
 	}
 }
 
-func TestGetStyle(t *testing.T) {
+func TestFormatPostRelaxed(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.layout = GetLayout("relaxed")
+
+	post := &Post{
+		ID:        "smk-test123",
+		Author:    "test-author",
+		Suffix:    "smoke",
+		Content:   "hello world",
+		CreatedAt: "2026-01-30T09:24:00Z",
+	}
+
+	lines := model.formatPostRelaxed(post)
+
+	if len(lines) < 2 {
+		t.Error("formatPostRelaxed() should return at least 2 lines (author + content)")
+	}
+	combined := strings.Join(lines, "\n")
+	if !strings.Contains(combined, "hello world") {
+		t.Error("formatPostRelaxed() should include post content")
+	}
+}
+
+func TestGetLayout(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
 		want  string
 	}{
-		{"valid header", "header", "header"},
-		{"valid irc", "irc", "irc"},
-		{"valid slack", "slack", "slack"},
-		{"valid minimal", "minimal", "minimal"},
-		{"invalid returns default", "nonexistent", "header"},
-		{"empty returns default", "", "header"},
+		{"valid dense", "dense", "dense"},
+		{"valid comfy", "comfy", "comfy"},
+		{"valid relaxed", "relaxed", "relaxed"},
+		{"invalid returns default", "nonexistent", "comfy"},
+		{"empty returns default", "", "comfy"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			style := GetStyle(tt.input)
-			if style == nil {
-				t.Fatal("GetStyle() returned nil")
+			layout := GetLayout(tt.input)
+			if layout == nil {
+				t.Fatal("GetLayout() returned nil")
 			}
-			if style.Name != tt.want {
-				t.Errorf("GetStyle(%q).Name = %q, want %q", tt.input, style.Name, tt.want)
+			if layout.Name != tt.want {
+				t.Errorf("GetLayout(%q).Name = %q, want %q", tt.input, layout.Name, tt.want)
 			}
 		})
 	}
 }
 
-func TestNextStyle(t *testing.T) {
+func TestNextLayout(t *testing.T) {
 	tests := []struct {
 		name    string
 		current string
 		want    string
 	}{
-		{"next after header", "header", "irc"},
-		{"next after irc", "irc", "slack"},
-		{"next after slack", "slack", "minimal"},
-		{"next after minimal wraps", "minimal", "header"},
-		{"invalid returns first", "nonexistent", "header"},
-		{"empty returns first", "", "header"},
+		{"next after dense", "dense", "comfy"},
+		{"next after comfy", "comfy", "relaxed"},
+		{"next after relaxed wraps", "relaxed", "dense"},
+		{"invalid returns first", "nonexistent", "dense"},
+		{"empty returns first", "", "dense"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NextStyle(tt.current)
+			got := NextLayout(tt.current)
 			if got != tt.want {
-				t.Errorf("NextStyle(%q) = %q, want %q", tt.current, got, tt.want)
+				t.Errorf("NextLayout(%q) = %q, want %q", tt.current, got, tt.want)
 			}
 		})
 	}

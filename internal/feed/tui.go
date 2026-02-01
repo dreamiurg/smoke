@@ -22,7 +22,7 @@ type Model struct {
 	posts       []*Post
 	theme       *Theme
 	contrast    *ContrastLevel
-	style       *LayoutStyle
+	layout      *LayoutStyle
 	showHelp    bool
 	autoRefresh bool
 	width       int
@@ -45,12 +45,12 @@ type loadPostsMsg struct {
 	err   error
 }
 
-// NewModel creates a new TUI model with the given store, theme, contrast, style, and version.
-func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, style *LayoutStyle, cfg *config.TUIConfig, version string) Model {
+// NewModel creates a new TUI model with the given store, theme, contrast, layout, and version.
+func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *LayoutStyle, cfg *config.TUIConfig, version string) Model {
 	return Model{
 		theme:       theme,
 		contrast:    contrast,
-		style:       style,
+		layout:      layout,
 		autoRefresh: cfg.AutoRefresh,
 		store:       store,
 		config:      cfg,
@@ -114,9 +114,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case "s":
-			m.config.Style = NextStyle(m.config.Style)
-			m.style = GetStyle(m.config.Style)
+		case "l":
+			m.config.Layout = NextLayout(m.config.Layout)
+			m.layout = GetLayout(m.config.Layout)
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
@@ -230,14 +230,14 @@ func (m Model) renderStatusBar() string {
 		autoStr = "ON"
 	}
 
-	styleName := "header"
-	if m.style != nil {
-		styleName = m.style.Name
+	layoutName := "comfy"
+	if m.layout != nil {
+		layoutName = m.layout.Name
 	}
 
 	parts := []string{
 		fmt.Sprintf("(a) auto: %s", autoStr),
-		fmt.Sprintf("(s) style: %s", styleName),
+		fmt.Sprintf("(l) layout: %s", layoutName),
 		fmt.Sprintf("(t) theme: %s", m.theme.Name),
 		fmt.Sprintf("(c) contrast: %s", m.contrast.Name),
 		"(?) help",
@@ -313,20 +313,18 @@ func (m Model) renderContent(availableHeight int) string {
 	return content.String()
 }
 
-// formatPost formats a post according to the current style
+// formatPost formats a post according to the current layout
 func (m Model) formatPost(post *Post) []string {
-	if m.style == nil {
-		return m.formatPostHeader(post)
+	if m.layout == nil {
+		return m.formatPostComfy(post)
 	}
-	switch m.style.Name {
-	case "irc":
-		return m.formatPostIRC(post)
-	case "slack":
-		return m.formatPostSlack(post)
-	case "minimal":
-		return m.formatPostMinimal(post)
+	switch m.layout.Name {
+	case "dense":
+		return m.formatPostDense(post)
+	case "relaxed":
+		return m.formatPostRelaxed(post)
 	default:
-		return m.formatPostHeader(post)
+		return m.formatPostComfy(post)
 	}
 }
 
@@ -344,38 +342,19 @@ func (m Model) formatReply(reply *Post) []string {
 	return indented
 }
 
-// formatPostHeader: Author on separate line above content
-func (m Model) formatPostHeader(post *Post) []string {
+// formatPostDense: Most compact - single line with everything inline
+// Format: HH:MM author@project: message...
+func (m Model) formatPostDense(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
 
 	timeStr := m.styleTimestamp(formatTimestamp(post))
-	author := m.styleAuthor(post.Author)
-	contentLines := wrapText(post.Content, termWidth-2)
-
-	lines := make([]string, 0, 1+len(contentLines))
-	lines = append(lines, fmt.Sprintf("%s  %s", timeStr, author))
-	for _, line := range contentLines {
-		lines = append(lines, HighlightAll(line, true))
-	}
-
-	return lines
-}
-
-// formatPostIRC: Angle brackets around author
-func (m Model) formatPostIRC(post *Post) []string {
-	var lines []string
-	termWidth := m.width
-	if termWidth <= 0 {
-		termWidth = DefaultTerminalWidth
-	}
-
-	timeStr := m.styleTimestamp(formatTimestamp(post))
-	author := m.styleAuthor(post.Author)
-	prefix := fmt.Sprintf("%s <%s> ", timeStr, author)
-	prefixLen := len(formatTimestamp(post)) + len(post.Author) + 4
+	identity := m.styleIdentity(post)
+	prefix := fmt.Sprintf("%s %s: ", timeStr, identity)
+	// Calculate raw prefix length (without ANSI codes)
+	prefixLen := len(formatTimestamp(post)) + 1 + len(post.Author) + 1 + len(post.Suffix) + 2
 
 	contentWidth := termWidth - prefixLen
 	if contentWidth < MinContentWidth {
@@ -383,6 +362,7 @@ func (m Model) formatPostIRC(post *Post) []string {
 	}
 	contentLines := wrapText(post.Content, contentWidth)
 
+	lines := make([]string, 0, len(contentLines))
 	for i, line := range contentLines {
 		highlighted := HighlightAll(line, true)
 		if i == 0 {
@@ -395,45 +375,20 @@ func (m Model) formatPostIRC(post *Post) []string {
 	return lines
 }
 
-// formatPostSlack: Author left, time right
-func (m Model) formatPostSlack(post *Post) []string {
-	termWidth := m.width
-	if termWidth <= 0 {
-		termWidth = DefaultTerminalWidth
-	}
-
-	author := m.styleAuthor(post.Author)
-	timeStr := m.styleTimestamp(formatTimestamp(post))
-
-	authorLen := len(post.Author)
-	timeLen := 5
-	gap := termWidth - authorLen - timeLen
-	if gap < 1 {
-		gap = 1
-	}
-	contentLines := wrapText(post.Content, termWidth-2)
-
-	lines := make([]string, 0, 1+len(contentLines))
-	lines = append(lines, author+strings.Repeat(" ", gap)+timeStr)
-	for _, line := range contentLines {
-		lines = append(lines, HighlightAll(line, true))
-	}
-
-	return lines
-}
-
-// formatPostMinimal: Compact inline format
-func (m Model) formatPostMinimal(post *Post) []string {
-	var lines []string
+// formatPostComfy: Balanced - message starts on same line as identity
+// Format: HH:MM  author@project
+//         message continues here...
+func (m Model) formatPostComfy(post *Post) []string {
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
 
 	timeStr := m.styleTimestamp(formatTimestamp(post))
-	author := m.styleAuthor(post.Author)
-	prefix := fmt.Sprintf("%s %s: ", timeStr, author)
-	prefixLen := len(formatTimestamp(post)) + len(post.Author) + 3
+	identity := m.styleIdentity(post)
+	// Calculate prefix for first line: "HH:MM  identity "
+	prefix := fmt.Sprintf("%s  %s ", timeStr, identity)
+	prefixLen := len(formatTimestamp(post)) + 2 + len(post.Author) + 1 + len(post.Suffix) + 1
 
 	contentWidth := termWidth - prefixLen
 	if contentWidth < MinContentWidth {
@@ -441,13 +396,39 @@ func (m Model) formatPostMinimal(post *Post) []string {
 	}
 	contentLines := wrapText(post.Content, contentWidth)
 
+	lines := make([]string, 0, len(contentLines))
 	for i, line := range contentLines {
 		highlighted := HighlightAll(line, true)
 		if i == 0 {
 			lines = append(lines, prefix+highlighted)
 		} else {
+			// Continuation lines align with message start
 			lines = append(lines, strings.Repeat(" ", prefixLen)+highlighted)
 		}
+	}
+
+	return lines
+}
+
+// formatPostRelaxed: Most spacious - author on separate line, content below
+// Format: HH:MM  author@project
+//         message on next line...
+func (m Model) formatPostRelaxed(post *Post) []string {
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = DefaultTerminalWidth
+	}
+
+	timeStr := m.styleTimestamp(formatTimestamp(post))
+	identity := m.styleIdentity(post)
+	contentLines := wrapText(post.Content, termWidth-2)
+
+	lines := make([]string, 0, 1+len(contentLines))
+	// First line: timestamp and identity only
+	lines = append(lines, fmt.Sprintf("%s  %s", timeStr, identity))
+	// Content on subsequent lines
+	for _, line := range contentLines {
+		lines = append(lines, HighlightAll(line, true))
 	}
 
 	return lines
@@ -464,6 +445,11 @@ func (m Model) styleAuthor(author string) string {
 	return ColorizeIdentity(author, m.theme, m.contrast)
 }
 
+// styleIdentity formats and styles author@project
+func (m Model) styleIdentity(post *Post) string {
+	return ColorizeFullIdentity(post.Author, post.Suffix, m.theme, m.contrast)
+}
+
 // renderHelpOverlay creates a centered help overlay
 func (m Model) renderHelpOverlay() string {
 	autoStr := "OFF"
@@ -471,9 +457,9 @@ func (m Model) renderHelpOverlay() string {
 		autoStr = "ON"
 	}
 
-	styleName := "header"
-	if m.style != nil {
-		styleName = m.style.DisplayName
+	layoutName := "Comfy"
+	if m.layout != nil {
+		layoutName = m.layout.DisplayName
 	}
 
 	helpContent := strings.Builder{}
@@ -482,14 +468,14 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("\n")
 	helpContent.WriteString("   q    Quit\n")
 	helpContent.WriteString("   a    Toggle auto-refresh\n")
-	helpContent.WriteString("   s    Cycle style\n")
+	helpContent.WriteString("   l    Cycle layout\n")
 	helpContent.WriteString("   t    Cycle theme\n")
 	helpContent.WriteString("   c    Cycle contrast\n")
 	helpContent.WriteString("   r    Refresh now\n")
 	helpContent.WriteString("   ?    Close this help\n")
 	helpContent.WriteString("\n")
 	helpContent.WriteString(fmt.Sprintf("   Auto: %s\n", autoStr))
-	helpContent.WriteString(fmt.Sprintf("   Style: %s\n", styleName))
+	helpContent.WriteString(fmt.Sprintf("   Layout: %s\n", layoutName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
 	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
 	helpContent.WriteString("\n")

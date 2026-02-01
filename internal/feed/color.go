@@ -153,6 +153,38 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 	return styledAgent + "@" + styledProject
 }
 
+// ColorizeFullIdentity applies theme and contrast styling to author and project parts.
+// Takes separate author and project strings (from Post fields).
+func ColorizeFullIdentity(author, project string, theme *Theme, contrast *ContrastLevel) string {
+	// Build agent style using theme colors
+	agentStyle := lipgloss.NewStyle().
+		Foreground(theme.AgentColors[hashString(author)%len(theme.AgentColors)])
+
+	if contrast.AgentBold {
+		agentStyle = agentStyle.Bold(true)
+	}
+
+	styledAgent := agentStyle.Render(author)
+
+	// Handle project part if it exists
+	if project == "" {
+		return styledAgent
+	}
+
+	projectStyle := lipgloss.NewStyle()
+	if contrast.ProjectColored {
+		// Color the project with a secondary theme color
+		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
+	} else {
+		// Dim the project
+		projectStyle = projectStyle.Foreground(theme.TextMuted)
+	}
+
+	styledProject := projectStyle.Render(project)
+
+	return styledAgent + "@" + styledProject
+}
+
 // hashString computes a deterministic hash for consistent coloring.
 // Used by both CLI and TUI for author/agent name color selection.
 func hashString(s string) int {

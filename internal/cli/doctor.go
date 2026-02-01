@@ -155,6 +155,7 @@ func runChecks() []Category {
 			Checks: []Check{
 				checkFeedFormat(),
 				checkConfigFile(),
+				checkTUIConfig(),
 			},
 		},
 		{
@@ -470,6 +471,94 @@ func checkFeedFormat() Check {
 	check.Status = StatusPass
 	check.Message = fmt.Sprintf("%d posts, all valid", validLines)
 	return check
+}
+
+// checkTUIConfig verifies tui.yaml exists and has correct field names
+func checkTUIConfig() Check {
+	check := Check{
+		Name:   "TUI Config",
+		CanFix: false,
+	}
+
+	tuiPath, err := config.GetTUIConfigPath()
+	if err != nil {
+		check.Status = StatusFail
+		check.Message = "cannot determine TUI config path"
+		check.Detail = err.Error()
+		return check
+	}
+
+	data, err := os.ReadFile(tuiPath)
+	if os.IsNotExist(err) {
+		// TUI config is optional, missing is fine
+		check.Status = StatusPass
+		check.Message = "not present (using defaults)"
+		return check
+	}
+	if err != nil {
+		check.Status = StatusFail
+		check.Message = "cannot read"
+		check.Detail = err.Error()
+		return check
+	}
+
+	// Parse as generic map to check for deprecated fields
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		check.Status = StatusFail
+		check.Message = "invalid YAML"
+		check.Detail = err.Error()
+		return check
+	}
+
+	// Check for deprecated "style" field (should be "layout")
+	if _, hasStyle := parsed["style"]; hasStyle {
+		if _, hasLayout := parsed["layout"]; !hasLayout {
+			// Has style but no layout - needs migration
+			check.Status = StatusWarn
+			check.Message = "deprecated 'style' field (should be 'layout')"
+			check.Detail = "Run 'smoke doctor --fix' to migrate to new field name"
+			check.CanFix = true
+			check.Fix = func() error {
+				return fixTUIConfigStyleToLayout(tuiPath)
+			}
+			return check
+		}
+	}
+
+	check.Status = StatusPass
+	check.Message = tuiPath
+	return check
+}
+
+// fixTUIConfigStyleToLayout migrates tui.yaml from "style" to "layout" field
+func fixTUIConfigStyleToLayout(tuiPath string) error {
+	data, err := os.ReadFile(tuiPath)
+	if err != nil {
+		return err
+	}
+
+	// Parse as generic map
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+
+	// Migrate style -> layout
+	if style, hasStyle := parsed["style"]; hasStyle {
+		if _, hasLayout := parsed["layout"]; !hasLayout {
+			parsed["layout"] = style
+		}
+		delete(parsed, "style")
+	}
+
+	// Write back
+	newData, err := yaml.Marshal(parsed)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(tuiPath, newData, 0644)
 }
 
 // checkConfigFile verifies config.yaml exists and is valid YAML

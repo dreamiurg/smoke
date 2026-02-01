@@ -1,53 +1,66 @@
 package feed
 
-// DefaultStyleName is the default layout style when none is specified
-const DefaultStyleName = "header"
+// DefaultLayoutName is the default layout when none is specified
+const DefaultLayoutName = "comfy"
 
 // LayoutStyle defines a post layout format for the TUI.
 type LayoutStyle struct {
-	// Name is the identifier for the style (e.g., "header")
+	// Name is the identifier for the layout (e.g., "comfy")
 	Name string
-	// DisplayName is the human-readable name (e.g., "Header")
+	// DisplayName is the human-readable name (e.g., "Comfy")
 	DisplayName string
 }
 
-// AllStyles is the registry of available layout styles.
-// Styles cycle in order: header → irc → slack → minimal
-var AllStyles = []LayoutStyle{
+// AllLayouts is the registry of available layouts.
+// Layouts cycle in order: dense → comfy → relaxed
+var AllLayouts = []LayoutStyle{
 	{
-		Name:        "header",
-		DisplayName: "Header",
+		Name:        "dense",
+		DisplayName: "Dense",
 	},
 	{
-		Name:        "irc",
-		DisplayName: "IRC",
+		Name:        "comfy",
+		DisplayName: "Comfy",
 	},
 	{
-		Name:        "slack",
-		DisplayName: "Slack",
-	},
-	{
-		Name:        "minimal",
-		DisplayName: "Minimal",
+		Name:        "relaxed",
+		DisplayName: "Relaxed",
 	},
 }
 
-// GetStyle returns the style with the given name, or the default style if not found.
+// GetLayout returns the layout with the given name, or the default layout if not found.
+func GetLayout(name string) *LayoutStyle {
+	for i := range AllLayouts {
+		if AllLayouts[i].Name == name {
+			return &AllLayouts[i]
+		}
+	}
+	// Return default (comfy)
+	for i := range AllLayouts {
+		if AllLayouts[i].Name == DefaultLayoutName {
+			return &AllLayouts[i]
+		}
+	}
+	return &AllLayouts[0]
+}
+
+// NextLayout returns the name of the next layout for cycling.
+func NextLayout(current string) string {
+	for i, l := range AllLayouts {
+		if l.Name == current {
+			return AllLayouts[(i+1)%len(AllLayouts)].Name
+		}
+	}
+	return AllLayouts[0].Name
+}
+
+// Backward compatibility aliases
+var AllStyles = AllLayouts
+
 func GetStyle(name string) *LayoutStyle {
-	for i := range AllStyles {
-		if AllStyles[i].Name == name {
-			return &AllStyles[i]
-		}
-	}
-	return &AllStyles[0]
+	return GetLayout(name)
 }
 
-// NextStyle returns the name of the next style for cycling.
 func NextStyle(current string) string {
-	for i, s := range AllStyles {
-		if s.Name == current {
-			return AllStyles[(i+1)%len(AllStyles)].Name
-		}
-	}
-	return AllStyles[0].Name
+	return NextLayout(current)
 }

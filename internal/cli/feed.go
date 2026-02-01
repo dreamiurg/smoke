@@ -198,13 +198,13 @@ func runTUIMode(store *feed.Store) error {
 
 	theme := feed.GetTheme(cfg.Theme)
 	contrast := feed.GetContrastLevel(cfg.Contrast)
-	style := feed.GetStyle(cfg.Style)
+	layout := feed.GetLayout(cfg.Layout)
 
 	// Get version from root command
 	version := rootCmd.Version
 
 	// Create model and run
-	m := feed.NewModel(store, theme, contrast, style, cfg, version)
+	m := feed.NewModel(store, theme, contrast, layout, cfg, version)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
