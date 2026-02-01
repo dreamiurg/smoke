@@ -38,6 +38,10 @@ type Model struct {
 	// Cursor state for post selection (spec 008)
 	selectedPostIndex int     // Index of currently selected post in displayedPosts
 	displayedPosts    []*Post // Posts currently visible (sorted order)
+	// Copy menu state (spec 008)
+	showCopyMenu     bool   // Whether copy menu is visible
+	copyMenuIndex    int    // Currently highlighted menu option (0=text, 1=square, 2=landscape)
+	copyConfirmation string // Confirmation message after copy (e.g., "Copied as text!")
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
