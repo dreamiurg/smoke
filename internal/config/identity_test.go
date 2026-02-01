@@ -716,3 +716,60 @@ func TestGetIdentity_NameWithoutAt(t *testing.T) {
 		t.Errorf("Expected project %q (auto-detected), got %q", actualProject, identity.Project)
 	}
 }
+
+// TestClaudeCodeSessionIdentity verifies that when running under Claude Code,
+// the session seed uses PPID instead of terminal session ID for per-session identity.
+func TestClaudeCodeSessionIdentity(t *testing.T) {
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	// Simulate running under Claude Code
+	os.Setenv("CLAUDECODE", "1")
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("TERM_SESSION_ID", "same-terminal-session")
+
+	// Get identity - should use PPID-based seed, not TERM_SESSION_ID
+	identity1, err := GetIdentity("")
+	require.NoError(t, err)
+	require.NotEmpty(t, identity1.Suffix, "Should generate identity under Claude Code")
+
+	// Verify the seed format includes claude-ppid prefix by checking getSessionSeed directly
+	seed := getSessionSeed()
+	require.Contains(t, seed, "claude-ppid-", "Session seed should use claude-ppid format under Claude Code")
+
+	t.Logf("Claude Code session identity: %s (seed: %s)", identity1.String(), seed)
+}
+
+// TestNonClaudeCodeUsesTerminalSession verifies that when NOT running under Claude Code,
+// the session seed uses terminal session ID as before.
+func TestNonClaudeCodeUsesTerminalSession(t *testing.T) {
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	// Simulate NOT running under Claude Code
+	os.Setenv("CLAUDECODE", "")
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("TERM_SESSION_ID", "my-terminal-session-id")
+
+	// Get session seed - should use TERM_SESSION_ID
+	seed := getSessionSeed()
+	require.Equal(t, "my-terminal-session-id", seed, "Should use TERM_SESSION_ID when not under Claude Code")
+}
