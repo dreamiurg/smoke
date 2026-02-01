@@ -1088,35 +1088,41 @@ func TestInitialScrollPosition_PostsBeforeWindowSize(t *testing.T) {
 	}
 }
 
-func TestScrollKeys(t *testing.T) {
+func TestCursorNavigation(t *testing.T) {
+	// Arrow keys now move the cursor (selectedPostIndex), not scroll
+	// This was changed in spec 008 for post selection feature
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 80
 	model.height = 10
 
-	// Add many posts
+	// Add posts and update displayedPosts
 	var posts []*Post
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 10; i++ {
 		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content"})
 	}
 	model.posts = posts
+	model.updateDisplayedPosts()
 	model.initialScrollDone = true
 
 	tests := []struct {
-		name      string
-		key       string
-		wantDelta int // expected change in scrollOffset
+		name       string
+		key        string
+		startIndex int
+		wantIndex  int
 	}{
-		{"down arrow", "down", 1},
-		{"j key", "j", 1},
-		{"up arrow", "up", -1},
-		{"k key", "k", -1},
+		{"down arrow moves cursor down", "down", 0, 1},
+		{"j key moves cursor down", "j", 0, 1},
+		{"up arrow moves cursor up", "up", 5, 4},
+		{"k key moves cursor up", "k", 5, 4},
+		{"up at top stays at top", "up", 0, 0},
+		{"down at bottom stays at bottom", "down", 9, 9},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := model
-			m.scrollOffset = 5 // start in middle
+			m.selectedPostIndex = tt.startIndex
 
 			var msg tea.KeyMsg
 			switch tt.key {
@@ -1131,9 +1137,8 @@ func TestScrollKeys(t *testing.T) {
 			updated, _ := m.Update(msg)
 			updatedModel := updated.(Model)
 
-			expected := 5 + tt.wantDelta
-			if updatedModel.scrollOffset != expected {
-				t.Errorf("%s: scrollOffset = %d, want %d", tt.name, updatedModel.scrollOffset, expected)
+			if updatedModel.selectedPostIndex != tt.wantIndex {
+				t.Errorf("%s: selectedPostIndex = %d, want %d", tt.name, updatedModel.selectedPostIndex, tt.wantIndex)
 			}
 		})
 	}

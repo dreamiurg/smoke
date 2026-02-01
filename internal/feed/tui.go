@@ -139,17 +139,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "up", "k":
-			// Scroll up one line
-			if m.scrollOffset > 0 {
-				m.scrollOffset--
+			// Move cursor up (select previous post)
+			if m.selectedPostIndex > 0 {
+				m.selectedPostIndex--
 			}
 			return m, nil
 
 		case "down", "j":
-			// Scroll down one line
-			maxOffset := m.maxScrollOffset()
-			if m.scrollOffset < maxOffset {
-				m.scrollOffset++
+			// Move cursor down (select next post)
+			if m.selectedPostIndex < len(m.displayedPosts)-1 {
+				m.selectedPostIndex++
 			}
 			return m, nil
 
