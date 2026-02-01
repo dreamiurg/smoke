@@ -22,7 +22,7 @@ func TestGetIdentity_WithSmokeAuthor(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "test-user")
 	os.Setenv("TERM_SESSION_ID", "")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	if identity.Suffix != "test-user" {
@@ -41,7 +41,7 @@ func TestGetIdentityWithOverride(t *testing.T) {
 	// Ensure we have a session seed so auto-detection doesn't fail
 	os.Setenv("TERM_SESSION_ID", "test-session-123")
 
-	identity, err := GetIdentityWithOverride("my-custom-name")
+	identity, err := GetIdentity("my-custom-name")
 	require.NoError(t, err)
 
 	if identity.Suffix != "my-custom-name" {
@@ -141,7 +141,7 @@ func TestGetIdentity_AutoDetect(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "")
 	os.Setenv("TERM_SESSION_ID", "test-auto-detect-123")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	// Should have a non-empty suffix from auto-generated name
@@ -173,7 +173,7 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "")
 	os.Setenv("TERM_SESSION_ID", "")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	// Should have generated an identity using PPID-based seed
@@ -287,7 +287,7 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	// Set session for fallback
 	os.Setenv("TERM_SESSION_ID", "test-session-456")
 
-	identity, err := GetIdentityWithOverride("custom-brave@test")
+	identity, err := GetIdentity("custom-brave@test")
 	require.NoError(t, err)
 
 	if identity.Agent != "custom" {
@@ -314,7 +314,7 @@ func TestGetIdentityWithOverride_Empty(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "default-author")
 	os.Setenv("TERM_SESSION_ID", "")
 
-	identity, err := GetIdentityWithOverride("")
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	// Should fall back to GetIdentity
@@ -461,7 +461,7 @@ func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
 
 	os.Setenv("SMOKE_AUTHOR", "claude-brave@myproject")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	if identity.Agent != "claude" {
@@ -500,7 +500,7 @@ func TestGetIdentity_NoSessionSeed(t *testing.T) {
 	// This test attempts to create a scenario with no session seed
 	// In practice, PPID is always > 0, so this may not fully trigger the error
 	// but we can still verify the logic path exists
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	// We may or may not get an error depending on PPID availability
 	// The important thing is that the code doesn't crash
 	if err == ErrNoIdentity {
@@ -545,7 +545,7 @@ func TestGetIdentity_WithBdActorOverride(t *testing.T) {
 	os.Setenv("BD_ACTOR", "bd-user")
 	os.Setenv("SMOKE_AUTHOR", "smoke-user")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	// BD_ACTOR should take precedence
@@ -566,7 +566,7 @@ func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 	os.Setenv("BD_ACTOR", "agent-name@project")
 	os.Setenv("SMOKE_AUTHOR", "")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	if identity.Agent != "agent" {
@@ -597,7 +597,7 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "")
 	os.Setenv("TERM_SESSION_ID", "auto-detect-test-session")
 
-	identity, err := GetIdentity()
+	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
 	// Verify all components are populated

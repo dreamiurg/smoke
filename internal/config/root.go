@@ -1,3 +1,5 @@
+// Package config provides configuration and initialization management for smoke.
+// It handles directory paths, feed storage, and smoke initialization state.
 package config
 
 import (
@@ -68,8 +70,8 @@ func IsSmokeInitialized() (bool, error) {
 	return true, nil
 }
 
-// ensureInitialized returns an error if smoke is not initialized
-func ensureInitialized() error {
+// EnsureInitialized returns an error if smoke is not initialized
+func EnsureInitialized() error {
 	initialized, err := IsSmokeInitialized()
 	if err != nil {
 		return err

@@ -40,12 +40,8 @@ func runReply(_ *cobra.Command, args []string) error {
 	message := args[1]
 
 	// Check if smoke is initialized
-	initialized, err := config.IsSmokeInitialized()
-	if err != nil {
+	if err := config.EnsureInitialized(); err != nil {
 		return err
-	}
-	if !initialized {
-		return config.ErrNotInitialized
 	}
 
 	// Validate parent ID format
@@ -69,7 +65,7 @@ func runReply(_ *cobra.Command, args []string) error {
 	}
 
 	// Get identity
-	identity, err := config.GetIdentityWithOverride(replyAuthor)
+	identity, err := config.GetIdentity(replyAuthor)
 	if err != nil {
 		return err
 	}

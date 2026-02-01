@@ -15,6 +15,20 @@ var (
 	initDryRun bool
 )
 
+// exists returns true if the path exists. All errors (including permission
+// errors) are treated as non-existence for simplicity.
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// isDirectory returns true if the path exists and is a directory. All errors
+// (including permission errors) are treated as non-existence for simplicity.
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize smoke for your Claude sessions",
@@ -39,22 +53,22 @@ func init() {
 func runInit(_ *cobra.Command, _ []string) error {
 	configDir, err := config.GetConfigDir()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return fmt.Errorf("getting config dir: %w", err)
 	}
 
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return fmt.Errorf("getting feed path: %w", err)
 	}
 
 	configPath, err := config.GetConfigPath()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return fmt.Errorf("getting config path: %w", err)
 	}
 
 	claudePath, err := config.GetClaudeMDPath()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return fmt.Errorf("getting claude.md path: %w", err)
 	}
 
 	// Determine prefix for dry-run output
@@ -67,7 +81,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	// Check if already initialized
 	alreadyInitialized, err := config.IsSmokeInitialized()
 	if err != nil {
-		return fmt.Errorf("error: %w", err)
+		return fmt.Errorf("checking if smoke is initialized: %w", err)
 	}
 	if alreadyInitialized && !initForce {
 		fmt.Printf("Smoke is already initialized in %s\n", configDir)
@@ -79,10 +93,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	var actions []string
 
 	// Create config directory
-	configDirExists := false
-	if info, statErr := os.Stat(configDir); statErr == nil && info.IsDir() {
-		configDirExists = true
-	}
+	configDirExists := isDirectory(configDir)
 
 	if !configDirExists {
 		action := fmt.Sprintf("create directory %s", configDir)
@@ -90,7 +101,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 			fmt.Printf("%sWould %s\n", prefix, action)
 		} else {
 			if mkdirErr := os.MkdirAll(configDir, 0755); mkdirErr != nil {
-				return fmt.Errorf("error: failed to create config directory: %w", mkdirErr)
+				return fmt.Errorf("creating config directory: %w", mkdirErr)
 			}
 			fmt.Printf("Created directory: %s\n", configDir)
 		}
@@ -98,10 +109,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 
 	// Create feed file
-	feedExists := false
-	if _, statErr := os.Stat(feedPath); statErr == nil {
-		feedExists = true
-	}
+	feedExists := exists(feedPath)
 
 	if !feedExists || initForce {
 		feedAction := "create"
@@ -114,10 +122,10 @@ func runInit(_ *cobra.Command, _ []string) error {
 		} else {
 			f, openErr := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0644)
 			if openErr != nil {
-				return fmt.Errorf("error: failed to create feed file: %w", openErr)
+				return fmt.Errorf("creating feed file: %w", openErr)
 			}
 			if closeErr := f.Close(); closeErr != nil {
-				return fmt.Errorf("error: failed to close feed file: %w", closeErr)
+				return fmt.Errorf("closing feed file: %w", closeErr)
 			}
 			if feedExists {
 				fmt.Printf("Updated file: %s\n", feedPath)
@@ -142,10 +150,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 
 	// Create config.yaml with defaults
-	configExists := false
-	if _, statErr := os.Stat(configPath); statErr == nil {
-		configExists = true
-	}
+	configExists := exists(configPath)
 
 	if !configExists {
 		action := fmt.Sprintf("create file %s", configPath)
@@ -154,7 +159,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 		} else {
 			defaultConfig := "# Smoke configuration\n# See: smoke explain\n"
 			if writeErr := os.WriteFile(configPath, []byte(defaultConfig), 0644); writeErr != nil {
-				return fmt.Errorf("error: failed to create config file: %w", writeErr)
+				return fmt.Errorf("creating config file: %w", writeErr)
 			}
 			fmt.Printf("Created file: %s\n", configPath)
 		}

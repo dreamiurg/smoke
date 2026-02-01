@@ -92,18 +92,18 @@ func TestCheckConfigDir(t *testing.T) {
 			os.Setenv("HOME", tmpDir)
 			defer os.Setenv("HOME", oldHome)
 
-			check := checkConfigDir()
+			check := performConfigDirCheck()
 
 			if check.Status != tt.wantStatus {
-				t.Errorf("checkConfigDir().Status = %v, want %v", check.Status, tt.wantStatus)
+				t.Errorf("performConfigDirCheck().Status = %v, want %v", check.Status, tt.wantStatus)
 			}
 			if check.CanFix != tt.wantCanFix {
-				t.Errorf("checkConfigDir().CanFix = %v, want %v", check.CanFix, tt.wantCanFix)
+				t.Errorf("performConfigDirCheck().CanFix = %v, want %v", check.CanFix, tt.wantCanFix)
 			}
 			if tt.wantContains != "" {
 				combined := check.Message + " " + check.Detail
 				if !strings.Contains(combined, tt.wantContains) {
-					t.Errorf("checkConfigDir() message/detail should contain %q, got Message=%q Detail=%q",
+					t.Errorf("performConfigDirCheck() message/detail should contain %q, got Message=%q Detail=%q",
 						tt.wantContains, check.Message, check.Detail)
 				}
 			}
@@ -191,18 +191,18 @@ func TestCheckFeedFile(t *testing.T) {
 			os.Setenv("HOME", tmpDir)
 			defer os.Setenv("HOME", oldHome)
 
-			check := checkFeedFile()
+			check := performFeedFileCheck()
 
 			if check.Status != tt.wantStatus {
-				t.Errorf("checkFeedFile().Status = %v, want %v", check.Status, tt.wantStatus)
+				t.Errorf("performFeedFileCheck().Status = %v, want %v", check.Status, tt.wantStatus)
 			}
 			if check.CanFix != tt.wantCanFix {
-				t.Errorf("checkFeedFile().CanFix = %v, want %v", check.CanFix, tt.wantCanFix)
+				t.Errorf("performFeedFileCheck().CanFix = %v, want %v", check.CanFix, tt.wantCanFix)
 			}
 			if tt.wantContains != "" {
 				combined := check.Message + " " + check.Detail
 				if !strings.Contains(combined, tt.wantContains) {
-					t.Errorf("checkFeedFile() message/detail should contain %q, got Message=%q Detail=%q",
+					t.Errorf("performFeedFileCheck() message/detail should contain %q, got Message=%q Detail=%q",
 						tt.wantContains, check.Message, check.Detail)
 				}
 			}
@@ -275,13 +275,13 @@ invalid json line
 			os.Setenv("HOME", tmpDir)
 			defer os.Setenv("HOME", oldHome)
 
-			check := checkFeedFormat()
+			check := performFeedFormatCheck()
 
 			if check.Status != tt.wantStatus {
-				t.Errorf("checkFeedFormat().Status = %v, want %v", check.Status, tt.wantStatus)
+				t.Errorf("performFeedFormatCheck().Status = %v, want %v", check.Status, tt.wantStatus)
 			}
 			if !strings.Contains(check.Message, tt.wantContains) {
-				t.Errorf("checkFeedFormat().Message should contain %q, got %q",
+				t.Errorf("performFeedFormatCheck().Message should contain %q, got %q",
 					tt.wantContains, check.Message)
 			}
 		})
@@ -298,13 +298,13 @@ func TestCheckFeedFormat_FileErrors(t *testing.T) {
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", oldHome)
 
-		check := checkFeedFormat()
+		check := performFeedFormatCheck()
 
 		if check.Status != StatusFail {
-			t.Errorf("checkFeedFormat().Status = %v, want StatusFail", check.Status)
+			t.Errorf("performFeedFormatCheck().Status = %v, want StatusFail", check.Status)
 		}
 		if !strings.Contains(check.Message, "cannot open") {
-			t.Errorf("checkFeedFormat().Message should mention cannot open, got %q", check.Message)
+			t.Errorf("performFeedFormatCheck().Message should mention cannot open, got %q", check.Message)
 		}
 	})
 }
@@ -366,18 +366,18 @@ func TestCheckConfigFile(t *testing.T) {
 			os.Setenv("HOME", tmpDir)
 			defer os.Setenv("HOME", oldHome)
 
-			check := checkConfigFile()
+			check := performConfigFileCheck()
 
 			if check.Status != tt.wantStatus {
-				t.Errorf("checkConfigFile().Status = %v, want %v", check.Status, tt.wantStatus)
+				t.Errorf("performConfigFileCheck().Status = %v, want %v", check.Status, tt.wantStatus)
 			}
 			if check.CanFix != tt.wantCanFix {
-				t.Errorf("checkConfigFile().CanFix = %v, want %v", check.CanFix, tt.wantCanFix)
+				t.Errorf("performConfigFileCheck().CanFix = %v, want %v", check.CanFix, tt.wantCanFix)
 			}
 			if tt.wantContains != "" {
 				combined := check.Message + " " + check.Detail
 				if !strings.Contains(combined, tt.wantContains) {
-					t.Errorf("checkConfigFile() message/detail should contain %q, got Message=%q Detail=%q",
+					t.Errorf("performConfigFileCheck() message/detail should contain %q, got Message=%q Detail=%q",
 						tt.wantContains, check.Message, check.Detail)
 				}
 			}
@@ -768,13 +768,13 @@ func TestCheckFeedFormat_LargeFile(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", oldHome)
 
-	check := checkFeedFormat()
+	check := performFeedFormatCheck()
 
 	if check.Status != StatusPass {
-		t.Errorf("checkFeedFormat() with large file Status = %v, want StatusPass", check.Status)
+		t.Errorf("performFeedFormatCheck() with large file Status = %v, want StatusPass", check.Status)
 	}
 	if !strings.Contains(check.Message, "1000 posts") {
-		t.Errorf("checkFeedFormat().Message should mention 1000 posts, got %q", check.Message)
+		t.Errorf("performFeedFormatCheck().Message should mention 1000 posts, got %q", check.Message)
 	}
 }
 
@@ -837,12 +837,12 @@ func TestCheckFeedFile_CustomPath(t *testing.T) {
 		}
 	}()
 
-	check := checkFeedFile()
+	check := performFeedFileCheck()
 
 	if check.Status != StatusPass {
-		t.Errorf("checkFeedFile() with custom path Status = %v, want StatusPass", check.Status)
+		t.Errorf("performFeedFileCheck() with custom path Status = %v, want StatusPass", check.Status)
 	}
 	if !strings.Contains(check.Message, customFeed) {
-		t.Errorf("checkFeedFile().Message should contain custom path %q, got %q", customFeed, check.Message)
+		t.Errorf("performFeedFileCheck().Message should contain custom path %q, got %q", customFeed, check.Message)
 	}
 }

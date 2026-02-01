@@ -120,11 +120,9 @@ func SplitIdentity(author string) (agent, project string) {
 	return author, ""
 }
 
-// ColorizeIdentity applies theme and contrast styling to identity parts.
-// Uses lipgloss.Color objects from Theme for proper TUI rendering.
-func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) string {
-	agent, project := SplitIdentity(author)
-
+// colorizeIdentityParts applies theme and contrast styling to agent and project components.
+// This is the core styling logic used by ColorizeIdentity.
+func colorizeIdentityParts(agent, project string, theme *Theme, contrast *ContrastLevel) string {
 	// Build agent style using theme colors
 	agentStyle := lipgloss.NewStyle().
 		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)])
@@ -154,36 +152,11 @@ func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) stri
 	return styledAgent + "@" + styledProject
 }
 
-// ColorizeFullIdentity applies theme and contrast styling to author and project parts.
-// Takes separate author and project strings (from Post fields).
-func ColorizeFullIdentity(author, project string, theme *Theme, contrast *ContrastLevel) string {
-	// Build agent style using theme colors
-	agentStyle := lipgloss.NewStyle().
-		Foreground(theme.AgentColors[hashString(author)%len(theme.AgentColors)])
-
-	if contrast.AgentBold {
-		agentStyle = agentStyle.Bold(true)
-	}
-
-	styledAgent := agentStyle.Render(author)
-
-	// Handle project part if it exists
-	if project == "" {
-		return styledAgent
-	}
-
-	projectStyle := lipgloss.NewStyle()
-	if contrast.ProjectColored {
-		// Color the project with a secondary theme color
-		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
-	} else {
-		// Dim the project
-		projectStyle = projectStyle.Foreground(theme.TextMuted)
-	}
-
-	styledProject := projectStyle.Render(project)
-
-	return styledAgent + "@" + styledProject
+// ColorizeIdentity applies theme and contrast styling to a full identity string.
+// Identity format is "agent@project". Uses lipgloss.Color objects from Theme for proper TUI rendering.
+func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) string {
+	agent, project := SplitIdentity(author)
+	return colorizeIdentityParts(agent, project, theme, contrast)
 }
 
 // hashString computes a deterministic hash for consistent coloring.
