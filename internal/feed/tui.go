@@ -258,7 +258,8 @@ func (m Model) View() string {
 
 	content := m.renderContent(availableHeight)
 
-	return header + "\n" + content + statusBar
+	// Use JoinVertical for seamless background colors
+	return lipgloss.JoinVertical(lipgloss.Left, header, content, statusBar)
 }
 
 // renderHeader creates the header bar with version, stats, and clock
@@ -418,25 +419,22 @@ func (m Model) renderContent(availableHeight int) string {
 	}
 	visibleLines := allLines[offset:endIdx]
 
-	// Build content with each line having background color
-	contentStyle := lipgloss.NewStyle().
+	// Style for each line - ensures full width background
+	lineStyle := lipgloss.NewStyle().
 		Background(m.theme.Background).
 		Width(m.width)
 
-	var content strings.Builder
-	for _, line := range visibleLines {
-		content.WriteString(contentStyle.Render(line))
-		content.WriteString("\n")
+	// Build all lines with consistent background
+	styledLines := make([]string, availableHeight)
+	for i := 0; i < availableHeight; i++ {
+		if i < len(visibleLines) {
+			styledLines[i] = lineStyle.Render(visibleLines[i])
+		} else {
+			styledLines[i] = lineStyle.Render("")
+		}
 	}
 
-	// Fill remaining lines with background color if content is shorter than available height
-	linesRendered := len(visibleLines)
-	for i := linesRendered; i < availableHeight; i++ {
-		content.WriteString(contentStyle.Render(""))
-		content.WriteString("\n")
-	}
-
-	return content.String()
+	return lipgloss.JoinVertical(lipgloss.Left, styledLines...)
 }
 
 // formatPost formats a post according to the current layout
