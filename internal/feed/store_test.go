@@ -372,14 +372,14 @@ func TestNewStore(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if err := store.Append(post); err != nil {
-		t.Errorf("NewStore() store.Append() unexpected error: %v", err)
+	if appendErr := store.Append(post); appendErr != nil {
+		t.Errorf("NewStore() store.Append() unexpected error: %v", appendErr)
 	}
 
 	// Verify post was written
-	posts, err := store.ReadAll()
-	if err != nil {
-		t.Errorf("NewStore() store.ReadAll() unexpected error: %v", err)
+	posts, readErr := store.ReadAll()
+	if readErr != nil {
+		t.Errorf("NewStore() store.ReadAll() unexpected error: %v", readErr)
 	}
 	if len(posts) != 1 {
 		t.Errorf("NewStore() store.ReadAll() returned %d posts, want 1", len(posts))
@@ -433,13 +433,13 @@ func TestExistsTrue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create post: %v", err)
 	}
-	if err := store.Append(post); err != nil {
-		t.Fatalf("Failed to append post: %v", err)
+	if appendErr := store.Append(post); appendErr != nil {
+		t.Fatalf("Failed to append post: %v", appendErr)
 	}
 
-	exists, err := store.Exists(post.ID)
-	if err != nil {
-		t.Errorf("Exists() unexpected error: %v", err)
+	exists, existsErr := store.Exists(post.ID)
+	if existsErr != nil {
+		t.Errorf("Exists() unexpected error: %v", existsErr)
 	}
 	if !exists {
 		t.Error("Exists() should return true for existing post")
