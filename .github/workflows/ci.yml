@@ -53,11 +53,13 @@ jobs:
         uses: securego/gosec@master
         with:
           # Exclude rules that are false positives for this codebase:
-          # G104 - fnv.Write never errors, explicit ignore ok
+          # G104 - fnv.Write never errors
+          # G301 - config dirs (0755) are standard XDG permissions
+          # G302 - config files (0644) are standard readable permissions
           # G304 - config paths from XDG are controlled
-          # G306 - config files (0644) don't contain secrets
+          # G306 - config files don't contain secrets
           # G404 - RNG for prompt selection, not security
-          args: -exclude=G104,G304,G306,G404 ./...
+          args: -exclude=G104,G301,G302,G304,G306,G404 ./...
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
