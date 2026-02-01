@@ -540,7 +540,7 @@ func fixTUIConfigStyleToLayout(tuiPath string) error {
 
 	// Parse as generic map
 	var parsed map[string]interface{}
-	if err := yaml.Unmarshal(data, &parsed); err != nil {
+	if err = yaml.Unmarshal(data, &parsed); err != nil {
 		return err
 	}
 
