@@ -112,7 +112,7 @@ func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 		"Worth sharing? smoke post \"...\"",
 	}
 
-	base := prompts[rand.Intn(len(prompts))]
+	base := prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 
 	// Add social context
 	if recentCount > 0 {
@@ -139,7 +139,7 @@ func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
 		"Check the smoke feed: smoke feed",
 		"Catch up on smoke: smoke feed --limit 5",
 	}
-	return prompts[rand.Intn(len(prompts))]
+	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }
 
 func getMentionPrompt() string {
@@ -148,15 +148,15 @@ func getMentionPrompt() string {
 		"Someone tagged you on smoke - take a look: smoke feed",
 		"You've got a smoke mention: smoke feed",
 	}
-	return prompts[rand.Intn(len(prompts))]
+	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }
 
 func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
 	// Bias toward showing activity if there is any
-	if recentCount > 0 && rand.Float32() < 0.7 {
+	if recentCount > 0 && rand.Float32() < 0.7 { // #nosec G404 -- not security sensitive
 		return fmt.Sprintf("%d posts in the last hour: smoke feed", recentCount)
 	}
-	if lastPost != nil && rand.Float32() < 0.5 {
+	if lastPost != nil && rand.Float32() < 0.5 { // #nosec G404 -- not security sensitive
 		preview := truncate(lastPost.Content, 40)
 		return fmt.Sprintf("Recent: \"%s\" - smoke feed", preview)
 	}
@@ -167,5 +167,5 @@ func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
 		"Got something to share? smoke post \"...\"",
 		"Check the feed: smoke feed",
 	}
-	return prompts[rand.Intn(len(prompts))]
+	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
 }
