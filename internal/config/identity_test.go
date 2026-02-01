@@ -773,3 +773,213 @@ func TestNonClaudeCodeUsesTerminalSession(t *testing.T) {
 	seed := getSessionSeed()
 	require.Equal(t, "my-terminal-session-id", seed, "Should use TERM_SESSION_ID when not under Claude Code")
 }
+
+// TestSessionFileWriteAndRead tests the session file read/write functionality
+func TestSessionFileWriteAndRead(t *testing.T) {
+	// Create a temp config dir for testing
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	// Override the config dir for this test
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Write session info
+	info := &sessionInfo{
+		PID:           12345,
+		TermSessionID: "test-term-session",
+		Seed:          "claude-ppid-12345",
+	}
+	err := writeSessionInfo(info)
+	require.NoError(t, err)
+
+	// Read it back
+	readInfo := readSessionInfo()
+	require.NotNil(t, readInfo, "Should be able to read session info")
+	require.Equal(t, 12345, readInfo.PID)
+	require.Equal(t, "test-term-session", readInfo.TermSessionID)
+	require.Equal(t, "claude-ppid-12345", readInfo.Seed)
+}
+
+// TestSessionFileReturnsNilForMissingFile tests that readSessionInfo returns nil for missing file
+func TestSessionFileReturnsNilForMissingFile(t *testing.T) {
+	// Use a temp dir that doesn't have the session file
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tmpDir)
+
+	info := readSessionInfo()
+	require.Nil(t, info, "Should return nil for missing session file")
+}
+
+// TestSessionFileReturnsNilForInvalidJSON tests that readSessionInfo returns nil for invalid JSON
+func TestSessionFileReturnsNilForInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tmpDir)
+
+	// Write invalid JSON
+	sessionFile := filepath.Join(configDir, "session.json")
+	require.NoError(t, os.WriteFile(sessionFile, []byte("not valid json"), 0600))
+
+	info := readSessionInfo()
+	require.Nil(t, info, "Should return nil for invalid JSON")
+}
+
+// TestIsPIDRunning tests the PID checking functionality
+func TestIsPIDRunning(t *testing.T) {
+	// Current process should be running
+	require.True(t, isPIDRunning(os.Getpid()), "Current process PID should be running")
+
+	// Invalid PIDs should return false
+	require.False(t, isPIDRunning(0), "PID 0 should return false")
+	require.False(t, isPIDRunning(-1), "PID -1 should return false")
+
+	// Very high PID unlikely to exist
+	require.False(t, isPIDRunning(999999999), "Non-existent PID should return false")
+}
+
+// TestSessionFileCrossProcessSharing tests the main use case:
+// Claude Code writes session file, ccstatusline reads it
+func TestSessionFileCrossProcessSharing(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "")
+
+	termSessionID := "shared-terminal-123"
+	os.Setenv("TERM_SESSION_ID", termSessionID)
+
+	// Step 1: Simulate Claude Code running - should write session file
+	os.Setenv("CLAUDECODE", "1")
+	claudeSeed := getSessionSeed()
+	require.Contains(t, claudeSeed, "claude-ppid-", "Claude Code should use PPID-based seed")
+
+	// Verify session file was written
+	info := readSessionInfo()
+	require.NotNil(t, info, "Session file should exist after Claude Code invocation")
+	require.Equal(t, claudeSeed, info.Seed, "Session file should contain the Claude seed")
+	require.Equal(t, termSessionID, info.TermSessionID, "Session file should contain terminal session ID")
+
+	// Step 2: Simulate ccstatusline (not under Claude Code) - should read from session file
+	os.Setenv("CLAUDECODE", "")
+
+	// The stored PID is our current process's PPID (the test runner)
+	// Since we're in the same process, we need to use a running PID
+	// Update the session file with current process PID for testing
+	info.PID = os.Getpid() // Use current PID which is definitely running
+	require.NoError(t, writeSessionInfo(info))
+
+	statuslineSeed := getSessionSeed()
+	require.Equal(t, claudeSeed, statuslineSeed, "ccstatusline should get same seed as Claude Code via session file")
+}
+
+// TestSessionFileIgnoredWhenDifferentTerminal tests that session file is ignored
+// when called from a different terminal
+func TestSessionFileIgnoredWhenDifferentTerminal(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "")
+
+	// Write a session file for terminal A
+	info := &sessionInfo{
+		PID:           os.Getpid(), // Running PID
+		TermSessionID: "terminal-A",
+		Seed:          "claude-ppid-from-terminal-A",
+	}
+	require.NoError(t, writeSessionInfo(info))
+
+	// Try to read from terminal B (different TERM_SESSION_ID)
+	os.Setenv("CLAUDECODE", "")
+	os.Setenv("TERM_SESSION_ID", "terminal-B")
+
+	seed := getSessionSeed()
+	// Should NOT use the session file because terminal IDs don't match
+	require.Equal(t, "terminal-B", seed, "Should fall back to TERM_SESSION_ID when session file is for different terminal")
+}
+
+// TestSessionFileIgnoredWhenProcessDead tests that session file is ignored
+// when the Claude Code process is no longer running
+func TestSessionFileIgnoredWhenProcessDead(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	origHome := os.Getenv("HOME")
+	origClaudeCode := os.Getenv("CLAUDECODE")
+	origTermSession := os.Getenv("TERM_SESSION_ID")
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("TERM_SESSION_ID", origTermSession)
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+	}()
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("BD_ACTOR", "")
+	os.Setenv("SMOKE_AUTHOR", "")
+
+	termSessionID := "my-terminal"
+	os.Setenv("TERM_SESSION_ID", termSessionID)
+
+	// Write a session file with a non-existent PID
+	info := &sessionInfo{
+		PID:           999999999, // Very unlikely to exist
+		TermSessionID: termSessionID,
+		Seed:          "claude-ppid-dead-process",
+	}
+	require.NoError(t, writeSessionInfo(info))
+
+	// Try to read when not under Claude Code
+	os.Setenv("CLAUDECODE", "")
+
+	seed := getSessionSeed()
+	// Should NOT use the session file because PID is not running
+	require.Equal(t, termSessionID, seed, "Should fall back to TERM_SESSION_ID when session file PID is dead")
+}

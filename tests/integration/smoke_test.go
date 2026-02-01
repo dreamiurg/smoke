@@ -97,9 +97,19 @@ func (h *TestHelper) Run(args ...string) (string, string, error) {
 	cmd := exec.Command(h.binPath, args...)
 	cmd.Dir = h.tmpDir
 
+	// Build environment: start with current env, then override specific vars.
+	// Filter out CLAUDECODE to prevent session file interference in tests
+	// (tests may run under Claude Code which sets CLAUDECODE=1).
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "CLAUDECODE=") && !strings.HasPrefix(e, "HOME=") {
+			env = append(env, e)
+		}
+	}
 	// Set HOME to tmpDir so smoke uses tmpDir/.config/smoke/
-	env := os.Environ()
 	env = append(env, "HOME="+h.tmpDir)
+	// Explicitly unset CLAUDECODE to ensure tests use TERM_SESSION_ID for identity
+	env = append(env, "CLAUDECODE=")
 	cmd.Env = env
 
 	var stdout, stderr bytes.Buffer

@@ -3,9 +3,11 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ClaudeDir is the directory where Claude Code stores its configuration
@@ -48,44 +50,92 @@ func GetClaudeMDPath() (string, error) {
 	return filepath.Join(home, ClaudeDir, ClaudeMDFile), nil
 }
 
-// AppendSmokeHint appends the smoke hint to ~/.claude/CLAUDE.md
-// Returns (true, nil) if hint was appended, (false, nil) if already present
-// Creates the file and directory if they don't exist
-func AppendSmokeHint() (bool, error) {
+// AppendSmokeHintResult contains the result of appending the smoke hint
+type AppendSmokeHintResult struct {
+	Appended   bool   // true if hint was appended
+	BackupPath string // path to backup file, empty if no backup created
+}
+
+// BackupClaudeMD creates a timestamped backup of CLAUDE.md if it exists.
+// Returns the backup path if created, empty string if file doesn't exist.
+func BackupClaudeMD() (string, error) {
 	claudePath, err := GetClaudeMDPath()
 	if err != nil {
-		return false, err
+		return "", err
+	}
+
+	// Only backup if file exists
+	if _, statErr := os.Stat(claudePath); os.IsNotExist(statErr) {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(claudePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Create timestamped backup filename
+	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	backupPath := fmt.Sprintf("%s.bak.%s", claudePath, timestamp)
+
+	if writeErr := os.WriteFile(backupPath, data, 0644); writeErr != nil {
+		return "", writeErr
+	}
+
+	return backupPath, nil
+}
+
+// AppendSmokeHint appends the smoke hint to ~/.claude/CLAUDE.md
+// Returns result with Appended=true if hint was appended, Appended=false if already present
+// Creates backup before modifying and returns backup path
+// Creates the file and directory if they don't exist
+func AppendSmokeHint() (*AppendSmokeHintResult, error) {
+	result := &AppendSmokeHintResult{}
+
+	claudePath, err := GetClaudeMDPath()
+	if err != nil {
+		return nil, err
 	}
 
 	// Ensure directory exists
 	claudeDir := filepath.Dir(claudePath)
 	if mkdirErr := os.MkdirAll(claudeDir, 0755); mkdirErr != nil {
-		return false, mkdirErr
+		return nil, mkdirErr
 	}
 
 	// Read existing content
 	content, readErr := os.ReadFile(claudePath)
 	if readErr != nil && !os.IsNotExist(readErr) {
-		return false, readErr
+		return nil, readErr
 	}
 
 	// Check if already present
 	if strings.Contains(string(content), SmokeHintMarker) {
-		return false, nil
+		return result, nil // Appended=false, BackupPath=""
+	}
+
+	// Create backup before modifying (only if file exists)
+	if len(content) > 0 {
+		backupPath, backupErr := BackupClaudeMD()
+		if backupErr != nil {
+			return nil, fmt.Errorf("backup CLAUDE.md: %w", backupErr)
+		}
+		result.BackupPath = backupPath
 	}
 
 	// Append hint
 	f, openErr := os.OpenFile(claudePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if openErr != nil {
-		return false, openErr
+		return nil, openErr
 	}
 	defer func() { _ = f.Close() }()
 
 	if _, writeErr := f.WriteString(SmokeHint); writeErr != nil {
-		return false, writeErr
+		return nil, writeErr
 	}
 
-	return true, nil
+	result.Appended = true
+	return result, nil
 }
 
 // HasSmokeHint checks if CLAUDE.md already contains the smoke hint

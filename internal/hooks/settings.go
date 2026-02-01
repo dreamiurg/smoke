@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // readSettings reads and parses Claude Code settings.json
@@ -70,22 +71,30 @@ func writeSettings(settings map[string]interface{}) error {
 	return nil
 }
 
-// backupSettings creates a backup of settings.json if it exists
-func backupSettings() error {
+// BackupSettings creates a timestamped backup of settings.json if it exists.
+// Returns the backup path if created, empty string if no backup was needed (file doesn't exist).
+func BackupSettings() (string, error) {
 	settingsPath := GetSettingsPath()
-	backupPath := settingsPath + ".backup"
 
 	// Only backup if settings exists
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		return nil
+		return "", nil
 	}
 
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return os.WriteFile(backupPath, data, 0644)
+	// Create timestamped backup filename
+	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	backupPath := fmt.Sprintf("%s.bak.%s", settingsPath, timestamp)
+
+	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+		return "", err
+	}
+
+	return backupPath, nil
 }
 
 // isSmokeHook checks if a hook command is a smoke hook

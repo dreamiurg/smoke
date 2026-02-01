@@ -3,6 +3,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -10,9 +11,80 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/dreamiurg/smoke/internal/identity"
 )
+
+// sessionInfo stores the current Claude session identity for cross-process sharing.
+// This allows ccstatusline to show the same identity as Claude Code's direct invocations.
+type sessionInfo struct {
+	PID           int    `json:"pid"`             // Claude Code process PID
+	TermSessionID string `json:"term_session_id"` // Terminal session ID for multi-terminal support
+	Seed          string `json:"seed"`            // The seed used for identity generation
+}
+
+// sessionFileName is the name of the session file within the config directory.
+const sessionFileName = "session.json"
+
+// getSessionFilePath returns the path to the session file.
+func getSessionFilePath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, sessionFileName), nil
+}
+
+// writeSessionInfo writes session info to the session file.
+func writeSessionInfo(info *sessionInfo) error {
+	path, err := getSessionFilePath()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0600)
+}
+
+// readSessionInfo reads session info from the session file.
+// Returns nil if the file doesn't exist or can't be parsed.
+func readSessionInfo() *sessionInfo {
+	path, err := getSessionFilePath()
+	if err != nil {
+		return nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	var info sessionInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil
+	}
+
+	return &info
+}
+
+// isPIDRunning checks if a process with the given PID is still running.
+func isPIDRunning(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	// On Unix, FindProcess always succeeds. We need to send signal 0 to check if alive.
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
+}
 
 // ErrNoIdentity is returned when identity cannot be determined
 var ErrNoIdentity = errors.New("cannot determine identity. Use --as flag or set SMOKE_AUTHOR")
@@ -142,22 +214,41 @@ func detectAgent() string {
 }
 
 // getSessionSeed returns a stable seed for the current session.
-// When running under Claude Code, uses PPID for per-session identity.
-// Otherwise tries TERM_SESSION_ID and WINDOWID, then falls back to PPID.
+// When running under Claude Code, uses PPID for per-session identity and
+// writes to a session file so other processes (like ccstatusline) can use the same identity.
+// When not running under Claude Code, checks the session file first.
 func getSessionSeed() string {
+	termSessionID := os.Getenv("TERM_SESSION_ID")
+
 	// If running under Claude Code, use PPID for per-session identity.
 	// Each Claude Code session has a unique PID, so smoke gets a fresh
 	// identity per conversation even in the same terminal.
 	if os.Getenv("CLAUDECODE") == "1" {
 		ppid := os.Getppid()
 		if ppid > 0 {
-			return fmt.Sprintf("claude-ppid-%d", ppid)
+			seed := fmt.Sprintf("claude-ppid-%d", ppid)
+			// Write session info so other processes can use the same identity
+			_ = writeSessionInfo(&sessionInfo{
+				PID:           ppid,
+				TermSessionID: termSessionID,
+				Seed:          seed,
+			})
+			return seed
 		}
 	}
 
-	// Check terminal session identifiers
-	if seed := os.Getenv("TERM_SESSION_ID"); seed != "" {
-		return seed
+	// Not running under Claude Code - check for a valid session file.
+	// This allows ccstatusline to show the same identity as Claude Code.
+	if info := readSessionInfo(); info != nil {
+		// Validate: same terminal and Claude process still running
+		if info.TermSessionID == termSessionID && isPIDRunning(info.PID) {
+			return info.Seed
+		}
+	}
+
+	// Fallback to terminal session identifiers
+	if termSessionID != "" {
+		return termSessionID
 	}
 	if seed := os.Getenv("WINDOWID"); seed != "" {
 		return seed

@@ -6,8 +6,14 @@ import (
 	"path/filepath"
 )
 
+// InstallResult contains the result of a hook installation
+type InstallResult struct {
+	BackupPath string // Path to settings backup, empty if no backup created
+}
+
 // Install installs smoke hooks to Claude Code
-func Install(opts InstallOptions) error {
+func Install(opts InstallOptions) (*InstallResult, error) {
+	result := &InstallResult{}
 	hooksDir := GetHooksDir()
 
 	// Check for modified scripts first (unless --force)
@@ -15,31 +21,31 @@ func Install(opts InstallOptions) error {
 		for _, script := range ListScripts() {
 			content, err := GetScriptContent(script.Name)
 			if err != nil {
-				return fmt.Errorf("get embedded script %s: %w", script.Name, err)
+				return nil, fmt.Errorf("get embedded script %s: %w", script.Name, err)
 			}
 
 			installedPath := filepath.Join(hooksDir, script.Name)
 			if scriptExists(installedPath) && isScriptModified(installedPath, content) {
-				return ErrScriptsModified
+				return nil, ErrScriptsModified
 			}
 		}
 	}
 
 	// Create hooks directory
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		return fmt.Errorf("%w: cannot create hooks directory", ErrPermissionDenied)
+		return nil, fmt.Errorf("%w: cannot create hooks directory", ErrPermissionDenied)
 	}
 
 	// Install each script
 	for _, script := range ListScripts() {
 		content, err := GetScriptContent(script.Name)
 		if err != nil {
-			return fmt.Errorf("get embedded script %s: %w", script.Name, err)
+			return nil, fmt.Errorf("get embedded script %s: %w", script.Name, err)
 		}
 
 		installedPath := filepath.Join(hooksDir, script.Name)
 		if err := writeScript(installedPath, content); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -48,50 +54,75 @@ func Install(opts InstallOptions) error {
 	if err != nil {
 		// If settings are invalid, backup and create fresh
 		if err == ErrInvalidSettings {
-			if backupErr := backupSettings(); backupErr != nil {
-				return fmt.Errorf("backup invalid settings: %w", backupErr)
+			backupPath, backupErr := BackupSettings()
+			if backupErr != nil {
+				return nil, fmt.Errorf("backup invalid settings: %w", backupErr)
 			}
+			result.BackupPath = backupPath
 			settings = make(map[string]interface{})
 		} else {
-			return err
+			return nil, err
 		}
+	}
+
+	// Create backup before modifying settings
+	if result.BackupPath == "" {
+		backupPath, backupErr := BackupSettings()
+		if backupErr != nil {
+			return nil, fmt.Errorf("backup settings: %w", backupErr)
+		}
+		result.BackupPath = backupPath
 	}
 
 	// Add hook entries to settings
 	for _, script := range ListScripts() {
 		scriptPath := filepath.Join(hooksDir, script.Name)
 		if err := addHookToSettings(settings, script.Event, scriptPath); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// Write updated settings
 	if err := writeSettings(settings); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return result, nil
+}
+
+// UninstallResult contains the result of a hook uninstallation
+type UninstallResult struct {
+	BackupPath string // Path to settings backup, empty if no backup created
 }
 
 // Uninstall removes smoke hooks from Claude Code
-func Uninstall() error {
+func Uninstall() (*UninstallResult, error) {
+	result := &UninstallResult{}
+
 	// Update settings.json first
 	settings, err := readSettings()
 	if err != nil && err != ErrInvalidSettings {
-		return err
+		return nil, err
 	}
 
 	// Remove hook entries from settings
 	if err == nil { // Only if settings are valid
+		// Create backup before modifying settings
+		backupPath, backupErr := BackupSettings()
+		if backupErr != nil {
+			return nil, fmt.Errorf("backup settings: %w", backupErr)
+		}
+		result.BackupPath = backupPath
+
 		for _, script := range ListScripts() {
 			if err := removeHookFromSettings(settings, script.Event); err != nil {
-				return err
+				return nil, err
 			}
 		}
 
 		// Write updated settings
 		if err := writeSettings(settings); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -101,7 +132,7 @@ func Uninstall() error {
 		scriptPath := filepath.Join(hooksDir, script.Name)
 		if scriptExists(scriptPath) {
 			if err := os.Remove(scriptPath); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("%w: cannot remove script", ErrPermissionDenied)
+				return nil, fmt.Errorf("%w: cannot remove script", ErrPermissionDenied)
 			}
 		}
 	}
@@ -112,7 +143,7 @@ func Uninstall() error {
 		_ = os.RemoveAll(stateDir) // Best effort, ignore errors
 	}
 
-	return nil
+	return result, nil
 }
 
 // GetStatus returns the current hook installation status

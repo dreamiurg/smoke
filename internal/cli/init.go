@@ -185,10 +185,13 @@ func runInit(_ *cobra.Command, _ []string) error {
 		if initDryRun {
 			fmt.Printf("%sWould %s\n", prefix, action)
 		} else {
-			appended, appendErr := config.AppendSmokeHint()
+			hintResult, appendErr := config.AppendSmokeHint()
 			if appendErr != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "warning: could not update CLAUDE.md: %v\n", appendErr)
-			} else if appended {
+			} else if hintResult != nil && hintResult.Appended {
+				if hintResult.BackupPath != "" {
+					fmt.Printf("Backed up CLAUDE.md to: %s\n", hintResult.BackupPath)
+				}
 				fmt.Printf("Updated file: %s (appended smoke hint)\n", claudePath)
 			}
 		}
@@ -199,7 +202,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 
 	// Install hooks (unless dry-run)
 	if !initDryRun {
-		hookErr := hooks.Install(hooks.InstallOptions{Force: false})
+		hookResult, hookErr := hooks.Install(hooks.InstallOptions{Force: false})
 		if hookErr != nil {
 			// Graceful degradation per FR-002: warn but don't fail init
 			if errors.Is(hookErr, hooks.ErrScriptsModified) {
@@ -209,6 +212,9 @@ func runInit(_ *cobra.Command, _ []string) error {
 				fmt.Fprintf(os.Stderr, "  Run 'smoke hooks install' manually after fixing the issue.\n")
 			}
 		} else {
+			if hookResult != nil && hookResult.BackupPath != "" {
+				fmt.Printf("Backed up Claude settings to: %s\n", hookResult.BackupPath)
+			}
 			fmt.Printf("Hooks installed: ~/.claude/hooks/smoke-*.sh\n")
 		}
 	}

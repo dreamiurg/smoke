@@ -88,7 +88,7 @@ func runHooksInstall(_ *cobra.Command, _ []string) error {
 		Force: hooksForce,
 	}
 
-	err := hooks.Install(opts)
+	result, err := hooks.Install(opts)
 	if err != nil {
 		if errors.Is(err, hooks.ErrScriptsModified) {
 			fmt.Fprintln(os.Stderr, "Error: Hook scripts have been modified")
@@ -102,10 +102,15 @@ func runHooksInstall(_ *cobra.Command, _ []string) error {
 		}
 		if errors.Is(err, hooks.ErrInvalidSettings) {
 			fmt.Fprintln(os.Stderr, "Error: ~/.claude/settings.json contains invalid JSON")
-			fmt.Fprintln(os.Stderr, "Backed up to settings.json.backup. Hooks installed with fresh settings.")
+			fmt.Fprintln(os.Stderr, "Settings backed up. Hooks installed with fresh settings.")
 		} else {
 			return fmt.Errorf("install hooks: %w", err)
 		}
+	}
+
+	// Print backup path if created
+	if result != nil && result.BackupPath != "" {
+		fmt.Printf("Backed up settings to: %s\n", result.BackupPath)
 	}
 
 	// Show success message
@@ -132,7 +137,7 @@ func runHooksUninstall(_ *cobra.Command, _ []string) error {
 	}
 
 	// Uninstall
-	err = hooks.Uninstall()
+	result, err := hooks.Uninstall()
 	if err != nil {
 		if errors.Is(err, hooks.ErrPermissionDenied) {
 			fmt.Fprintln(os.Stderr, "Error: Permission denied")
@@ -140,6 +145,11 @@ func runHooksUninstall(_ *cobra.Command, _ []string) error {
 			return nil
 		}
 		return fmt.Errorf("uninstall hooks: %w", err)
+	}
+
+	// Print backup path if created
+	if result != nil && result.BackupPath != "" {
+		fmt.Printf("Backed up settings to: %s\n", result.BackupPath)
 	}
 
 	// Show success message
