@@ -50,11 +50,13 @@ bd sync                               # Sync with git remote
 
 ## Development Workflow
 
-**Landing changes on main:**
-- Push directly to main (no PR required during active development)
+**Branch/Worktree Development (SHOULD):**
+- All work SHOULD happen in a feature branch or git worktree, not directly on main
+- Use `git worktree add ../smoke-<feature> -b <feature-branch>` for isolation
+- Create PRs for code review before merging to main
 - Pre-commit hooks run: fmt, vet, lint, tests
-- CI runs async after push
-- Releases only created when CI passes
+- CI runs on push to any branch
+- Releases only created when CI passes on main
 
 **Commits:** `type: description` — types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
 
@@ -112,9 +114,12 @@ git commit -m "type: description"
 
 # 3. Sync beads and push
 bd sync
-git push
+git push -u origin <branch>       # Push branch to remote
 
-# 4. Verify
+# 4. Create PR (if ready for review)
+gh pr create --draft              # Create draft PR for review
+
+# 5. Verify
 git status  # MUST show "up to date with origin"
 ```
 
