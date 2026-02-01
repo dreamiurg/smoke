@@ -62,7 +62,8 @@ func TestHooksInstall_Modified(t *testing.T) {
 
 	// Capture stderr
 	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stderr = w
 
 	// Attempt reinstall without --force
@@ -138,11 +139,12 @@ func TestHooksUninstall_NotInstalled(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
 	// Uninstall when not installed
-	err := runHooksUninstall(nil, nil)
+	err = runHooksUninstall(nil, nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -161,11 +163,12 @@ func TestHooksStatus_NotInstalled(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
 	// Run status
-	err := runHooksStatus(nil, nil)
+	err = runHooksStatus(nil, nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -189,7 +192,8 @@ func TestHooksStatus_Installed(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
 	// Run status
@@ -220,7 +224,8 @@ func TestHooksStatus_JSON(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
 	// Run status

@@ -55,6 +55,13 @@ func writeSettings(settings map[string]interface{}) error {
 		return fmt.Errorf("%w: cannot write settings", ErrPermissionDenied)
 	}
 
+	// On Windows, os.Rename fails if destination exists. Remove first.
+	if _, err := os.Stat(settingsPath); err == nil {
+		if err := os.Remove(settingsPath); err != nil {
+			_ = os.Remove(tmpPath) // Best effort cleanup
+			return fmt.Errorf("%w: cannot replace settings", ErrPermissionDenied)
+		}
+	}
 	if err := os.Rename(tmpPath, settingsPath); err != nil {
 		_ = os.Remove(tmpPath) // Best effort cleanup
 		return fmt.Errorf("%w: cannot update settings", ErrPermissionDenied)

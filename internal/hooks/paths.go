@@ -9,8 +9,11 @@ import (
 func getHooksDirImpl() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// Fallback to ~ expansion
-		return filepath.Join("~", ".claude", "hooks")
+		// Fallback to HOME env var, then temp dir
+		if homeEnv := os.Getenv("HOME"); homeEnv != "" {
+			return filepath.Join(homeEnv, ".claude", "hooks")
+		}
+		return filepath.Join(os.TempDir(), ".claude", "hooks")
 	}
 	return filepath.Join(home, ".claude", "hooks")
 }
@@ -19,8 +22,11 @@ func getHooksDirImpl() string {
 func getSettingsPathImpl() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// Fallback to ~ expansion
-		return filepath.Join("~", ".claude", "settings.json")
+		// Fallback to HOME env var, then temp dir
+		if homeEnv := os.Getenv("HOME"); homeEnv != "" {
+			return filepath.Join(homeEnv, ".claude", "settings.json")
+		}
+		return filepath.Join(os.TempDir(), ".claude", "settings.json")
 	}
 	return filepath.Join(home, ".claude", "settings.json")
 }

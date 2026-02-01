@@ -184,11 +184,15 @@ func TestUninstall_HooksPresent(t *testing.T) {
 		stopHooks, ok := hooks["Stop"].([]interface{})
 		if ok {
 			for _, entry := range stopHooks {
-				entryMap := entry.(map[string]interface{})
-				entryHooks := entryMap["hooks"].([]interface{})
+				entryMap, ok := entry.(map[string]interface{})
+				require.True(t, ok, "entry should be map")
+				entryHooks, ok := entryMap["hooks"].([]interface{})
+				require.True(t, ok, "hooks should be array")
 				for _, hook := range entryHooks {
-					hookMap := hook.(map[string]interface{})
-					command := hookMap["command"].(string)
+					hookMap, ok := hook.(map[string]interface{})
+					require.True(t, ok, "hook should be map")
+					command, ok := hookMap["command"].(string)
+					require.True(t, ok, "command should be string")
 					assert.NotContains(t, command, "smoke-break.sh")
 					assert.NotContains(t, command, "smoke-nudge.sh")
 				}
