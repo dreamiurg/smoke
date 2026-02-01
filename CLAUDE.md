@@ -43,15 +43,34 @@ internal/
 
 ## Issue Tracking (Beads)
 
-This project uses `bd` (beads) for tracking work across sessions.
+This project uses `bd` (beads) for tracking work across sessions. Issues are stored in `.beads/` and tracked in git.
+
+### Essential Commands
 
 ```bash
-bd ready                              # Find available work
-bd show <id>                          # View issue details
-bd update <id> --status in_progress   # Claim work
-bd close <id>                         # Complete work
+bd ready                              # Show issues ready to work (no blockers)
+bd list --status=open                 # All open issues
+bd show <id>                          # Full issue details with dependencies
+bd create --title="..." --type=task --priority=2
+bd update <id> --status=in_progress   # Claim work
+bd close <id>                         # Complete work (or: bd close <id1> <id2>)
 bd sync                               # Sync with git remote
 ```
+
+### Workflow Pattern
+
+1. **Start**: Run `bd ready` to find actionable work
+2. **Claim**: Use `bd update <id> --status=in_progress`
+3. **Work**: Implement the task
+4. **Complete**: Use `bd close <id>`
+5. **Sync**: Always run `bd sync` at session end
+
+### Key Concepts
+
+- **Dependencies**: Issues can block other issues. `bd ready` shows only unblocked work.
+- **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
+- **Types**: task, bug, feature, epic, question, docs
+- **Blocking**: `bd dep add <issue> <depends-on>` to add dependencies
 
 ## Development Workflow
 
