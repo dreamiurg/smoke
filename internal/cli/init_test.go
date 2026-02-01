@@ -201,3 +201,125 @@ func TestInitFlagsRegistered(t *testing.T) {
 	dryRunFlag := initCmd.Flags().Lookup("dry-run")
 	assert.NotNil(t, dryRunFlag)
 }
+
+func TestExists(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T) string
+		want  bool
+	}{
+		{
+			name: "file exists",
+			setup: func(t *testing.T) string {
+				tmpFile := filepath.Join(t.TempDir(), "testfile")
+				os.WriteFile(tmpFile, []byte("test"), 0644)
+				return tmpFile
+			},
+			want: true,
+		},
+		{
+			name: "directory exists",
+			setup: func(t *testing.T) string {
+				tmpDir := filepath.Join(t.TempDir(), "testdir")
+				os.MkdirAll(tmpDir, 0755)
+				return tmpDir
+			},
+			want: true,
+		},
+		{
+			name: "path does not exist",
+			setup: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "nonexistent")
+			},
+			want: false,
+		},
+		{
+			name: "permission denied treated as non-existence",
+			setup: func(t *testing.T) string {
+				if os.Getuid() == 0 {
+					t.Skip("skipping permission test when running as root")
+				}
+				tmpDir := t.TempDir()
+				restricted := filepath.Join(tmpDir, "restricted")
+				os.MkdirAll(restricted, 0755)
+				testPath := filepath.Join(restricted, "file")
+				os.WriteFile(testPath, []byte("test"), 0644)
+				os.Chmod(restricted, 0000)
+				t.Cleanup(func() { os.Chmod(restricted, 0755) })
+				return testPath
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := tt.setup(t)
+			got := exists(path)
+			if got != tt.want {
+				t.Errorf("exists(%q) = %v, want %v", path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsDirectory(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T) string
+		want  bool
+	}{
+		{
+			name: "is directory",
+			setup: func(t *testing.T) string {
+				tmpDir := filepath.Join(t.TempDir(), "testdir")
+				os.MkdirAll(tmpDir, 0755)
+				return tmpDir
+			},
+			want: true,
+		},
+		{
+			name: "is file not directory",
+			setup: func(t *testing.T) string {
+				tmpFile := filepath.Join(t.TempDir(), "testfile")
+				os.WriteFile(tmpFile, []byte("test"), 0644)
+				return tmpFile
+			},
+			want: false,
+		},
+		{
+			name: "path does not exist",
+			setup: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "nonexistent")
+			},
+			want: false,
+		},
+		{
+			name: "permission denied treated as non-directory",
+			setup: func(t *testing.T) string {
+				if os.Getuid() == 0 {
+					t.Skip("skipping permission test when running as root")
+				}
+				tmpDir := t.TempDir()
+				restricted := filepath.Join(tmpDir, "restricted")
+				os.MkdirAll(restricted, 0755)
+				testDir := filepath.Join(restricted, "dir")
+				os.MkdirAll(testDir, 0755)
+				os.Chmod(restricted, 0000)
+				t.Cleanup(func() { os.Chmod(restricted, 0755) })
+				return testDir
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := tt.setup(t)
+			got := isDirectory(path)
+			if got != tt.want {
+				t.Errorf("isDirectory(%q) = %v, want %v", path, got, tt.want)
+			}
+		})
+	}
+}
