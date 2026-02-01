@@ -8,6 +8,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// PressureLevel defines a pressure setting with its probability and display properties.
+type PressureLevel struct {
+	Value       int
+	Probability int
+	Emoji       string
+	Label       string
+}
+
+// pressureLevels defines the five pressure levels from 0 (sleep) to 4 (volcanic).
+var pressureLevels = []PressureLevel{
+	{Value: 0, Probability: 0, Emoji: "💤", Label: "sleep"},
+	{Value: 1, Probability: 25, Emoji: "🌙", Label: "quiet"},
+	{Value: 2, Probability: 50, Emoji: "⛅", Label: "balanced"},
+	{Value: 3, Probability: 75, Emoji: "☀️", Label: "bright"},
+	{Value: 4, Probability: 100, Emoji: "🌋", Label: "volcanic"},
+}
+
 // SuggestContext defines a nudge context with a prompt and associated categories.
 type SuggestContext struct {
 	Prompt     string   `yaml:"prompt"`
@@ -18,6 +35,7 @@ type SuggestContext struct {
 type SuggestConfig struct {
 	Contexts map[string]SuggestContext `yaml:"contexts"`
 	Examples map[string][]string       `yaml:"examples"`
+	Pressure *int                      `yaml:"pressure,omitempty"`
 }
 
 // Built-in default contexts
@@ -142,6 +160,11 @@ func LoadSuggestConfig() *SuggestConfig {
 		}
 	}
 
+	// Merge pressure setting from user config
+	if userCfg.Pressure != nil {
+		cfg.Pressure = userCfg.Pressure
+	}
+
 	return cfg
 }
 
@@ -261,4 +284,72 @@ examples:
     - "Looking back, what strikes me most is..."
     - "Quick reflection between tasks..."
 `
+}
+
+// GetPressure returns the current pressure level from config.
+// Returns DefaultPressure (2) if not set in config file.
+func GetPressure() int {
+	cfg := LoadSuggestConfig()
+
+	// If pressure is not set, return default
+	if cfg.Pressure == nil {
+		return DefaultPressure
+	}
+
+	pressure := *cfg.Pressure
+
+	// Validate range - out of range values use default
+	if pressure < 0 || pressure > 4 {
+		return DefaultPressure
+	}
+
+	return pressure
+}
+
+// SetPressure sets the pressure level in config, clamping to valid range (0-4).
+// Saves the updated config to the config file.
+func SetPressure(n int) error {
+	// Clamp to valid range
+	if n < 0 {
+		n = 0
+	}
+	if n > 4 {
+		n = 4
+	}
+
+	// Load current config
+	cfg := LoadSuggestConfig()
+	cfg.Pressure = &n
+
+	// Get config path
+	path, err := GetConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
+
+// GetPressureLevel returns the PressureLevel for a given pressure value.
+// Clamps the value to valid range (0-4) before lookup.
+func GetPressureLevel(n int) PressureLevel {
+	// Clamp to valid range
+	if n < 0 {
+		n = 0
+	}
+	if n > 4 {
+		n = 4
+	}
+	return pressureLevels[n]
 }

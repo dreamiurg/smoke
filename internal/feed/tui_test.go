@@ -1172,3 +1172,110 @@ func TestSortToggleScrollsToNewest(t *testing.T) {
 		t.Errorf("after toggling to oldestOnTop, scroll should be at bottom (%d), got %d", maxOffset, updatedModel.scrollOffset)
 	}
 }
+
+// TestRenderPressureIndicator tests the pressure display format
+func TestRenderPressureIndicator(t *testing.T) {
+	tests := []struct {
+		name     string
+		pressure int
+		wantBlks string // Expected block pattern
+	}{
+		{"level 0", 0, "[░░░░]"},
+		{"level 1", 1, "[▓░░░]"},
+		{"level 2", 2, "[▓▓░░]"},
+		{"level 3", 3, "[▓▓▓░]"},
+		{"level 4", 4, "[▓▓▓▓]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+			model := testModel(store)
+			model.pressure = tt.pressure
+
+			output := model.renderPressureIndicator()
+
+			if !strings.Contains(output, tt.wantBlks) {
+				t.Errorf("renderPressureIndicator() at level %d: got %q, want to contain %q", tt.pressure, output, tt.wantBlks)
+			}
+		})
+	}
+}
+
+// TestModelUpdate_PressureIncrease tests + keybinding increases pressure
+func TestModelUpdate_PressureIncrease(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.pressure = 2
+	initialPressure := model.pressure
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.pressure != initialPressure+1 {
+		t.Errorf("Update(+) should increase pressure from %d to %d, got %d", initialPressure, initialPressure+1, updatedModel.pressure)
+	}
+}
+
+// TestModelUpdate_PressureDecrease tests - keybinding decreases pressure
+func TestModelUpdate_PressureDecrease(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.pressure = 2
+	initialPressure := model.pressure
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("-")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.pressure != initialPressure-1 {
+		t.Errorf("Update(-) should decrease pressure from %d to %d, got %d", initialPressure, initialPressure-1, updatedModel.pressure)
+	}
+}
+
+// TestModelUpdate_PressureWrapAroundUp tests wrapping from 4 to 0
+func TestModelUpdate_PressureWrapAroundUp(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.pressure = 4
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.pressure != 0 {
+		t.Errorf("Update(+) at level 4 should wrap to 0, got %d", updatedModel.pressure)
+	}
+}
+
+// TestModelUpdate_PressureWrapAroundDown tests wrapping from 0 to 4
+func TestModelUpdate_PressureWrapAroundDown(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.pressure = 0
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("-")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.pressure != 4 {
+		t.Errorf("Update(-) at level 0 should wrap to 4, got %d", updatedModel.pressure)
+	}
+}
+
+// TestModelUpdate_PressureEqualSign tests = keybinding also increases pressure
+func TestModelUpdate_PressureEqualSign(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.pressure = 2
+	initialPressure := model.pressure
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("=")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.pressure != initialPressure+1 {
+		t.Errorf("Update(=) should increase pressure from %d to %d, got %d", initialPressure, initialPressure+1, updatedModel.pressure)
+	}
+}

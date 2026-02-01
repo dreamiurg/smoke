@@ -32,6 +32,7 @@ type Model struct {
 	height            int
 	store             *Store
 	config            *config.TUIConfig
+	pressure          int // Current pressure level (0-4)
 	version           string
 	err               error
 }
@@ -58,6 +59,7 @@ func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *Layou
 		newestOnTop: cfg.NewestOnTop,
 		store:       store,
 		config:      cfg,
+		pressure:    config.GetPressure(),
 		version:     version,
 	}
 }
@@ -211,6 +213,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = config.SaveTUIConfig(m.config)
 			return m, nil
 
+		case "+", "=":
+			// Increase pressure, wrapping from 4 to 0
+			m.pressure = (m.pressure + 1) % 5
+			m.err = config.SetPressure(m.pressure)
+			return m, nil
+
+		case "-":
+			// Decrease pressure, wrapping from 0 to 4
+			m.pressure = (m.pressure - 1 + 5) % 5
+			m.err = config.SetPressure(m.pressure)
+			return m, nil
+
 		case "?":
 			m.showHelp = !m.showHelp
 			return m, nil
@@ -289,6 +303,20 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, content, statusBar)
 }
 
+// renderPressureIndicator creates a pressure display in the format: (+/-) Pressure [▓▓░░] ⛅
+// Uses filled blocks (▓) for active levels and empty blocks (░) for inactive levels.
+func (m Model) renderPressureIndicator() string {
+	level := config.GetPressureLevel(m.pressure)
+
+	// Build visual blocks: filled for active levels, empty for inactive
+	filled := strings.Repeat("▓", m.pressure)
+	empty := strings.Repeat("░", 4-m.pressure)
+	blocks := "[" + filled + empty + "]"
+
+	// Format: (+/-) Pressure [blocks] emoji
+	return fmt.Sprintf("(+/-) Pressure %s %s", blocks, level.Emoji)
+}
+
 // renderHeader creates the header bar with version, stats, and clock
 func (m Model) renderHeader() string {
 	// Calculate stats
@@ -304,12 +332,15 @@ func (m Model) renderHeader() string {
 	statsStr := fmt.Sprintf("%d posts | %d agents | %d projects",
 		stats.PostCount, stats.AgentCount, stats.ProjectCount)
 
+	// Format pressure indicator
+	pressureStr := m.renderPressureIndicator()
+
 	// Format clock in brackets (locale-aware)
 	clockStr := fmt.Sprintf("[%s]", FormatTime(time.Now()))
 
-	// Build header: version + stats on left, clock on right
+	// Build header: version + stats on left, pressure + clock on right
 	leftContent := versionStr + " " + statsStr
-	rightContent := clockStr
+	rightContent := pressureStr + " " + clockStr
 
 	// Calculate spacing
 	spacing := m.width - len(leftContent) - len(rightContent)
@@ -726,6 +757,7 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString("   l/L    Cycle layout\n")
 	helpContent.WriteString("   t/T    Cycle theme\n")
 	helpContent.WriteString("   c/C    Cycle contrast\n")
+	helpContent.WriteString("   +/-    Adjust pressure\n")
 	helpContent.WriteString("   r      Refresh now\n")
 	helpContent.WriteString("   q      Quit\n")
 	helpContent.WriteString("\n")
@@ -736,6 +768,8 @@ func (m Model) renderHelpOverlay() string {
 	helpContent.WriteString(fmt.Sprintf("   Layout: %s\n", layoutName))
 	helpContent.WriteString(fmt.Sprintf("   Theme: %s\n", m.theme.DisplayName))
 	helpContent.WriteString(fmt.Sprintf("   Contrast: %s\n", m.contrast.DisplayName))
+	pressureLevel := config.GetPressureLevel(m.pressure)
+	helpContent.WriteString(fmt.Sprintf("   Pressure: %s\n", pressureLevel.Label))
 	helpContent.WriteString("\n")
 	helpContent.WriteString("      Press any key to close\n")
 

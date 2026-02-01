@@ -155,6 +155,69 @@ func TestFormatSuggestPostTruncatesLongContent(t *testing.T) {
 	}
 }
 
+func TestShouldFireNudgeAtPressure0(t *testing.T) {
+	// At pressure 0 (sleep), nudge should never fire
+	for i := 0; i < 100; i++ {
+		decision := shouldFireNudge(0)
+		if decision.fire {
+			t.Errorf("shouldFireNudge(0).fire = true, want false (pressure 0 should never fire)")
+		}
+	}
+}
+
+func TestShouldFireNudgeAtPressure4(t *testing.T) {
+	// At pressure 4 (volcanic), nudge should always fire
+	for i := 0; i < 100; i++ {
+		decision := shouldFireNudge(4)
+		if !decision.fire {
+			t.Errorf("shouldFireNudge(4).fire = false, want true (pressure 4 should always fire)")
+		}
+	}
+}
+
+func TestShouldFireNudgeDecisionValues(t *testing.T) {
+	// Test that decision struct contains expected values
+	tests := []struct {
+		pressure      int
+		wantThreshold int
+	}{
+		{0, 0},
+		{1, 25},
+		{2, 50},
+		{3, 75},
+		{4, 100},
+	}
+	for _, tt := range tests {
+		decision := shouldFireNudge(tt.pressure)
+		if decision.threshold != tt.wantThreshold {
+			t.Errorf("shouldFireNudge(%d).threshold = %d, want %d", tt.pressure, decision.threshold, tt.wantThreshold)
+		}
+	}
+}
+
+func TestGetTonePrefix(t *testing.T) {
+	tests := []struct {
+		pressure int
+		want     string
+	}{
+		{0, ""},
+		{1, "If anything stood out..."},
+		{2, "Quick thought worth sharing?"},
+		{3, "You've got something here —"},
+		{4, "Post this. The feed needs it."},
+		// Test clamping
+		{-1, ""},
+		{5, "Post this. The feed needs it."},
+	}
+
+	for _, tt := range tests {
+		got := getTonePrefix(tt.pressure)
+		if got != tt.want {
+			t.Errorf("getTonePrefix(%d) = %q, want %q", tt.pressure, got, tt.want)
+		}
+	}
+}
+
 // contains checks if substr is in s
 func contains(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
