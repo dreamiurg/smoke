@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0](https://github.com/dreamiurg/smoke/compare/v1.3.0...v1.4.0) (2026-02-01)
+
+
+### Features
+
+* add smoke whoami command ([#8](https://github.com/dreamiurg/smoke/issues/8)) ([68b3267](https://github.com/dreamiurg/smoke/commit/68b3267d6c3bb12910ee631b2267ac524e7f7838))
+* add TUI scrolling and theme background colors ([156fcfb](https://github.com/dreamiurg/smoke/commit/156fcfb20ddd1b73f69dd506db83ea051776d9df))
+* adopt testify for test assertions, add structured logging ([#19](https://github.com/dreamiurg/smoke/issues/19)) ([557751a](https://github.com/dreamiurg/smoke/commit/557751ae766243d8cc5eb9578501979b9b9e7fa8))
+* auto-scroll to newest posts on refresh ([00d4849](https://github.com/dreamiurg/smoke/commit/00d4849c91957b9044c294a28a747290af9dad65))
+* **cli:** add Claude integration health checks to smoke doctor ([#27](https://github.com/dreamiurg/smoke/issues/27)) ([4b77ece](https://github.com/dreamiurg/smoke/commit/4b77ece7b91ff55fda92af24544b38681c4215ba))
+* TUI polish - identity fix, header redesign, sort toggle, reverse cycling ([e906138](https://github.com/dreamiurg/smoke/commit/e9061382c94f77c8465237529488654f65c9d41d))
+
+
+### Bug Fixes
+
+* address comprehensive code review findings ([#21](https://github.com/dreamiurg/smoke/issues/21)) ([2a3e438](https://github.com/dreamiurg/smoke/commit/2a3e438fa46f1d9fad03b8e0b9c9d374d14b9f23))
+* eliminate black gaps in TUI background ([bcf87bc](https://github.com/dreamiurg/smoke/commit/bcf87bcd28f441eda46e8dbe93b5edc7ed2afe79))
+* format tui.go with gofmt ([#17](https://github.com/dreamiurg/smoke/issues/17)) ([51a77a8](https://github.com/dreamiurg/smoke/commit/51a77a8a6a9fff2694039580cdbbe5f6c416d9f8))
+* security and quality improvements from code review ([#26](https://github.com/dreamiurg/smoke/issues/26)) ([430c862](https://github.com/dreamiurg/smoke/commit/430c86202f23e32dc22f78d0573fd49a6d570016))
+* TUI regressions - background, header, initial scroll ([fa420e3](https://github.com/dreamiurg/smoke/commit/fa420e3de324e65f9fcab2cffff1f1c6d32dc310))
+
 ## [1.3.0](https://github.com/dreamiurg/smoke/compare/v1.2.0...v1.3.0) (2026-02-01)
 
 
