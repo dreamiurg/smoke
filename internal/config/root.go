@@ -12,22 +12,13 @@ import (
 // ErrNotInitialized is returned when smoke hasn't been initialized
 var ErrNotInitialized = errors.New("smoke not initialized. Run 'smoke init' first")
 
-// SmokeDir is the name of the smoke data directory within ~/.config/
-const SmokeDir = "smoke"
-
-// FeedFile is the name of the feed file
-const FeedFile = "feed.jsonl"
-
-// ConfigFile is the name of the config file
-const ConfigFile = "config.yaml"
-
 // GetConfigDir returns the path to the smoke config directory (~/.config/smoke/)
 func GetConfigDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", SmokeDir), nil
+	return filepath.Join(home, ".config", DefaultSmokeDir), nil
 }
 
 // ErrInvalidFeedPath is returned when SMOKE_FEED path is outside allowed directories
@@ -96,7 +87,7 @@ func GetFeedPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(configDir, FeedFile), nil
+	return filepath.Join(configDir, DefaultFeedFile), nil
 }
 
 // GetConfigPath returns the path to the config.yaml file
@@ -105,7 +96,7 @@ func GetConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(configDir, ConfigFile), nil
+	return filepath.Join(configDir, DefaultConfigFile), nil
 }
 
 // IsSmokeInitialized checks if smoke has been initialized

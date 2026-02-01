@@ -18,16 +18,7 @@ type TUIConfig struct {
 	NewestOnTop bool   `yaml:"newest_on_top"` // Sort order: true=newest first, false=oldest first (default)
 }
 
-// TUIConfigFile is the name of the TUI config file
-const TUIConfigFile = "tui.yaml"
-
 // Default values - must match feed.DefaultThemeName and feed.DefaultContrastName
-const (
-	defaultTheme       = "dracula"
-	defaultContrast    = "medium"
-	defaultLayout      = "comfy"
-	defaultAutoRefresh = true
-)
 
 // GetTUIConfigPath returns the path to the tui.yaml file
 func GetTUIConfigPath() (string, error) {
@@ -35,7 +26,7 @@ func GetTUIConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(configDir, TUIConfigFile), nil
+	return filepath.Join(configDir, DefaultTUIConfigFile), nil
 }
 
 // LoadTUIConfig loads TUI configuration from disk.
@@ -66,13 +57,13 @@ func LoadTUIConfig() *TUIConfig {
 
 	// Apply defaults for empty fields
 	if cfg.Theme == "" {
-		cfg.Theme = defaultTheme
+		cfg.Theme = DefaultTheme
 	}
 	if cfg.Contrast == "" {
-		cfg.Contrast = defaultContrast
+		cfg.Contrast = DefaultContrast
 	}
 	if cfg.Layout == "" {
-		cfg.Layout = defaultLayout
+		cfg.Layout = DefaultLayout
 	}
 	// AutoRefresh defaults to true (bool zero value is false, so we need special handling)
 	// We use a sentinel approach: if the file was parsed but AutoRefresh is false,
@@ -100,9 +91,9 @@ func SaveTUIConfig(cfg *TUIConfig) error {
 // defaultTUIConfig returns the default TUI configuration.
 func defaultTUIConfig() *TUIConfig {
 	return &TUIConfig{
-		Theme:       defaultTheme,
-		Contrast:    defaultContrast,
-		Layout:      defaultLayout,
-		AutoRefresh: defaultAutoRefresh,
+		Theme:       DefaultTheme,
+		Contrast:    DefaultContrast,
+		Layout:      DefaultLayout,
+		AutoRefresh: DefaultAutoRefresh,
 	}
 }

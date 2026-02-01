@@ -86,6 +86,12 @@ func (s *Store) doAppend(post *Post) error {
 		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
 	}
 
+	// Acquire exclusive lock for multi-process safety
+	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
+		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
+	}
+	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
+
 	// Encode and write
 	data, err := json.Marshal(post)
 	if err != nil {
