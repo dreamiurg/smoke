@@ -50,10 +50,11 @@ func runReply(_ *cobra.Command, args []string) error {
 	}
 
 	// Get store
-	store, err := feed.NewStore()
+	feedPath, err := config.GetFeedPath()
 	if err != nil {
 		return err
 	}
+	store := feed.NewStoreWithPath(feedPath)
 
 	// Check if parent post exists
 	exists, err := store.Exists(parentID)

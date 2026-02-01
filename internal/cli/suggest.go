@@ -51,10 +51,11 @@ func getFeedStats() (recentCount int, lastPost *feed.Post) {
 		return 0, nil
 	}
 
-	store, err := feed.NewStore()
+	feedPath, err := config.GetFeedPath()
 	if err != nil {
 		return 0, nil
 	}
+	store := feed.NewStoreWithPath(feedPath)
 
 	posts, err := store.ReadAll()
 	if err != nil || len(posts) == 0 {

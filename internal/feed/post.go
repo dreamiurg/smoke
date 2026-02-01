@@ -8,7 +8,12 @@ import (
 )
 
 // ansiPattern matches ANSI escape sequences
-var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b][^\x07]*\x07`)
+// CSI: ESC [ [params] [intermediates] final_byte
+// - params: 0-9:;<=>?
+// - intermediates: space through /
+// - final: @ through ~
+// OSC: ESC ] ... (BEL or ESC \)
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9:;<=>?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
 
 // MaxContentLength is the maximum allowed content length
 const MaxContentLength = 280

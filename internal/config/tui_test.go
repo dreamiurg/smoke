@@ -24,8 +24,8 @@ func TestGetTUIConfigPath(t *testing.T) {
 		t.Error("GetTUIConfigPath() returned empty string")
 	}
 
-	if filepath.Base(path) != TUIConfigFile {
-		t.Errorf("GetTUIConfigPath() should end with %s, got %s", TUIConfigFile, filepath.Base(path))
+	if filepath.Base(path) != DefaultTUIConfigFile {
+		t.Errorf("GetTUIConfigPath() should end with %s, got %s", DefaultTUIConfigFile, filepath.Base(path))
 	}
 
 	// Should be in ~/.config/smoke/
@@ -48,12 +48,12 @@ func TestLoadTUIConfig_Default(t *testing.T) {
 		t.Fatal("LoadTUIConfig() returned nil")
 	}
 
-	if cfg.Theme != defaultTheme {
-		t.Errorf("Expected default theme %q, got %q", defaultTheme, cfg.Theme)
+	if cfg.Theme != DefaultTheme {
+		t.Errorf("Expected default theme %q, got %q", DefaultTheme, cfg.Theme)
 	}
 
-	if cfg.Contrast != defaultContrast {
-		t.Errorf("Expected default contrast %q, got %q", defaultContrast, cfg.Contrast)
+	if cfg.Contrast != DefaultContrast {
+		t.Errorf("Expected default contrast %q, got %q", DefaultContrast, cfg.Contrast)
 	}
 }
 
@@ -80,7 +80,7 @@ func TestLoadTUIConfig_ExistingFile(t *testing.T) {
 		t.Fatalf("Failed to marshal YAML: %v", err)
 	}
 
-	configPath := filepath.Join(smokeDir, TUIConfigFile)
+	configPath := filepath.Join(smokeDir, DefaultTUIConfigFile)
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestLoadTUIConfig_EmptyFile(t *testing.T) {
 		t.Fatalf("Failed to create smoke dir: %v", err)
 	}
 
-	configPath := filepath.Join(smokeDir, TUIConfigFile)
+	configPath := filepath.Join(smokeDir, DefaultTUIConfigFile)
 	if err := os.WriteFile(configPath, []byte{}, 0644); err != nil {
 		t.Fatalf("Failed to write empty config file: %v", err)
 	}
@@ -118,12 +118,12 @@ func TestLoadTUIConfig_EmptyFile(t *testing.T) {
 	// Load and verify defaults are returned
 	cfg := LoadTUIConfig()
 
-	if cfg.Theme != defaultTheme {
-		t.Errorf("Empty file should return default theme %q, got %q", defaultTheme, cfg.Theme)
+	if cfg.Theme != DefaultTheme {
+		t.Errorf("Empty file should return default theme %q, got %q", DefaultTheme, cfg.Theme)
 	}
 
-	if cfg.Contrast != defaultContrast {
-		t.Errorf("Empty file should return default contrast %q, got %q", defaultContrast, cfg.Contrast)
+	if cfg.Contrast != DefaultContrast {
+		t.Errorf("Empty file should return default contrast %q, got %q", DefaultContrast, cfg.Contrast)
 	}
 }
 
@@ -140,7 +140,7 @@ func TestLoadTUIConfig_CorruptFile(t *testing.T) {
 		t.Fatalf("Failed to create smoke dir: %v", err)
 	}
 
-	configPath := filepath.Join(smokeDir, TUIConfigFile)
+	configPath := filepath.Join(smokeDir, DefaultTUIConfigFile)
 	invalidYAML := "invalid: yaml: content: [["
 	if err := os.WriteFile(configPath, []byte(invalidYAML), 0644); err != nil {
 		t.Fatalf("Failed to write corrupt config file: %v", err)
@@ -153,12 +153,12 @@ func TestLoadTUIConfig_CorruptFile(t *testing.T) {
 		t.Fatal("LoadTUIConfig() should return default config, not nil")
 	}
 
-	if cfg.Theme != defaultTheme {
-		t.Errorf("Corrupt file should return default theme %q, got %q", defaultTheme, cfg.Theme)
+	if cfg.Theme != DefaultTheme {
+		t.Errorf("Corrupt file should return default theme %q, got %q", DefaultTheme, cfg.Theme)
 	}
 
-	if cfg.Contrast != defaultContrast {
-		t.Errorf("Corrupt file should return default contrast %q, got %q", defaultContrast, cfg.Contrast)
+	if cfg.Contrast != DefaultContrast {
+		t.Errorf("Corrupt file should return default contrast %q, got %q", DefaultContrast, cfg.Contrast)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestLoadTUIConfig_PartialFields(t *testing.T) {
 		t.Fatalf("Failed to create smoke dir: %v", err)
 	}
 
-	configPath := filepath.Join(smokeDir, TUIConfigFile)
+	configPath := filepath.Join(smokeDir, DefaultTUIConfigFile)
 	partialYAML := "theme: dracula\n"
 	if err := os.WriteFile(configPath, []byte(partialYAML), 0644); err != nil {
 		t.Fatalf("Failed to write partial config file: %v", err)
@@ -189,8 +189,8 @@ func TestLoadTUIConfig_PartialFields(t *testing.T) {
 	}
 
 	// Missing field should get default
-	if cfg.Contrast != defaultContrast {
-		t.Errorf("Missing contrast should default to %q, got %q", defaultContrast, cfg.Contrast)
+	if cfg.Contrast != DefaultContrast {
+		t.Errorf("Missing contrast should default to %q, got %q", DefaultContrast, cfg.Contrast)
 	}
 }
 
@@ -219,7 +219,7 @@ func TestSaveTUIConfig(t *testing.T) {
 	}
 
 	// Verify file exists and contains correct data
-	configPath := filepath.Join(smokeDir, TUIConfigFile)
+	configPath := filepath.Join(smokeDir, DefaultTUIConfigFile)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("Failed to read saved config file: %v", err)
@@ -290,12 +290,12 @@ func TestDefaultTUIConfig(t *testing.T) {
 		t.Fatal("defaultTUIConfig() returned nil")
 	}
 
-	if cfg.Theme != defaultTheme {
-		t.Errorf("Expected default theme %q, got %q", defaultTheme, cfg.Theme)
+	if cfg.Theme != DefaultTheme {
+		t.Errorf("Expected default theme %q, got %q", DefaultTheme, cfg.Theme)
 	}
 
-	if cfg.Contrast != defaultContrast {
-		t.Errorf("Expected default contrast %q, got %q", defaultContrast, cfg.Contrast)
+	if cfg.Contrast != DefaultContrast {
+		t.Errorf("Expected default contrast %q, got %q", DefaultContrast, cfg.Contrast)
 	}
 }
 

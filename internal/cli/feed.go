@@ -63,10 +63,11 @@ func runFeed(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	store, err := feed.NewStore()
+	feedPath, err := config.GetFeedPath()
 	if err != nil {
 		return err
 	}
+	store := feed.NewStoreWithPath(feedPath)
 
 	if feedTail {
 		return runTailMode(store)
