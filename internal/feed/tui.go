@@ -439,10 +439,17 @@ func (m *Model) updateDisplayedPosts() {
 	}
 }
 
+// contentLine holds a line of content and which post index it belongs to (-1 for non-post content)
+type contentLine struct {
+	text      string
+	postIndex int // Index into displayedPosts, -1 for separators/spacers
+}
+
 // buildAllContentLines builds all content lines for the feed (used for scrolling)
-func (m Model) buildAllContentLines() []string {
+// Returns both the text lines and which post each line belongs to for selection highlighting.
+func (m Model) buildAllContentLinesWithPosts() []contentLine {
 	if len(m.posts) == 0 {
-		return []string{"No posts yet. Exit TUI (q) and try: smoke post \"hello world\""}
+		return []contentLine{{text: "No posts yet. Exit TUI (q) and try: smoke post \"hello world\"", postIndex: -1}}
 	}
 
 	threads := buildThreads(m.posts)
@@ -454,8 +461,10 @@ func (m Model) buildAllContentLines() []string {
 		}
 	}
 
-	var lines []string
+	var lines []contentLine
 	var lastDay time.Time
+	postIdx := 0 // Track index into displayedPosts
+
 	for i, thread := range threads {
 		// Get post time for day separator (convert to local time for consistent day comparison)
 		postTime, err := thread.post.GetCreatedTime()
@@ -466,29 +475,48 @@ func (m Model) buildAllContentLines() []string {
 			if lastDay.IsZero() || !postDay.Equal(lastDay) {
 				if i > 0 {
 					// Add blank line before separator (except for first post)
-					lines = append(lines, "")
+					lines = append(lines, contentLine{text: "", postIndex: -1})
 				}
-				lines = append(lines, m.formatDaySeparator(localTime))
+				lines = append(lines, contentLine{text: m.formatDaySeparator(localTime), postIndex: -1})
 				lastDay = postDay
 			}
 		}
 
-		// Format main post
+		// Format main post - track its index
+		currentPostIdx := postIdx
+		postIdx++
 		postLines := m.formatPost(thread.post)
-		lines = append(lines, postLines...)
+		for _, line := range postLines {
+			lines = append(lines, contentLine{text: line, postIndex: currentPostIdx})
+		}
 
-		// Format replies (indented)
+		// Format replies (indented) - each reply is also tracked
 		for _, reply := range thread.replies {
+			replyIdx := postIdx
+			postIdx++
 			replyLines := m.formatReply(reply)
-			lines = append(lines, replyLines...)
+			for _, line := range replyLines {
+				lines = append(lines, contentLine{text: line, postIndex: replyIdx})
+			}
 		}
 
 		// Blank line between threads (within same day)
 		if i < len(threads)-1 {
-			lines = append(lines, "")
+			lines = append(lines, contentLine{text: "", postIndex: -1})
 		}
 	}
 
+	return lines
+}
+
+// buildAllContentLines builds all content lines for the feed (used for scrolling)
+// This is a convenience wrapper that returns just the text lines.
+func (m Model) buildAllContentLines() []string {
+	contentLines := m.buildAllContentLinesWithPosts()
+	lines := make([]string, len(contentLines))
+	for i, cl := range contentLines {
+		lines[i] = cl.text
+	}
 	return lines
 }
 
@@ -544,7 +572,7 @@ func (m Model) maxScrollOffset() int {
 
 // renderContent renders the feed content area with scroll support
 func (m Model) renderContent(availableHeight int) string {
-	allLines := m.buildAllContentLines()
+	allLines := m.buildAllContentLinesWithPosts()
 
 	// Clamp scroll offset
 	maxOffset := len(allLines) - availableHeight
@@ -568,23 +596,46 @@ func (m Model) renderContent(availableHeight int) string {
 
 	// Style for background padding
 	bgStyle := lipgloss.NewStyle().Background(m.theme.Background)
+	// Style for selected post highlight - use secondary background for subtle highlight
+	highlightStyle := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
 
 	// Build styled lines - each line gets background applied separately
 	// to avoid gaps from newline characters
 	styledLines := make([]string, availableHeight)
 	for i := 0; i < availableHeight; i++ {
 		var line string
+		var isSelected bool
 		if i < len(visibleLines) {
-			line = visibleLines[i]
+			line = visibleLines[i].text
+			isSelected = visibleLines[i].postIndex == m.selectedPostIndex
 		}
+
+		// Determine background style based on selection
+		var padStyle lipgloss.Style
+		if isSelected {
+			padStyle = highlightStyle
+		} else {
+			padStyle = bgStyle
+		}
+
 		// Pad to full width with STYLED spaces (not plain spaces)
 		// This ensures background is maintained after any inner ANSI resets
 		visibleLen := lipgloss.Width(line)
 		if visibleLen < m.width {
 			// Style the padding separately so it has its own background
-			padding := bgStyle.Render(strings.Repeat(" ", m.width-visibleLen))
+			padding := padStyle.Render(strings.Repeat(" ", m.width-visibleLen))
 			line += padding
 		}
+
+		// Apply selection highlight to the entire line (prepend indicator and wrap)
+		if isSelected && len(line) > 0 {
+			// Add a subtle indicator and background to the whole line
+			line = highlightStyle.Render("▶ ") + line
+		} else if len(line) > 0 {
+			// Non-selected lines get spacing to align with selected indicator
+			line = bgStyle.Render("  ") + line
+		}
+
 		styledLines[i] = line
 	}
 
