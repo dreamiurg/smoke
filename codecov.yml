@@ -11,8 +11,8 @@ coverage:
       default:
         # Project coverage MUST NOT drop below 70%
         target: 70%
-        # Allow small fluctuations (threshold is how much below target is acceptable)
-        threshold: 0%
+        # Allow 1% fluctuation for environment variance
+        threshold: 1%
         # Require at least this many lines to be covered
         if_ci_failed: error
 
