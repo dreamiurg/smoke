@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dreamiurg/smoke/internal/hooks"
 )
 
 func TestRunInitDryRun(t *testing.T) {
@@ -200,4 +203,110 @@ func TestInitFlagsRegistered(t *testing.T) {
 
 	dryRunFlag := initCmd.Flags().Lookup("dry-run")
 	assert.NotNil(t, dryRunFlag)
+}
+
+// Hook integration tests
+
+func TestRunInit_InstallsHooks(t *testing.T) {
+	// Set up temp directory
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create .claude dir
+	claudeDir := filepath.Join(tempDir, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+
+	// Reset flags
+	initForce = false
+	initDryRun = false
+
+	// Run init
+	err := runInit(nil, nil)
+	assert.NoError(t, err)
+
+	// Verify hooks were installed
+	status, err := hooks.GetStatus()
+	require.NoError(t, err)
+	assert.Equal(t, hooks.StateInstalled, status.State)
+
+	// Verify hook scripts exist
+	hooksDir := filepath.Join(tempDir, ".claude", "hooks")
+	assert.DirExists(t, hooksDir)
+	assert.FileExists(t, filepath.Join(hooksDir, "smoke-break.sh"))
+	assert.FileExists(t, filepath.Join(hooksDir, "smoke-nudge.sh"))
+
+	// Verify settings.json was created
+	settingsPath := filepath.Join(tempDir, ".claude", "settings.json")
+	assert.FileExists(t, settingsPath)
+}
+
+func TestRunInit_HookErrorsDoNotFailInit(t *testing.T) {
+	// Set up temp directory with permission issue
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create .claude dir and make hooks dir unwritable
+	claudeDir := filepath.Join(tempDir, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+	hooksDir := filepath.Join(claudeDir, "hooks")
+	os.MkdirAll(hooksDir, 0000) // No permissions
+	defer os.Chmod(hooksDir, 0755)
+
+	// Reset flags
+	initForce = false
+	initDryRun = false
+
+	// Run init - should succeed despite hook failure
+	err := runInit(nil, nil)
+	assert.NoError(t, err)
+
+	// Verify smoke was initialized
+	configDir := filepath.Join(tempDir, ".config", "smoke")
+	assert.DirExists(t, configDir)
+}
+
+func TestRunInit_AlreadyInitializedSuggestsHooksInstall(t *testing.T) {
+	// Set up temp directory with smoke initialized but no hooks
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create existing config (smoke initialized)
+	configDir := filepath.Join(tempDir, ".config", "smoke")
+	os.MkdirAll(configDir, 0755)
+	feedPath := filepath.Join(configDir, "feed.jsonl")
+	os.WriteFile(feedPath, []byte{}, 0644)
+
+	// Ensure hooks are NOT installed
+	claudeDir := filepath.Join(tempDir, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+
+	// Reset flags
+	initForce = false
+	initDryRun = false
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runInit(nil, nil)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	assert.NoError(t, err)
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Verify suggests hooks install
+	assert.Contains(t, output, "already initialized")
+	assert.Contains(t, output, "smoke hooks install")
 }
