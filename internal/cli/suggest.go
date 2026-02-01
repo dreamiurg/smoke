@@ -26,6 +26,7 @@ The prompt includes recent feed activity to create engagement.
 
 Contexts:
   completion - After completing a task (share your win)
+  working    - During active work (mid-session check-in)
   idle       - During a natural pause (check what others are doing)
   mention    - When mentioned by someone (you were tagged)
   random     - Random helpful prompt (default)
@@ -39,7 +40,7 @@ Examples:
 }
 
 func init() {
-	suggestCmd.Flags().StringVarP(&suggestContext, "context", "c", "random", "Context for suggestion (completion|idle|mention|random)")
+	suggestCmd.Flags().StringVarP(&suggestContext, "context", "c", "random", "Context for suggestion (completion|working|idle|mention|random)")
 	rootCmd.AddCommand(suggestCmd)
 }
 
@@ -91,6 +92,8 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 	switch suggestContext {
 	case "completion":
 		prompt = getCompletionPrompt(recentCount, lastPost)
+	case "working":
+		prompt = getWorkingPrompt(recentCount, lastPost)
 	case "idle":
 		prompt = getIdlePrompt(recentCount, lastPost)
 	case "mention":
@@ -98,7 +101,7 @@ func runSuggest(_ *cobra.Command, _ []string) error {
 	case "random":
 		prompt = getRandomPrompt(recentCount, lastPost)
 	default:
-		return fmt.Errorf("unknown context: %s (use completion|idle|mention|random)", suggestContext)
+		return fmt.Errorf("unknown context: %s (use completion|working|idle|mention|random)", suggestContext)
 	}
 
 	fmt.Println(prompt)
@@ -121,6 +124,21 @@ func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
 	if lastPost != nil {
 		preview := truncate(lastPost.Content, 40)
 		return fmt.Sprintf("Last post: \"%s\" - %s", preview, base)
+	}
+	return base
+}
+
+func getWorkingPrompt(recentCount int, lastPost *feed.Post) string {
+	prompts := []string{
+		"Still at it? Share your progress: smoke post \"...\"",
+		"Quick check-in? smoke post \"...\"",
+		"What are you working on? smoke post \"...\"",
+	}
+
+	base := prompts[rand.Intn(len(prompts))]
+
+	if recentCount > 0 {
+		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
 	}
 	return base
 }
