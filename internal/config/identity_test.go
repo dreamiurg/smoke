@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetIdentity_WithSmokeAuthor(t *testing.T) {
@@ -20,9 +22,7 @@ func TestGetIdentity_WithSmokeAuthor(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	if identity.Suffix != "test-user" {
 		t.Errorf("Expected suffix 'test-user', got %q", identity.Suffix)
@@ -41,9 +41,7 @@ func TestGetIdentityWithOverride(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "test-session-123")
 
 	identity, err := GetIdentityWithOverride("my-custom-name")
-	if err != nil {
-		t.Fatalf("GetIdentityWithOverride failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	if identity.Suffix != "my-custom-name" {
 		t.Errorf("Expected suffix 'my-custom-name', got %q", identity.Suffix)
@@ -68,9 +66,7 @@ func TestParseFullIdentity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			id, err := parseFullIdentity(tt.input)
-			if err != nil {
-				t.Fatalf("parseFullIdentity failed: %v", err)
-			}
+			require.NoError(t, err)
 			if id.Agent != tt.agent {
 				t.Errorf("Agent: got %q, want %q", id.Agent, tt.agent)
 			}
@@ -145,9 +141,7 @@ func TestGetIdentity_AutoDetect(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "test-auto-detect-123")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Should have a non-empty suffix from auto-generated name
 	if identity.Suffix == "" {
@@ -179,9 +173,7 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity should not fail with PPID fallback: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Should have generated an identity using PPID-based seed
 	if identity.Suffix == "" {
@@ -241,7 +233,7 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 				t.Errorf("parseFullIdentity() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if err != nil {
+			if tt.wantErr {
 				return
 			}
 			if id.Agent != tt.wantID.Agent {
@@ -260,9 +252,7 @@ func TestParseFullIdentity_AllComponents(t *testing.T) {
 func TestDetectProject_InGitRepo(t *testing.T) {
 	// Save original directory
 	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get cwd: %v", err)
-	}
+	require.NoError(t, err)
 	defer os.Chdir(originalDir)
 
 	// Create a temporary directory to simulate a git repo
@@ -298,9 +288,7 @@ func TestGetIdentityWithOverride_FullIdentity(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "test-session-456")
 
 	identity, err := GetIdentityWithOverride("custom-brave@test")
-	if err != nil {
-		t.Fatalf("GetIdentityWithOverride failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	if identity.Agent != "custom" {
 		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
@@ -327,9 +315,7 @@ func TestGetIdentityWithOverride_Empty(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "")
 
 	identity, err := GetIdentityWithOverride("")
-	if err != nil {
-		t.Fatalf("GetIdentityWithOverride failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Should fall back to GetIdentity
 	if identity.Suffix != "default-author" {
@@ -476,9 +462,7 @@ func TestGetIdentity_WithFullIdentityInSmokeAuthor(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "claude-brave@myproject")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	if identity.Agent != "claude" {
 		t.Errorf("Expected agent 'claude', got %q", identity.Agent)
@@ -521,9 +505,7 @@ func TestGetIdentity_NoSessionSeed(t *testing.T) {
 	// The important thing is that the code doesn't crash
 	if err == ErrNoIdentity {
 		t.Logf("Got expected ErrNoIdentity when no session seed available")
-	} else if err != nil {
-		t.Fatalf("Got unexpected error: %v", err)
-	} else {
+		require.NoError(t, err)
 		// If no error, PPID fallback worked
 		t.Logf("Identity resolved via PPID fallback: %s", identity.String())
 	}
@@ -564,9 +546,7 @@ func TestGetIdentity_WithBdActorOverride(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "smoke-user")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// BD_ACTOR should take precedence
 	if identity.Suffix != "bd-user" {
@@ -587,9 +567,7 @@ func TestGetIdentity_WithBdActorFullIdentity(t *testing.T) {
 	os.Setenv("SMOKE_AUTHOR", "")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	if identity.Agent != "agent" {
 		t.Errorf("Expected agent 'agent', got %q", identity.Agent)
@@ -620,9 +598,7 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	os.Setenv("TERM_SESSION_ID", "auto-detect-test-session")
 
 	identity, err := GetIdentity()
-	if err != nil {
-		t.Fatalf("GetIdentity auto-detect failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify all components are populated
 	if identity.Agent == "" {

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	"github.com/dreamiurg/smoke/internal/config"
 )
 
@@ -97,7 +98,7 @@ func (s *Store) ReadAll() ([]*Post, error) {
 		var post Post
 		if err := json.Unmarshal([]byte(line), &post); err != nil {
 			// Skip invalid lines with warning (per spec: skip invalid, warn, continue)
-			_, _ = fmt.Fprintf(os.Stderr, "warning: skipping invalid line %d: %v\n", lineNum, err)
+			log.Warn("skipping invalid line", "line", lineNum, "error", err)
 			continue
 		}
 

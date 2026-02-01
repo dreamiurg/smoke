@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/dreamiurg/smoke/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupTestStore(t *testing.T) (*Store, string) {
@@ -17,9 +19,8 @@ func setupTestStore(t *testing.T) (*Store, string) {
 	feedPath := filepath.Join(tmpDir, "feed.jsonl")
 
 	// Create empty feed file
-	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
-		t.Fatalf("Failed to create feed file: %v", err)
-	}
+	err := os.WriteFile(feedPath, []byte{}, 0644)
+	require.NoError(t, err)
 
 	return NewStoreWithPath(feedPath), feedPath
 }
@@ -35,21 +36,14 @@ func TestStoreAppend(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if err := store.Append(post); err != nil {
-		t.Errorf("Append() unexpected error: %v", err)
-	}
+	err := store.Append(post)
+	assert.NoError(t, err)
 
 	// Verify post was written
 	posts, err := store.ReadAll()
-	if err != nil {
-		t.Fatalf("ReadAll() unexpected error: %v", err)
-	}
-	if len(posts) != 1 {
-		t.Errorf("ReadAll() returned %d posts, want 1", len(posts))
-	}
-	if posts[0].ID != post.ID {
-		t.Errorf("ReadAll()[0].ID = %v, want %v", posts[0].ID, post.ID)
-	}
+	require.NoError(t, err)
+	assert.Len(t, posts, 1)
+	assert.Equal(t, post.ID, posts[0].ID)
 }
 
 func TestStoreAppendValidation(t *testing.T) {
@@ -63,9 +57,8 @@ func TestStoreAppendValidation(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if err := store.Append(invalidPost); err == nil {
-		t.Error("Append() expected error for invalid post")
-	}
+	err := store.Append(invalidPost)
+	assert.Error(t, err)
 }
 
 func TestStoreAppendNotInitialized(t *testing.T) {
@@ -82,9 +75,7 @@ func TestStoreAppendNotInitialized(t *testing.T) {
 	}
 
 	err := store.Append(post)
-	if err != config.ErrNotInitialized {
-		t.Errorf("Append() error = %v, want ErrNotInitialized", err)
-	}
+	assert.Equal(t, config.ErrNotInitialized, err)
 }
 
 func TestStoreReadAll(t *testing.T) {
@@ -116,19 +107,14 @@ func TestStoreReadAll(t *testing.T) {
 	}
 
 	for _, p := range posts {
-		if err := store.Append(p); err != nil {
-			t.Fatalf("Append() unexpected error: %v", err)
-		}
+		err := store.Append(p)
+		require.NoError(t, err)
 	}
 
 	// Read all
 	got, err := store.ReadAll()
-	if err != nil {
-		t.Fatalf("ReadAll() unexpected error: %v", err)
-	}
-	if len(got) != 3 {
-		t.Errorf("ReadAll() returned %d posts, want 3", len(got))
-	}
+	require.NoError(t, err)
+	assert.Len(t, got, 3)
 
 	// Verify content
 	contentMap := make(map[string]bool)
@@ -136,17 +122,13 @@ func TestStoreReadAll(t *testing.T) {
 		contentMap[p.Content] = true
 	}
 	for _, p := range posts {
-		if !contentMap[p.Content] {
-			t.Errorf("ReadAll() missing post with content: %s", p.Content)
-		}
+		assert.True(t, contentMap[p.Content], "ReadAll() missing post with content: %s", p.Content)
 	}
 
 	// Test reading from non-existent file
 	nonExistentStore := NewStoreWithPath(filepath.Join(t.TempDir(), "nonexistent.jsonl"))
 	_, err = nonExistentStore.ReadAll()
-	if err != config.ErrNotInitialized {
-		t.Errorf("ReadAll() error = %v, want ErrNotInitialized", err)
-	}
+	assert.Equal(t, config.ErrNotInitialized, err)
 }
 
 func TestStoreReadAllSkipsInvalidLines(t *testing.T) {
@@ -160,27 +142,20 @@ func TestStoreReadAllSkipsInvalidLines(t *testing.T) {
 		Content:   "valid post",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
-	if err := store.Append(post); err != nil {
-		t.Fatalf("Append() unexpected error: %v", err)
-	}
+	err := store.Append(post)
+	require.NoError(t, err)
 
 	// Manually append invalid JSON
 	f, err := os.OpenFile(feedPath, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		t.Fatalf("Failed to open feed file: %v", err)
-	}
+	require.NoError(t, err)
 	f.WriteString("invalid json line\n")
 	f.WriteString("{\"id\":\"smk-def456\",\"author\":\"witness\",\"rig\":\"smoke\",\"content\":\"another valid\",\"created_at\":\"2026-01-30T10:00:00Z\"}\n")
 	f.Close()
 
 	// Read all - should skip invalid line
 	posts, err := store.ReadAll()
-	if err != nil {
-		t.Fatalf("ReadAll() unexpected error: %v", err)
-	}
-	if len(posts) != 2 {
-		t.Errorf("ReadAll() returned %d posts, want 2 (skipping invalid)", len(posts))
-	}
+	require.NoError(t, err)
+	assert.Len(t, posts, 2)
 }
 
 func TestStoreReadRecent(t *testing.T) {
@@ -195,27 +170,20 @@ func TestStoreReadRecent(t *testing.T) {
 			Content:   "post " + string(rune('0'+i)),
 			CreatedAt: time.Now().Add(time.Duration(i) * time.Minute).UTC().Format(time.RFC3339),
 		}
-		if err := store.Append(post); err != nil {
-			t.Fatalf("Append() unexpected error: %v", err)
-		}
+		err := store.Append(post)
+		require.NoError(t, err)
 	}
 
 	// Read recent 5
 	posts, err := store.ReadRecent(5)
-	if err != nil {
-		t.Fatalf("ReadRecent() unexpected error: %v", err)
-	}
-	if len(posts) != 5 {
-		t.Errorf("ReadRecent(5) returned %d posts, want 5", len(posts))
-	}
+	require.NoError(t, err)
+	assert.Len(t, posts, 5)
 
 	// Verify order (most recent first)
 	for i := 1; i < len(posts); i++ {
 		ti, _ := posts[i-1].GetCreatedTime()
 		tj, _ := posts[i].GetCreatedTime()
-		if ti.Before(tj) {
-			t.Errorf("ReadRecent() not sorted correctly at index %d", i)
-		}
+		assert.False(t, ti.Before(tj), "ReadRecent() not sorted correctly at index %d", i)
 	}
 }
 
@@ -229,24 +197,17 @@ func TestStoreFindByID(t *testing.T) {
 		Content:   "target post",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
-	if err := store.Append(post); err != nil {
-		t.Fatalf("Append() unexpected error: %v", err)
-	}
+	err := store.Append(post)
+	require.NoError(t, err)
 
 	// Find existing
 	found, err := store.FindByID("smk-target")
-	if err != nil {
-		t.Errorf("FindByID() unexpected error: %v", err)
-	}
-	if found.Content != "target post" {
-		t.Errorf("FindByID().Content = %v, want 'target post'", found.Content)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, "target post", found.Content)
 
 	// Find non-existing
 	_, err = store.FindByID("smk-notfnd")
-	if err != ErrPostNotFound {
-		t.Errorf("FindByID() error = %v, want ErrPostNotFound", err)
-	}
+	assert.Equal(t, ErrPostNotFound, err)
 }
 
 func TestStoreExists(t *testing.T) {
@@ -259,27 +220,18 @@ func TestStoreExists(t *testing.T) {
 		Content:   "test",
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
-	if err := store.Append(post); err != nil {
-		t.Fatalf("Append() unexpected error: %v", err)
-	}
+	err := store.Append(post)
+	require.NoError(t, err)
 
 	// Exists
 	exists, err := store.Exists("smk-exists")
-	if err != nil {
-		t.Errorf("Exists() unexpected error: %v", err)
-	}
-	if !exists {
-		t.Error("Exists() = false, want true")
-	}
+	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	// Does not exist
 	exists, err = store.Exists("smk-notfnd")
-	if err != nil {
-		t.Errorf("Exists() unexpected error: %v", err)
-	}
-	if exists {
-		t.Error("Exists() = true, want false")
-	}
+	assert.NoError(t, err)
+	assert.False(t, exists)
 }
 
 func TestStoreCount(t *testing.T) {
@@ -287,12 +239,8 @@ func TestStoreCount(t *testing.T) {
 
 	// Empty store
 	count, err := store.Count()
-	if err != nil {
-		t.Errorf("Count() unexpected error: %v", err)
-	}
-	if count != 0 {
-		t.Errorf("Count() = %d, want 0", count)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, 0, count)
 
 	// Add posts
 	for i := 0; i < 5; i++ {
@@ -307,12 +255,8 @@ func TestStoreCount(t *testing.T) {
 	}
 
 	count, err = store.Count()
-	if err != nil {
-		t.Errorf("Count() unexpected error: %v", err)
-	}
-	if count != 5 {
-		t.Errorf("Count() = %d, want 5", count)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, 5, count)
 }
 
 func TestStorePath(t *testing.T) {
@@ -320,9 +264,7 @@ func TestStorePath(t *testing.T) {
 	feedPath := filepath.Join(tmpDir, "custom.jsonl")
 	store := NewStoreWithPath(feedPath)
 
-	if store.Path() != feedPath {
-		t.Errorf("Path() = %v, want %v", store.Path(), feedPath)
-	}
+	assert.Equal(t, feedPath, store.Path())
 }
 
 func TestNewStore(t *testing.T) {
@@ -331,9 +273,8 @@ func TestNewStore(t *testing.T) {
 	feedPath := filepath.Join(tmpDir, "feed.jsonl")
 
 	// Create the feed file
-	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
-		t.Fatalf("Failed to create feed file: %v", err)
-	}
+	err := os.WriteFile(feedPath, []byte{}, 0644)
+	require.NoError(t, err)
 
 	// Set SMOKE_FEED environment variable to point to test feed
 	oldFeed := os.Getenv("SMOKE_FEED")
@@ -349,19 +290,13 @@ func TestNewStore(t *testing.T) {
 
 	// Create store with NewStore()
 	store, err := NewStore()
-	if err != nil {
-		t.Fatalf("NewStore() unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify store is not nil
-	if store == nil {
-		t.Error("NewStore() returned nil store")
-	}
+	assert.NotNil(t, store)
 
 	// Verify store has the correct path
-	if store.Path() != feedPath {
-		t.Errorf("NewStore().Path() = %v, want %v", store.Path(), feedPath)
-	}
+	assert.Equal(t, feedPath, store.Path())
 
 	// Verify store can perform basic operations
 	post := &Post{
@@ -372,18 +307,13 @@ func TestNewStore(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if appendErr := store.Append(post); appendErr != nil {
-		t.Errorf("NewStore() store.Append() unexpected error: %v", appendErr)
-	}
+	appendErr := store.Append(post)
+	assert.NoError(t, appendErr)
 
 	// Verify post was written
 	posts, readErr := store.ReadAll()
-	if readErr != nil {
-		t.Errorf("NewStore() store.ReadAll() unexpected error: %v", readErr)
-	}
-	if len(posts) != 1 {
-		t.Errorf("NewStore() store.ReadAll() returned %d posts, want 1", len(posts))
-	}
+	assert.NoError(t, readErr)
+	assert.Len(t, posts, 1)
 }
 
 func TestCountWithPosts(t *testing.T) {
@@ -391,30 +321,22 @@ func TestCountWithPosts(t *testing.T) {
 	feedPath := tmpDir + "/feed.jsonl"
 
 	// Create feed file
-	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
-		t.Fatalf("Failed to create feed file: %v", err)
-	}
+	err := os.WriteFile(feedPath, []byte{}, 0644)
+	require.NoError(t, err)
 
 	store := NewStoreWithPath(feedPath)
 
 	// Add some posts with valid IDs
 	for i := 0; i < 5; i++ {
 		post, err := NewPost("test-author", "smoke", "test", fmt.Sprintf("post %d", i))
-		if err != nil {
-			t.Fatalf("Failed to create post: %v", err)
-		}
-		if err := store.Append(post); err != nil {
-			t.Fatalf("Failed to append post: %v", err)
-		}
+		require.NoError(t, err)
+		err = store.Append(post)
+		require.NoError(t, err)
 	}
 
 	count, err := store.Count()
-	if err != nil {
-		t.Errorf("Count() unexpected error: %v", err)
-	}
-	if count != 5 {
-		t.Errorf("Count() = %d, want 5", count)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, 5, count)
 }
 
 func TestExistsTrue(t *testing.T) {
@@ -422,26 +344,18 @@ func TestExistsTrue(t *testing.T) {
 	feedPath := tmpDir + "/feed.jsonl"
 
 	// Create feed file
-	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
-		t.Fatalf("Failed to create feed file: %v", err)
-	}
+	err := os.WriteFile(feedPath, []byte{}, 0644)
+	require.NoError(t, err)
 
 	store := NewStoreWithPath(feedPath)
 
 	// Add a post
 	post, err := NewPost("test-author", "smoke", "test", "test content")
-	if err != nil {
-		t.Fatalf("Failed to create post: %v", err)
-	}
-	if appendErr := store.Append(post); appendErr != nil {
-		t.Fatalf("Failed to append post: %v", appendErr)
-	}
+	require.NoError(t, err)
+	appendErr := store.Append(post)
+	require.NoError(t, appendErr)
 
 	exists, existsErr := store.Exists(post.ID)
-	if existsErr != nil {
-		t.Errorf("Exists() unexpected error: %v", existsErr)
-	}
-	if !exists {
-		t.Error("Exists() should return true for existing post")
-	}
+	assert.NoError(t, existsErr)
+	assert.True(t, exists)
 }

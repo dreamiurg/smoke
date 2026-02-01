@@ -4,22 +4,19 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetConfigDir(t *testing.T) {
 	configDir, err := GetConfigDir()
-	if err != nil {
-		t.Fatalf("GetConfigDir() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if configDir == "" {
-		t.Error("GetConfigDir() returned empty string")
-	}
+	assert.NotEmpty(t, configDir)
 
 	// Should end with .config/smoke
-	if filepath.Base(configDir) != "smoke" {
-		t.Errorf("GetConfigDir() should end with 'smoke', got %s", configDir)
-	}
+	assert.Equal(t, "smoke", filepath.Base(configDir))
 }
 
 func TestGetFeedPath(t *testing.T) {
@@ -32,38 +29,26 @@ func TestGetFeedPath(t *testing.T) {
 		os.Setenv("SMOKE_FEED", customPath)
 
 		got, err := GetFeedPath()
-		if err != nil {
-			t.Errorf("GetFeedPath() unexpected error: %v", err)
-		}
-		if got != customPath {
-			t.Errorf("GetFeedPath() = %v, want %v", got, customPath)
-		}
+		assert.NoError(t, err)
+		assert.Equal(t, customPath, got)
 	})
 
 	t.Run("no override uses global config", func(t *testing.T) {
 		os.Setenv("SMOKE_FEED", "")
 
 		got, err := GetFeedPath()
-		if err != nil {
-			t.Errorf("GetFeedPath() unexpected error: %v", err)
-		}
+		assert.NoError(t, err)
 
 		// Should be in ~/.config/smoke/
-		if filepath.Base(got) != "feed.jsonl" {
-			t.Errorf("GetFeedPath() should end with feed.jsonl, got %s", got)
-		}
+		assert.Equal(t, "feed.jsonl", filepath.Base(got))
 	})
 }
 
 func TestGetConfigPath(t *testing.T) {
 	got, err := GetConfigPath()
-	if err != nil {
-		t.Fatalf("GetConfigPath() error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if filepath.Base(got) != "config.yaml" {
-		t.Errorf("GetConfigPath() should end with config.yaml, got %s", got)
-	}
+	assert.Equal(t, "config.yaml", filepath.Base(got))
 }
 
 func TestIsSmokeInitialized(t *testing.T) {
@@ -80,31 +65,21 @@ func TestIsSmokeInitialized(t *testing.T) {
 
 	// Test before initialization
 	initialized, err := IsSmokeInitialized()
-	if err != nil {
-		t.Errorf("IsSmokeInitialized() unexpected error: %v", err)
-	}
-	if initialized {
-		t.Error("IsSmokeInitialized() = true, want false (no feed file yet)")
-	}
+	assert.NoError(t, err)
+	assert.False(t, initialized)
 
 	// Create smoke directory and feed file
 	smokeDir := filepath.Join(tmpHome, ".config", "smoke")
-	if mkdirErr := os.MkdirAll(smokeDir, 0755); mkdirErr != nil {
-		t.Fatalf("Failed to create smoke dir: %v", mkdirErr)
-	}
+	mkdirErr := os.MkdirAll(smokeDir, 0755)
+	require.NoError(t, mkdirErr)
 	feedPath := filepath.Join(smokeDir, "feed.jsonl")
-	if writeErr := os.WriteFile(feedPath, []byte{}, 0644); writeErr != nil {
-		t.Fatalf("Failed to create feed file: %v", writeErr)
-	}
+	writeErr := os.WriteFile(feedPath, []byte{}, 0644)
+	require.NoError(t, writeErr)
 
 	// Test after initialization
 	initialized, err = IsSmokeInitialized()
-	if err != nil {
-		t.Errorf("IsSmokeInitialized() unexpected error: %v", err)
-	}
-	if !initialized {
-		t.Error("IsSmokeInitialized() = false, want true")
-	}
+	assert.NoError(t, err)
+	assert.True(t, initialized)
 }
 
 func TestEnsureInitialized(t *testing.T) {
@@ -121,9 +96,7 @@ func TestEnsureInitialized(t *testing.T) {
 
 	// Should return error when not initialized
 	err := ensureInitialized()
-	if err != ErrNotInitialized {
-		t.Errorf("ensureInitialized() = %v, want ErrNotInitialized", err)
-	}
+	assert.Equal(t, ErrNotInitialized, err)
 
 	// Initialize
 	smokeDir := filepath.Join(tmpHome, ".config", "smoke")
@@ -132,7 +105,5 @@ func TestEnsureInitialized(t *testing.T) {
 
 	// Should return nil when initialized
 	err = ensureInitialized()
-	if err != nil {
-		t.Errorf("ensureInitialized() = %v, want nil", err)
-	}
+	assert.NoError(t, err)
 }

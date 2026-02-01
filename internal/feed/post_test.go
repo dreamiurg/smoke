@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewPost(t *testing.T) {
@@ -84,33 +86,18 @@ func TestNewPost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			post, err := NewPost(tt.author, tt.project, tt.rig, tt.content)
-			if err != tt.wantErr {
-				t.Errorf("NewPost() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			assert.Equal(t, tt.wantErr, err)
 			if tt.wantErr != nil {
 				return
 			}
 
 			// Verify post fields
-			if post.Author != tt.author {
-				t.Errorf("NewPost().Author = %v, want %v", post.Author, tt.author)
-			}
-			if post.Project != tt.project {
-				t.Errorf("NewPost().Project = %v, want %v", post.Project, tt.project)
-			}
-			if post.Suffix != tt.rig {
-				t.Errorf("NewPost().Rig = %v, want %v", post.Suffix, tt.rig)
-			}
-			if !ValidateID(post.ID) {
-				t.Errorf("NewPost().ID = %v, invalid format", post.ID)
-			}
-			if post.CreatedAt == "" {
-				t.Error("NewPost().CreatedAt is empty")
-			}
-			if post.ParentID != "" {
-				t.Errorf("NewPost().ParentID = %v, want empty", post.ParentID)
-			}
+			assert.Equal(t, tt.author, post.Author)
+			assert.Equal(t, tt.project, post.Project)
+			assert.Equal(t, tt.rig, post.Suffix)
+			assert.True(t, ValidateID(post.ID))
+			assert.NotEmpty(t, post.CreatedAt)
+			assert.Empty(t, post.ParentID)
 		})
 	}
 }
@@ -166,17 +153,12 @@ func TestNewReply(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reply, err := NewReply(tt.author, tt.project, tt.rig, tt.content, tt.parentID)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NewReply() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 			if tt.wantErr {
+				assert.Error(t, err)
 				return
 			}
-
-			if reply.ParentID != tt.parentID {
-				t.Errorf("NewReply().ParentID = %v, want %v", reply.ParentID, tt.parentID)
-			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.parentID, reply.ParentID)
 		})
 	}
 }
@@ -191,9 +173,7 @@ func TestPostValidate(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if err := validPost.Validate(); err != nil {
-		t.Errorf("Validate() on valid post returned error: %v", err)
-	}
+	assert.NoError(t, validPost.Validate())
 
 	tests := []struct {
 		name    string
@@ -290,9 +270,7 @@ func TestPostValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.post.Validate()
-			if err != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			assert.Equal(t, tt.wantErr, err)
 		})
 	}
 }
@@ -307,9 +285,7 @@ func TestPostIsReply(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if post.IsReply() {
-		t.Error("IsReply() = true for non-reply post")
-	}
+	assert.False(t, post.IsReply())
 
 	reply := &Post{
 		ID:        "smk-def456",
@@ -321,9 +297,7 @@ func TestPostIsReply(t *testing.T) {
 		ParentID:  "smk-abc123",
 	}
 
-	if !reply.IsReply() {
-		t.Error("IsReply() = false for reply post")
-	}
+	assert.True(t, reply.IsReply())
 }
 
 func TestPostGetCreatedTime(t *testing.T) {
@@ -338,14 +312,10 @@ func TestPostGetCreatedTime(t *testing.T) {
 	}
 
 	got, err := post.GetCreatedTime()
-	if err != nil {
-		t.Errorf("GetCreatedTime() unexpected error: %v", err)
-	}
+	assert.NoError(t, err)
 
 	// Compare to second precision
-	if got.Unix() != now.Unix() {
-		t.Errorf("GetCreatedTime() = %v, want %v", got, now)
-	}
+	assert.Equal(t, now.Unix(), got.Unix())
 
 	// Test invalid timestamp
 	invalidPost := &Post{
@@ -358,9 +328,7 @@ func TestPostGetCreatedTime(t *testing.T) {
 	}
 
 	_, err = invalidPost.GetCreatedTime()
-	if err == nil {
-		t.Error("GetCreatedTime() expected error for invalid timestamp")
-	}
+	assert.Error(t, err)
 }
 
 func TestPostContentLength(t *testing.T) {
@@ -373,7 +341,5 @@ func TestPostContentLength(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if post.ContentLength() != 11 {
-		t.Errorf("ContentLength() = %d, want 11", post.ContentLength())
-	}
+	assert.Equal(t, 11, post.ContentLength())
 }
