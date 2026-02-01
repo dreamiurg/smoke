@@ -390,17 +390,18 @@ func (m Model) buildAllContentLines() []string {
 	var lines []string
 	var lastDay time.Time
 	for i, thread := range threads {
-		// Get post time for day separator
+		// Get post time for day separator (convert to local time for consistent day comparison)
 		postTime, err := thread.post.GetCreatedTime()
 		if err == nil {
-			postDay := time.Date(postTime.Year(), postTime.Month(), postTime.Day(), 0, 0, 0, 0, postTime.Location())
+			localTime := postTime.Local()
+			postDay := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), 0, 0, 0, 0, localTime.Location())
 			// Check if we need a day separator
 			if lastDay.IsZero() || !postDay.Equal(lastDay) {
 				if i > 0 {
 					// Add blank line before separator (except for first post)
 					lines = append(lines, "")
 				}
-				lines = append(lines, m.formatDaySeparator(postTime))
+				lines = append(lines, m.formatDaySeparator(localTime))
 				lastDay = postDay
 			}
 		}
