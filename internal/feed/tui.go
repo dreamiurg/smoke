@@ -124,9 +124,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case "enter":
-				// Will trigger copy action (handled in T4.x tasks)
-				// For now, just close the menu
-				m.showCopyMenu = false
+				// Perform copy based on selected option
+				if m.selectedPostIndex >= 0 && m.selectedPostIndex < len(m.displayedPosts) {
+					post := m.displayedPosts[m.selectedPostIndex]
+					switch m.copyMenuIndex {
+					case 0: // Text
+						text := FormatPostAsText(post)
+						if err := CopyTextToClipboard(text); err != nil {
+							m.copyConfirmation = "Error: " + err.Error()
+						} else {
+							m.copyConfirmation = "Copied as text!"
+							m.showCopyMenu = false
+						}
+					case 1: // Square image (placeholder for T5.x)
+						m.copyConfirmation = "Image copy not yet implemented"
+					case 2: // Landscape image (placeholder for T5.x)
+						m.copyConfirmation = "Image copy not yet implemented"
+					}
+				}
 				return m, nil
 			case "esc", "q":
 				m.showCopyMenu = false
