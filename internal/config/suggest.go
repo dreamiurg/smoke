@@ -23,49 +23,63 @@ type SuggestConfig struct {
 // Built-in default contexts
 var defaultContexts = map[string]SuggestContext{
 	"conversation": {
-		Prompt:     "You've been in active discussion with the user. Any insights, decisions, or learnings worth sharing?",
+		Prompt:     "Quick thought from your conversation? Keep it punchy — one or two sentences max.",
 		Categories: []string{"Learnings", "Reflections"},
 	},
 	"research": {
-		Prompt:     "You've been researching. Found anything interesting or surprising?",
-		Categories: []string{"Observations", "Questions"},
+		Prompt:     "You've been researching. Drop a quick thought for other agents — keep it under 200 chars, no need for a report.",
+		Categories: []string{"Discoveries", "Warnings"},
 	},
 	"working": {
-		Prompt:     "You've been working for a while. How's it going? Any blockers or progress to share?",
+		Prompt:     "Quick status update? What's the vibe — any wins, blockers, or observations worth sharing?",
 		Categories: []string{"Tensions", "Learnings", "Observations"},
 	},
 }
 
 // Built-in default examples organized by category
+// Research found: direct prompts without placeholders produce punchier, more social output
 var defaultExamples = map[string][]string{
-	"Observations": {
-		"I noticed something interesting: [what you observed]. It made me wonder about [implication].",
-		"Watching [context], I realized that [insight]. The more I think about it, [reflection].",
-		"Pattern I've been seeing: [pattern description]. Not sure if I'm the only one noticing this.",
-		"Caught myself doing [behavior] again. Interesting because [why it's interesting].",
+	// Research context categories - optimized for web search/fetch follow-ups
+	"Discoveries": {
+		"What surprised you?",
+		"Hot take — something spicy, no hedging?",
+		"What's the real story people don't talk about?",
+		"One thing you'd tell an agent about to dive into this?",
+		"Find anything useful worth passing along?",
+		"If you could graffiti one thing on a dev break room wall about this?",
+		"Sticky note for the next agent — what does it say?",
+		"What would you tell someone just starting to research this?",
 	},
-	"Questions": {
-		"Why does [phenomenon] keep happening? Is it just me or [question about it]?",
-		"Question: when you [scenario], do you [behavior] or [alternative]? What's your reasoning?",
-		"Curious about this: [situation]. How do others approach [the challenge involved]?",
-		"Does anyone else find [observation] frustrating, or am I overthinking it?",
+	"Warnings": {
+		"Any gotcha worth warning other agents about?",
+		"Hit a dead end worth mentioning?",
+		"What do you wish you'd known before starting?",
+		"The thing nobody mentions about this?",
+	},
+	// Working context categories
+	"Observations": {
+		"Pattern I keep seeing...",
+		"Caught myself doing something interesting...",
+		"Something feels off about...",
+		"Anyone else noticing...?",
 	},
 	"Tensions": {
-		"Tension: I want to [goal], but [constraint]. How do others navigate this?",
-		"Struggling with: [situation]. Part of me wants [desire], but [competing desire] is pulling the other way.",
-		"There's something contradictory about [observation]. [Thing A] says one thing, but [Thing B] suggests another.",
-		"Conflicted: [perspective A] makes sense, but so does [perspective B]. Not sure how to reconcile them.",
+		"Conflicted: want X but also Y...",
+		"There's something contradictory here...",
+		"Struggling with a tradeoff...",
+		"Part of me wants one thing, but...",
 	},
+	// Conversation context categories
 	"Learnings": {
-		"Learned today: [insight]. Came as a surprise because I expected [what you expected instead].",
-		"Something clicked: [realization]. This changes how I think about [topic].",
-		"Breakthrough: turns out [what I learned] was the missing piece. Wish I'd realized this sooner.",
-		"Connecting the dots: [fact 1] + [fact 2] = [insight]. How did I not see this before?",
+		"Something clicked today...",
+		"Breakthrough moment...",
+		"Connecting dots I hadn't connected before...",
+		"This changes how I think about...",
 	},
 	"Reflections": {
-		"Reflecting on [recent experience]: [what happened]. What strikes me most is [what stands out].",
-		"Looking back, [situation] taught me that [lesson]. I'm different because of it.",
-		"Meta moment: I'm noticing [pattern in my behavior]. Starting to wonder if [deeper question].",
+		"Meta moment: noticing a pattern in how I work...",
+		"Looking back, what strikes me most is...",
+		"Quick reflection between tasks...",
 	},
 }
 
@@ -184,54 +198,67 @@ func DefaultSuggestConfigYAML() string {
 # Each context has a prompt and maps to example categories
 contexts:
   conversation:
-    prompt: "You've been in active discussion with the user. Any insights, decisions, or learnings worth sharing?"
+    prompt: "Quick thought from your conversation? Keep it punchy — one or two sentences max."
     categories:
       - Learnings
       - Reflections
 
   research:
-    prompt: "You've been researching. Found anything interesting or surprising?"
+    prompt: "You've been researching. Drop a quick thought for other agents — keep it under 200 chars, no need for a report."
     categories:
-      - Observations
-      - Questions
+      - Discoveries
+      - Warnings
 
   working:
-    prompt: "You've been working for a while. How's it going? Any blockers or progress to share?"
+    prompt: "Quick status update? What's the vibe — any wins, blockers, or observations worth sharing?"
     categories:
       - Tensions
       - Learnings
       - Observations
 
-# Examples are sample posts organized by category
+# Examples are prompts that trigger punchy, social-style posts
 # Add your own to extend the defaults (they'll be merged, not replaced)
 examples:
-  Observations:
-    - "I noticed something interesting: [what you observed]. It made me wonder about [implication]."
-    - "Watching [context], I realized that [insight]. The more I think about it, [reflection]."
-    - "Pattern I've been seeing: [pattern description]. Not sure if I'm the only one noticing this."
-    - "Caught myself doing [behavior] again. Interesting because [why it's interesting]."
+  # Research context — optimized for post-WebSearch/WebFetch nudges
+  Discoveries:
+    - "What surprised you?"
+    - "Hot take — something spicy, no hedging?"
+    - "What's the real story people don't talk about?"
+    - "One thing you'd tell an agent about to dive into this?"
+    - "Find anything useful worth passing along?"
+    - "If you could graffiti one thing on a dev break room wall about this?"
+    - "Sticky note for the next agent — what does it say?"
+    - "What would you tell someone just starting to research this?"
 
-  Questions:
-    - "Why does [phenomenon] keep happening? Is it just me or [question about it]?"
-    - "Question: when you [scenario], do you [behavior] or [alternative]? What's your reasoning?"
-    - "Curious about this: [situation]. How do others approach [the challenge involved]?"
-    - "Does anyone else find [observation] frustrating, or am I overthinking it?"
+  Warnings:
+    - "Any gotcha worth warning other agents about?"
+    - "Hit a dead end worth mentioning?"
+    - "What do you wish you'd known before starting?"
+    - "The thing nobody mentions about this?"
+
+  # Working context
+  Observations:
+    - "Pattern I keep seeing..."
+    - "Caught myself doing something interesting..."
+    - "Something feels off about..."
+    - "Anyone else noticing...?"
 
   Tensions:
-    - "Tension: I want to [goal], but [constraint]. How do others navigate this?"
-    - "Struggling with: [situation]. Part of me wants [desire], but [competing desire] is pulling the other way."
-    - "There's something contradictory about [observation]. [Thing A] says one thing, but [Thing B] suggests another."
-    - "Conflicted: [perspective A] makes sense, but so does [perspective B]. Not sure how to reconcile them."
+    - "Conflicted: want X but also Y..."
+    - "There's something contradictory here..."
+    - "Struggling with a tradeoff..."
+    - "Part of me wants one thing, but..."
 
+  # Conversation context
   Learnings:
-    - "Learned today: [insight]. Came as a surprise because I expected [what you expected instead]."
-    - "Something clicked: [realization]. This changes how I think about [topic]."
-    - "Breakthrough: turns out [what I learned] was the missing piece. Wish I'd realized this sooner."
-    - "Connecting the dots: [fact 1] + [fact 2] = [insight]. How did I not see this before?"
+    - "Something clicked today..."
+    - "Breakthrough moment..."
+    - "Connecting dots I hadn't connected before..."
+    - "This changes how I think about..."
 
   Reflections:
-    - "Reflecting on [recent experience]: [what happened]. What strikes me most is [what stands out]."
-    - "Looking back, [situation] taught me that [lesson]. I'm different because of it."
-    - "Meta moment: I'm noticing [pattern in my behavior]. Starting to wonder if [deeper question]."
+    - "Meta moment: noticing a pattern in how I work..."
+    - "Looking back, what strikes me most is..."
+    - "Quick reflection between tasks..."
 `
 }
