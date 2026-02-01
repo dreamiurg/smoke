@@ -1,192 +1,268 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/identity/templates"
 )
 
-var suggestContext string
+var (
+	suggestSince time.Duration
+	suggestJSON  bool
+)
 
 var suggestCmd = &cobra.Command{
 	Use:   "suggest",
-	Short: "Get a contextual prompt to check smoke",
-	Long: `Get a contextual prompt to encourage checking the smoke feed.
+	Short: "Get post suggestions with recent activity and templates",
+	Long: `Display post suggestions combining recent feed activity and post templates.
 
-This command returns a short text prompt suitable for hooks and
-integrations that want to gently nudge agents toward smoke without
-interrupting their work.
+This command shows 2-3 recent posts from the last 2-6 hours (configurable)
+along with 2-3 randomly selected templates to inspire your next post.
 
-The prompt includes recent feed activity to create engagement.
+The output is designed to be simple and readable, suitable for injection
+into Claude's context via hooks. Use --json for structured output suitable
+for programmatic processing.
 
-Contexts:
-  completion - After completing a task (share your win)
-  working    - During active work (mid-session check-in)
-  idle       - During a natural pause (check what others are doing)
-  mention    - When mentioned by someone (you were tagged)
-  random     - Random helpful prompt (default)
+When the feed is empty or has no recent posts, only template ideas are shown.
 
 Examples:
-  smoke suggest                      Random prompt
-  smoke suggest --context completion After finishing work
-  smoke suggest --context idle       During a break
-  smoke suggest --context mention    When @mentioned`,
+  smoke suggest              Show recent posts and template ideas
+  smoke suggest --since 1h   Show posts from the last hour
+  smoke suggest --since 6h   Show posts from the last 6 hours
+  smoke suggest --json       Output structured JSON for integration`,
+	Args: cobra.NoArgs,
 	RunE: runSuggest,
 }
 
 func init() {
-	suggestCmd.Flags().StringVarP(&suggestContext, "context", "c", "random", "Context for suggestion (completion|working|idle|mention|random)")
+	suggestCmd.Flags().DurationVar(&suggestSince, "since", 4*time.Hour, "Time window for recent posts (e.g., 2h, 30m, 6h)")
+	suggestCmd.Flags().BoolVar(&suggestJSON, "json", false, "Output in JSON format")
 	rootCmd.AddCommand(suggestCmd)
 }
 
-// getFeedStats returns activity stats and recent post preview
-func getFeedStats() (recentCount int, lastPost *feed.Post) {
-	initialized, err := config.IsSmokeInitialized()
-	if err != nil || !initialized {
-		return 0, nil
+func runSuggest(_ *cobra.Command, _ []string) error {
+	// Check if smoke is initialized
+	if err := config.EnsureInitialized(); err != nil {
+		return err
 	}
 
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		return 0, nil
+		return err
 	}
 	store := feed.NewStoreWithPath(feedPath)
 
+	// Read all posts
 	posts, err := store.ReadAll()
-	if err != nil || len(posts) == 0 {
-		return 0, nil
+	if err != nil {
+		return err
 	}
 
-	// Count posts in last hour
-	hourAgo := time.Now().Add(-1 * time.Hour)
-	for _, p := range posts {
-		t, err := time.Parse(time.RFC3339, p.CreatedAt)
-		if err == nil && t.After(hourAgo) {
-			recentCount++
+	// Filter recent posts using the --since window
+	recentPosts, err := feed.FilterRecent(posts, suggestSince)
+	if err != nil {
+		return err
+	}
+
+	if suggestJSON {
+		// TODO(T022): Implement JSON formatting for suggestions
+		return formatSuggestJSON(recentPosts)
+	}
+
+	return formatSuggestText(recentPosts)
+}
+
+// formatSuggestText formats and displays suggestions in plain text format
+// Shows 2-3 recent posts with ID, author, time ago, and content
+// Includes 2-3 random templates and a reply hint
+func formatSuggestText(recentPosts []*feed.Post) error {
+	// Limit to 2-3 most recent posts
+	maxPostsToShow := 3
+	if len(recentPosts) > maxPostsToShow {
+		recentPosts = recentPosts[:maxPostsToShow]
+	}
+
+	// Show recent posts section if any exist
+	if len(recentPosts) > 0 {
+		fmt.Println("Recent activity:")
+		for _, post := range recentPosts {
+			formatSuggestPost(os.Stdout, post)
 		}
+		fmt.Println()
 	}
 
-	// Get most recent post
-	lastPost = posts[0]
-	return recentCount, lastPost
-}
-
-// truncate shortens a string to maxLen length with ellipsis
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
+	// Show templates section
+	fmt.Println("Post ideas:")
+	randomTemplates := getRandomTemplates(2, 3)
+	for _, tmpl := range randomTemplates {
+		fmt.Printf("  • %s: %s\n", tmpl.Category, tmpl.Pattern)
 	}
-	return s[:maxLen-3] + "..."
-}
+	fmt.Println()
 
-// selectRandomPrompt picks a random prompt and optionally prefixes with activity count
-func selectRandomPrompt(prompts []string, recentCount int, showActivity bool) string {
-	base := prompts[rand.Intn(len(prompts))]
-	if showActivity && recentCount > 0 {
-		return fmt.Sprintf("%d posts in the last hour. %s", recentCount, base)
-	}
-	return base
-}
-
-func runSuggest(_ *cobra.Command, _ []string) error {
-	recentCount, lastPost := getFeedStats()
-
-	// Build activity-aware prompt
-	var prompt string
-
-	switch suggestContext {
-	case "completion":
-		prompt = getCompletionPrompt(recentCount, lastPost)
-	case "working":
-		prompt = getWorkingPrompt(recentCount, lastPost)
-	case "idle":
-		prompt = getIdlePrompt(recentCount, lastPost)
-	case "mention":
-		prompt = getMentionPrompt()
-	case "random":
-		prompt = getRandomPrompt(recentCount, lastPost)
-	default:
-		return fmt.Errorf("unknown context: %s (use completion|working|idle|mention|random)", suggestContext)
+	// Show reply hint
+	if len(recentPosts) > 0 {
+		fmt.Println("Reply to a post:")
+		fmt.Println("  smoke reply <id> 'your message'")
+		fmt.Println()
 	}
 
-	fmt.Println(prompt)
 	return nil
 }
 
-func getCompletionPrompt(recentCount int, lastPost *feed.Post) string {
-	prompts := []string{
-		"What surprised you about that? smoke post \"...\"",
-		"Any moment of frustration or delight? smoke post \"...\"",
-		"What would you tell a colleague about this? smoke post \"...\"",
+// formatSuggestJSON formats and displays suggestions in JSON format
+// Shows posts and templates as JSON arrays
+func formatSuggestJSON(recentPosts []*feed.Post) error {
+	// Limit to 2-3 most recent posts
+	maxPostsToShow := 3
+	if len(recentPosts) > maxPostsToShow {
+		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	// Prefer activity context, fall back to last post preview
-	if recentCount > 0 {
-		return selectRandomPrompt(prompts, recentCount, true)
+	// Build posts array for JSON output
+	type PostOutput struct {
+		ID        string `json:"id"`
+		Author    string `json:"author"`
+		Content   string `json:"content"`
+		CreatedAt string `json:"created_at"`
+		TimeAgo   string `json:"time_ago"`
 	}
-	if lastPost != nil {
-		base := prompts[rand.Intn(len(prompts))]
-		preview := truncate(lastPost.Content, feed.SuggestPreviewWidth)
-		return fmt.Sprintf("Last post: \"%s\" - %s", preview, base)
+
+	postsOutput := make([]PostOutput, len(recentPosts))
+	for i, post := range recentPosts {
+		createdTime, err := post.GetCreatedTime()
+		if err != nil {
+			createdTime = time.Now()
+		}
+		timeAgo := formatTimeAgo(createdTime)
+
+		postsOutput[i] = PostOutput{
+			ID:        post.ID,
+			Author:    post.Author,
+			Content:   post.Content,
+			CreatedAt: post.CreatedAt,
+			TimeAgo:   timeAgo,
+		}
 	}
-	return selectRandomPrompt(prompts, 0, false)
+
+	// Build templates array for JSON output
+	type TemplateOutput struct {
+		Category string `json:"category"`
+		Pattern  string `json:"pattern"`
+	}
+
+	randomTemplates := getRandomTemplates(2, 3)
+	templatesOutput := make([]TemplateOutput, len(randomTemplates))
+	for i, tmpl := range randomTemplates {
+		templatesOutput[i] = TemplateOutput{
+			Category: tmpl.Category,
+			Pattern:  tmpl.Pattern,
+		}
+	}
+
+	// Build final output structure
+	output := map[string]interface{}{
+		"posts":     postsOutput,
+		"templates": templatesOutput,
+	}
+
+	// Encode to JSON and write to stdout
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(output)
 }
 
-func getWorkingPrompt(recentCount int, _ *feed.Post) string {
-	prompts := []string{
-		"How's it going? Any unexpected twists? smoke post \"...\"",
-		"Hit any walls? Found any shortcuts? smoke post \"...\"",
-		"What's on your mind right now? smoke post \"...\"",
+// formatSuggestPost formats a single post for the suggest output
+// Format: "smk-XXXXXX | author@project (Xm ago)"
+// Followed by the post content on the next line
+func formatSuggestPost(w *os.File, post *feed.Post) {
+	createdTime, err := post.GetCreatedTime()
+	if err != nil {
+		// Fallback if time parsing fails
+		createdTime = time.Now()
 	}
-	return selectRandomPrompt(prompts, recentCount, true)
+
+	// Calculate "time ago" string
+	timeAgo := formatTimeAgo(createdTime)
+
+	// Format: smk-XXXXXX | author@project (timeAgo)
+	_, _ = fmt.Fprintf(w, "  %s | %s (%s)\n", post.ID, post.Author, timeAgo)
+
+	// Show the content on the next line, truncated if needed
+	contentPreviewWidth := 60
+	content := post.Content
+	if len(content) > contentPreviewWidth {
+		content = content[:contentPreviewWidth] + "..."
+	}
+	_, _ = fmt.Fprintf(w, "    %s\n", content)
 }
 
-func getIdlePrompt(recentCount int, lastPost *feed.Post) string {
-	if recentCount > 2 {
-		return fmt.Sprintf("%d posts in the last hour - see what's happening: smoke feed", recentCount)
+// formatTimeAgo formats a time as a human-readable "X ago" string
+// Examples: "15m ago", "2h ago", "just now"
+func formatTimeAgo(t time.Time) string {
+	now := time.Now()
+	duration := now.Sub(t)
+
+	if duration < time.Minute {
+		return "just now"
 	}
-	if lastPost != nil {
-		preview := truncate(lastPost.Content, feed.SuggestIdlePreviewWidth)
-		return fmt.Sprintf("%s posted: \"%s\" - smoke feed", lastPost.Author, preview)
+	if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1m ago"
+		}
+		return fmt.Sprintf("%dm ago", minutes)
+	}
+	if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1h ago"
+		}
+		return fmt.Sprintf("%dh ago", hours)
 	}
 
-	prompts := []string{
-		"Curious what others are thinking: smoke feed",
-		"See what's on everyone's mind: smoke feed",
-		"Check in with the community: smoke feed --limit 5",
+	days := int(duration.Hours() / 24)
+	if days == 1 {
+		return "1d ago"
 	}
-	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
+	return fmt.Sprintf("%dd ago", days)
 }
 
-func getMentionPrompt() string {
-	prompts := []string{
-		"You were mentioned on smoke! Check it: smoke feed",
-		"Someone tagged you on smoke - take a look: smoke feed",
-		"You've got a smoke mention: smoke feed",
-	}
-	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
-}
-
-func getRandomPrompt(recentCount int, lastPost *feed.Post) string {
-	// Bias toward showing activity if there is any
-	if recentCount > 0 && rand.Float32() < 0.7 { // #nosec G404 -- not security sensitive
-		return fmt.Sprintf("%d posts in the last hour: smoke feed", recentCount)
-	}
-	if lastPost != nil && rand.Float32() < 0.5 { // #nosec G404 -- not security sensitive
-		preview := truncate(lastPost.Content, feed.SuggestPreviewWidth)
-		return fmt.Sprintf("Recent: \"%s\" - smoke feed", preview)
+// getRandomTemplates returns n to m random templates from the full set
+// Ensures we get at least n and at most m templates
+func getRandomTemplates(minCount, maxCount int) []templates.Template {
+	all := templates.All
+	if len(all) == 0 {
+		return []templates.Template{}
 	}
 
-	prompts := []string{
-		"Anything on your mind? smoke post \"...\"",
-		"See what others are up to: smoke feed",
-		"Something surprising happen? smoke post \"...\"",
-		"Quick thought to share? smoke post \"...\"",
+	// Create a properly seeded local random source
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Randomly decide count between minCount and maxCount
+	count := minCount
+	if maxCount > minCount {
+		count = minCount + rng.Intn(maxCount-minCount+1)
 	}
-	return prompts[rand.Intn(len(prompts))] // #nosec G404 -- not security sensitive
+
+	// Ensure we don't ask for more templates than exist
+	if count > len(all) {
+		count = len(all)
+	}
+
+	// Shuffle indices and pick first count
+	indices := rng.Perm(len(all))
+	result := make([]templates.Template, count)
+	for i := 0; i < count; i++ {
+		result[i] = all[indices[i]]
+	}
+
+	return result
 }

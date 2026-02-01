@@ -28,8 +28,8 @@ func TestGetIdentity_WithSmokeAuthor(t *testing.T) {
 	if identity.Suffix != "test-user" {
 		t.Errorf("Expected suffix 'test-user', got %q", identity.Suffix)
 	}
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 }
 
@@ -47,8 +47,8 @@ func TestGetIdentityWithOverride(t *testing.T) {
 	if identity.Suffix != "my-custom-name" {
 		t.Errorf("Expected suffix 'my-custom-name', got %q", identity.Suffix)
 	}
-	if identity.Agent != "custom" {
-		t.Errorf("Expected agent 'custom', got %q", identity.Agent)
+	if identity.Agent != "" {
+		t.Errorf("Expected agent '', got %q", identity.Agent)
 	}
 }
 
@@ -148,9 +148,9 @@ func TestGetIdentity_AutoDetect(t *testing.T) {
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty suffix from auto-detection")
 	}
-	// Should have detected agent
-	if identity.Agent == "" {
-		t.Error("Expected non-empty agent")
+	// Auto-detection no longer sets Agent (removed "claude" prefix)
+	if identity.Agent != "" {
+		t.Error("Expected empty agent for auto-detected identity")
 	}
 	// Should have detected project
 	if identity.Project == "" {
@@ -180,8 +180,9 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty suffix even with PPID fallback")
 	}
-	if identity.Agent != "claude" && identity.Agent != "unknown" {
-		t.Errorf("Expected agent to be either 'claude' or 'unknown', got %q", identity.Agent)
+	// Auto-detection no longer sets Agent (removed "claude" prefix)
+	if identity.Agent != "" {
+		t.Errorf("Expected empty agent for auto-detected identity, got %q", identity.Agent)
 	}
 	t.Logf("Identity with PPID fallback: %s", identity.String())
 }
@@ -505,8 +506,10 @@ func TestGetIdentity_NoSessionSeed(t *testing.T) {
 	// The important thing is that the code doesn't crash
 	if err == ErrNoIdentity {
 		t.Logf("Got expected ErrNoIdentity when no session seed available")
-		require.NoError(t, err)
+		require.Error(t, err)
+	} else {
 		// If no error, PPID fallback worked
+		require.NoError(t, err)
 		t.Logf("Identity resolved via PPID fallback: %s", identity.String())
 	}
 }
@@ -601,8 +604,9 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify all components are populated
-	if identity.Agent == "" {
-		t.Error("Expected non-empty Agent in auto-detect path")
+	// Auto-detection no longer sets Agent (removed "claude" prefix)
+	if identity.Agent != "" {
+		t.Errorf("Expected empty Agent in auto-detect path, got %q", identity.Agent)
 	}
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty Suffix in auto-detect path")
@@ -612,4 +616,229 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	}
 
 	t.Logf("Auto-detected identity: %s", identity.String())
+}
+
+// === REGRESSION TESTS: Backward Compatibility ===
+
+// TestSmokeAuthorBackwardCompat_SimpleNameNeverGetsClaudePrefix
+// Regression test: custom SMOKE_AUTHOR should never add "claude" prefix
+func TestSmokeAuthorBackwardCompat_SimpleNameNeverGetsClaudePrefix(t *testing.T) {
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	// Test with a simple name
+	os.Setenv("SMOKE_AUTHOR", "my-custom-name")
+	os.Setenv("TERM_SESSION_ID", "")
+
+	identity, err := GetIdentity("")
+	require.NoError(t, err)
+
+	// Verify no "claude" prefix is added to custom name
+	require.Equal(t, "", identity.Agent, "Agent MUST be empty for custom SMOKE_AUTHOR")
+	require.Equal(t, "my-custom-name", identity.Suffix)
+	require.NotContains(t, identity.String(), "claude", "Identity string MUST NOT contain 'claude' prefix for custom SMOKE_AUTHOR")
+}
+
+// TestAuthorFlagBackwardCompat_SimpleNameNeverGetsClaudePrefix
+// Regression test: --author flag should never add "claude" prefix
+func TestAuthorFlagBackwardCompat_SimpleNameNeverGetsClaudePrefix(t *testing.T) {
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer os.Setenv("TERM_SESSION_ID", origSessionID)
+
+	os.Setenv("TERM_SESSION_ID", "test-session-789")
+
+	// Test with GetIdentity override (simulates --author flag)
+	identity, err := GetIdentity("custom-author-name")
+	require.NoError(t, err)
+
+	// Verify no "claude" prefix is added
+	require.Equal(t, "", identity.Agent, "Agent MUST be empty for --author flag")
+	require.Equal(t, "custom-author-name", identity.Suffix)
+	require.NotContains(t, identity.String(), "claude", "Identity string MUST NOT contain 'claude' prefix for --author flag")
+}
+
+// TestSmokeAuthorBackwardCompat_WithSpecialChars
+// Regression test: SMOKE_AUTHOR with special characters is sanitized
+func TestSmokeAuthorBackwardCompat_WithSpecialChars(t *testing.T) {
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	// Test with hyphen that matches agent-suffix@project pattern
+	// my-user@some-place will be parsed as: agent="my", suffix="user", project="some-place"
+	os.Setenv("SMOKE_AUTHOR", "my-user@some-place")
+	os.Setenv("TERM_SESSION_ID", "")
+
+	identity, err := GetIdentity("")
+	require.NoError(t, err)
+
+	// Should parse agent-suffix@project format with first dash as separator
+	require.Equal(t, "my", identity.Agent)
+	require.Equal(t, "user", identity.Suffix)
+	require.Equal(t, "some-place", identity.Project)
+}
+
+// TestAuthorFlagBackwardCompat_WithSpecialChars
+// Regression test: --author flag with special characters is sanitized
+func TestAuthorFlagBackwardCompat_WithSpecialChars(t *testing.T) {
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer os.Setenv("TERM_SESSION_ID", origSessionID)
+
+	os.Setenv("TERM_SESSION_ID", "test-session-special")
+
+	// Test with --author override containing special characters
+	identity, err := GetIdentity("user@custom-place")
+	require.NoError(t, err)
+
+	// Should parse as name@project format
+	require.Equal(t, "", identity.Agent, "Agent MUST be empty for simple name@project")
+	require.Equal(t, "user", identity.Suffix)
+	require.Equal(t, "custom-place", identity.Project)
+}
+
+// TestSmokeAuthorBackwardCompat_OverrideTakesPreference
+// Regression test: --author override takes precedence over SMOKE_AUTHOR
+func TestSmokeAuthorBackwardCompat_OverrideTakesPreference(t *testing.T) {
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	os.Setenv("SMOKE_AUTHOR", "env-user")
+	os.Setenv("TERM_SESSION_ID", "test-session-pref")
+
+	// GetIdentity override should take precedence
+	identity, err := GetIdentity("override-user")
+	require.NoError(t, err)
+
+	require.Equal(t, "override-user", identity.Suffix, "--author override MUST take precedence over SMOKE_AUTHOR")
+}
+
+// TestSmokeAuthorBackwardCompat_MultipleWords
+// Regression test: SMOKE_AUTHOR with multiple words is properly handled
+func TestSmokeAuthorBackwardCompat_MultipleWords(t *testing.T) {
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	os.Setenv("SMOKE_AUTHOR", "John Doe")
+	os.Setenv("TERM_SESSION_ID", "")
+
+	identity, err := GetIdentity("")
+	require.NoError(t, err)
+
+	// Spaces should be converted to hyphens
+	require.Equal(t, "john-doe", identity.Suffix)
+	require.Equal(t, "", identity.Agent)
+}
+
+// TestAuthorFlagBackwardCompat_MultipleWords
+// Regression test: --author with multiple words is properly handled
+func TestAuthorFlagBackwardCompat_MultipleWords(t *testing.T) {
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer os.Setenv("TERM_SESSION_ID", origSessionID)
+
+	os.Setenv("TERM_SESSION_ID", "test-session-words")
+
+	identity, err := GetIdentity("Jane Smith")
+	require.NoError(t, err)
+
+	// Spaces should be converted to hyphens
+	require.Equal(t, "jane-smith", identity.Suffix)
+	require.Equal(t, "", identity.Agent)
+}
+
+// TestSmokeAuthorBackwardCompat_FullIdentityFormat
+// Regression test: SMOKE_AUTHOR can still accept full identity format
+func TestSmokeAuthorBackwardCompat_FullIdentityFormat(t *testing.T) {
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	// Full identity format: agent-suffix@project
+	os.Setenv("SMOKE_AUTHOR", "claude-test-user@myproject")
+	os.Setenv("TERM_SESSION_ID", "")
+
+	identity, err := GetIdentity("")
+	require.NoError(t, err)
+
+	// Should parse the agent prefix
+	require.Equal(t, "claude", identity.Agent)
+	require.Equal(t, "test-user", identity.Suffix)
+	require.Equal(t, "myproject", identity.Project)
+}
+
+// TestAuthorFlagBackwardCompat_FullIdentityFormat
+// Regression test: --author flag can accept full identity format
+func TestAuthorFlagBackwardCompat_FullIdentityFormat(t *testing.T) {
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer os.Setenv("TERM_SESSION_ID", origSessionID)
+
+	os.Setenv("TERM_SESSION_ID", "test-session-full")
+
+	// Full identity format via --author
+	identity, err := GetIdentity("agent-suffix@project")
+	require.NoError(t, err)
+
+	require.Equal(t, "agent", identity.Agent)
+	require.Equal(t, "suffix", identity.Suffix)
+	require.Equal(t, "project", identity.Project)
+}
+
+// TestBDActorTakesPrecedenceOverSmokeAuthor
+// Regression test: BD_ACTOR should take precedence over SMOKE_AUTHOR
+func TestBDActorTakesPrecedenceOverSmokeAuthor(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	defer func() {
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+	}()
+
+	os.Setenv("BD_ACTOR", "bd-priority")
+	os.Setenv("SMOKE_AUTHOR", "smoke-fallback")
+
+	identity, err := GetIdentity("")
+	require.NoError(t, err)
+
+	// BD_ACTOR should take precedence
+	require.Equal(t, "bd-priority", identity.Suffix)
+}
+
+// TestOverrideTakesPrecedenceOverAllEnvVars
+// Regression test: GetIdentity override takes precedence over all env vars
+func TestOverrideTakesPrecedenceOverAllEnvVars(t *testing.T) {
+	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSessionID := os.Getenv("TERM_SESSION_ID")
+	defer func() {
+		os.Setenv("BD_ACTOR", origBDActor)
+		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("TERM_SESSION_ID", origSessionID)
+	}()
+
+	os.Setenv("BD_ACTOR", "bd-priority")
+	os.Setenv("SMOKE_AUTHOR", "smoke-fallback")
+	os.Setenv("TERM_SESSION_ID", "test-session")
+
+	// Override should win
+	identity, err := GetIdentity("override-wins")
+	require.NoError(t, err)
+
+	require.Equal(t, "override-wins", identity.Suffix)
 }
