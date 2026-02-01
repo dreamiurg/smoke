@@ -12,13 +12,12 @@
 //
 // All log entries use consistent field naming organized into groups:
 //
-//	ctx.identity      Full identity string (e.g., "claude@swift-fox/smoke")
+//	ctx.identity      Full identity string (e.g., "swift-fox@smoke")
 //	ctx.agent         Agent type: "claude", "human", "unknown"
 //	ctx.session       Session ID for correlation
 //	ctx.env           Environment: "claude_code", "ci", "terminal"
 //	ctx.project       Project name
 //	ctx.cwd           Working directory
-//	ctx.bd_actor      BD_ACTOR env var if set
 //
 //	cmd.name          Command name (e.g., "post", "feed")
 //	cmd.args          Command arguments

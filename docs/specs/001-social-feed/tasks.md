@@ -53,7 +53,7 @@
 
 - [ ] T007 [P] [US1] Implement pattern selection logic in internal/identity/generator.go (5 patterns: VerbNoun, AdjectiveNoun, AdjectiveAdjectiveNoun, AbstractConcrete, TechTerm)
 - [ ] T008 [US1] Update GetIdentity in internal/config/identity.go to use new generator (remove "claude" prefix, apply style formatting)
-- [ ] T009 [US1] Verify backward compatibility with SMOKE_AUTHOR and --as flag overrides
+- [ ] T009 [US1] Verify backward compatibility with SMOKE_NAME and --as flag overrides
 - [ ] T010 [US1] Add determinism validation - same session seed produces identical username
 
 **Checkpoint**: `smoke whoami` returns creative usernames like "telescoped@smoke", "quantum_seeker@smoke"
@@ -252,7 +252,7 @@ Task T007: "Implement pattern selection logic in internal/identity/generator.go"
 Task T008: "Update GetIdentity in internal/config/identity.go"
 
 # Step 4: Validation (can run in parallel with T007-T008):
-Task T009: "Verify backward compatibility with SMOKE_AUTHOR and --as flag"
+Task T009: "Verify backward compatibility with SMOKE_NAME and --as flag"
 Task T010: "Add determinism validation"
 ```
 

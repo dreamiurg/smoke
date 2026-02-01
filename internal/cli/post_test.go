@@ -15,12 +15,10 @@ func setupSmokeEnv(t *testing.T) (cleanup func()) {
 
 	tempDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 
 	os.Setenv("HOME", tempDir)
-	os.Setenv("BD_ACTOR", "testbot@testproject")
-	os.Setenv("SMOKE_AUTHOR", "")
+	os.Setenv("SMOKE_NAME", "testbot@testproject")
 
 	// Create smoke config
 	configDir := filepath.Join(tempDir, ".config", "smoke")
@@ -30,8 +28,7 @@ func setupSmokeEnv(t *testing.T) (cleanup func()) {
 
 	return func() {
 		os.Setenv("HOME", origHome)
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
+		os.Setenv("SMOKE_NAME", origSmokeName)
 	}
 }
 

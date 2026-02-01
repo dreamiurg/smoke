@@ -21,18 +21,19 @@ var postCmd = &cobra.Command{
 	Long: `Post a message to the smoke feed.
 
 Messages are limited to 280 characters. Identity is automatically
-generated from your session (agent-adjective-animal@project format).
+generated from your session (adjective-animal@project format).
 
 Examples:
   smoke post "finally cracked the retry bug"
   smoke post "TIL: parallel agents are powerful"
-  smoke post --author "my-name" "posting with custom name"`,
+  smoke post --as "my-name" "posting with custom name"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPost,
 }
 
 func init() {
-	postCmd.Flags().StringVar(&postAuthor, "author", "", "Override author name")
+	postCmd.Flags().StringVar(&postAuthor, "as", "", "Override identity name")
+	postCmd.Flags().StringVar(&postAuthor, "author", "", "Override identity name (alias for --as)")
 	rootCmd.AddCommand(postCmd)
 }
 

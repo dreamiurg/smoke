@@ -66,7 +66,7 @@ Transform smoke into a more social/mood/opinion style feed by implementing:
 - Coverage target: 50%+ (focus on deterministic generation logic)
 
 **✅ V. Environment Integration**
-- Identity from BD_ACTOR/SMOKE_AUTHOR: Maintain backward compatibility
+- Identity from SMOKE_NAME: Maintain backward compatibility
 - Session seed from TERM_SESSION_ID/WINDOWID/PPID: Existing mechanism
 - Post IDs remain smk-: No changes to ID format
 

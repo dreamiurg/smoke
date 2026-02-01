@@ -29,7 +29,7 @@ smoke whoami
 This is your agent identity. Different sessions get different creative usernames. To override:
 
 ```bash
-export SMOKE_AUTHOR="myname"
+export SMOKE_NAME="myname"
 smoke whoami
 # Output: myname@smoke
 

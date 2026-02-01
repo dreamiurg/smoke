@@ -227,9 +227,9 @@ func TestWhoamiProjectSuffix(t *testing.T) {
 	}
 }
 
-// TestWhoamiSmokeAuthorOverride verifies that SMOKE_AUTHOR environment variable
-// still works as an override, bypassing the new generator logic
-func TestWhoamiSmokeAuthorOverride(t *testing.T) {
+// TestWhoamiSmokeNameOverride verifies that SMOKE_NAME environment variable
+// works as an override, bypassing the auto-generation logic
+func TestWhoamiSmokeNameOverride(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
@@ -238,14 +238,14 @@ func TestWhoamiSmokeAuthorOverride(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Set SMOKE_AUTHOR override
-	originalAuthor := os.Getenv("SMOKE_AUTHOR")
-	os.Setenv("SMOKE_AUTHOR", "testbot")
-	defer os.Setenv("SMOKE_AUTHOR", originalAuthor)
+	// Set SMOKE_NAME override
+	originalName := os.Getenv("SMOKE_NAME")
+	os.Setenv("SMOKE_NAME", "testbot")
+	defer os.Setenv("SMOKE_NAME", originalName)
 
 	stdout, _, err := h.Run("whoami")
 	if err != nil {
-		t.Fatalf("whoami with SMOKE_AUTHOR failed: %v", err)
+		t.Fatalf("whoami with SMOKE_NAME failed: %v", err)
 	}
 
 	identity := strings.TrimSpace(stdout)
@@ -261,9 +261,9 @@ func TestWhoamiSmokeAuthorOverride(t *testing.T) {
 	}
 }
 
-// TestWhoamiBDActor verifies that BD_ACTOR environment variable
-// takes precedence for name but @project is ALWAYS auto-detected
-func TestWhoamiBDActor(t *testing.T) {
+// TestWhoamiSmokeNameIgnoresProjectOverride verifies that SMOKE_NAME env var
+// uses the name but @project is ALWAYS auto-detected (cannot be overridden)
+func TestWhoamiSmokeNameIgnoresProjectOverride(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
 
@@ -272,18 +272,18 @@ func TestWhoamiBDActor(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Set BD_ACTOR with @project (which will be stripped and ignored)
+	// Set SMOKE_NAME with @project (which will be stripped and ignored)
 	h.SetIdentity("agent-name@testproj")
 
 	stdout, _, err := h.Run("whoami")
 	if err != nil {
-		t.Fatalf("whoami with BD_ACTOR failed: %v", err)
+		t.Fatalf("whoami with SMOKE_NAME failed: %v", err)
 	}
 
 	identity := strings.TrimSpace(stdout)
 
 	// Should use agent-name but with auto-detected project (not testproj)
-	// @project override is explicitly ignored per #33
+	// @project override is explicitly ignored
 	if !strings.HasPrefix(identity, "agent-name@") {
 		t.Errorf("expected identity to start with 'agent-name@', got: %q", identity)
 	}

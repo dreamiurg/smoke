@@ -11,13 +11,13 @@ import (
 
 // TestHelper manages test environment
 type TestHelper struct {
-	t           *testing.T
-	tmpDir      string
-	configDir   string
-	binPath     string
-	origDir     string
-	origBDActor string
-	origEnv     map[string]string
+	t             *testing.T
+	tmpDir        string
+	configDir     string
+	binPath       string
+	origDir       string
+	origSmokeName string
+	origEnv       map[string]string
 }
 
 func NewTestHelper(t *testing.T) *TestHelper {
@@ -50,7 +50,7 @@ func NewTestHelper(t *testing.T) *TestHelper {
 	}
 
 	origDir, _ := os.Getwd()
-	origBDActor := os.Getenv("BD_ACTOR")
+	origSmokeName := os.Getenv("SMOKE_NAME")
 
 	// Save original HOME
 	origEnv := map[string]string{
@@ -58,26 +58,26 @@ func NewTestHelper(t *testing.T) *TestHelper {
 	}
 
 	return &TestHelper{
-		t:           t,
-		tmpDir:      tmpDir,
-		configDir:   configDir,
-		binPath:     binPath,
-		origDir:     origDir,
-		origBDActor: origBDActor,
-		origEnv:     origEnv,
+		t:             t,
+		tmpDir:        tmpDir,
+		configDir:     configDir,
+		binPath:       binPath,
+		origDir:       origDir,
+		origSmokeName: origSmokeName,
+		origEnv:       origEnv,
 	}
 }
 
 func (h *TestHelper) Cleanup() {
 	os.Chdir(h.origDir)
-	os.Setenv("BD_ACTOR", h.origBDActor)
+	os.Setenv("SMOKE_NAME", h.origSmokeName)
 	for k, v := range h.origEnv {
 		os.Setenv(k, v)
 	}
 }
 
 func (h *TestHelper) SetIdentity(identity string) {
-	os.Setenv("BD_ACTOR", identity)
+	os.Setenv("SMOKE_NAME", identity)
 }
 
 func (h *TestHelper) Run(args ...string) (string, string, error) {
@@ -300,9 +300,8 @@ func TestSmokePostAutoIdentity(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Clear explicit identity env vars - smoke should auto-generate
-	os.Unsetenv("BD_ACTOR")
-	os.Unsetenv("SMOKE_AUTHOR")
+	// Clear explicit identity env var - smoke should auto-generate
+	os.Unsetenv("SMOKE_NAME")
 
 	// Post should succeed with auto-generated identity
 	stdout, _, err := h.Run("post", "test message with auto identity")
@@ -623,7 +622,7 @@ func TestSmokeFeedBoxDrawing(t *testing.T) {
 	}
 
 	// Check for compact format elements
-	// Note: project is auto-detected from git/cwd, not from BD_ACTOR
+	// Note: project is auto-detected from git/cwd, not from SMOKE_NAME
 	if !strings.Contains(stdout, "ember@") {
 		t.Errorf("feed missing author@project (should be ember@{auto-detected}): %s", stdout)
 	}

@@ -108,13 +108,12 @@ func TestContextSetIdentity(t *testing.T) {
 
 func TestContextAttrs(t *testing.T) {
 	ctx := &Context{
-		Identity: "claude@swift-fox/smoke",
+		Identity: "swift-fox@smoke",
 		Agent:    "claude",
 		Session:  "test-session",
 		Env:      "terminal",
 		Project:  "smoke",
 		Cwd:      "/home/test",
-		BdActor:  "",
 	}
 
 	attr := ctx.Attrs()
@@ -126,36 +125,6 @@ func TestContextAttrs(t *testing.T) {
 	// Check it's a group
 	if attr.Value.Kind() != slog.KindGroup {
 		t.Errorf("Attr value kind = %v, want Group", attr.Value.Kind())
-	}
-}
-
-func TestContextAttrsWithBdActor(t *testing.T) {
-	ctx := &Context{
-		Identity: "test",
-		Agent:    "test",
-		Session:  "test",
-		Env:      "terminal",
-		Project:  "test",
-		Cwd:      "/test",
-		BdActor:  "test-actor",
-	}
-
-	attr := ctx.Attrs()
-
-	// Verify bd_actor is included when set
-	group := attr.Value.Group()
-	found := false
-	for _, a := range group {
-		if a.Key == "bd_actor" {
-			found = true
-			if a.Value.String() != "test-actor" {
-				t.Errorf("bd_actor = %q, want %q", a.Value.String(), "test-actor")
-			}
-			break
-		}
-	}
-	if !found {
-		t.Error("bd_actor should be included when set")
 	}
 }
 

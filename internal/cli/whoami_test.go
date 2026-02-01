@@ -11,13 +11,9 @@ import (
 )
 
 func TestWhoamiCommand(t *testing.T) {
-	// Save original env vars
-	origBDActor := os.Getenv("BD_ACTOR")
-	origSmokeAuthor := os.Getenv("SMOKE_AUTHOR")
-	defer func() {
-		os.Setenv("BD_ACTOR", origBDActor)
-		os.Setenv("SMOKE_AUTHOR", origSmokeAuthor)
-	}()
+	// Save original env var
+	origSmokeName := os.Getenv("SMOKE_NAME")
+	defer os.Setenv("SMOKE_NAME", origSmokeName)
 
 	// Get the actual auto-detected project for assertions
 	// @project override is now ignored, always auto-detected
@@ -25,31 +21,31 @@ func TestWhoamiCommand(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		bdActor    string
+		smokeName  string
 		jsonFlag   bool
 		nameFlag   bool
 		wantOutput string
 		wantJSON   map[string]string
 	}{
 		{
-			name:       "default format with BD_ACTOR (project override ignored)",
-			bdActor:    "testbot@ignored-project",
+			name:       "default format with SMOKE_NAME (project override ignored)",
+			smokeName:  "testbot@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   false,
 			wantOutput: "testbot@" + actualProject, // @project is auto-detected
 		},
 		{
-			name:       "name only with BD_ACTOR",
-			bdActor:    "testbot@ignored-project",
+			name:       "name only with SMOKE_NAME",
+			smokeName:  "testbot@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   true,
 			wantOutput: "testbot", // agent is "", suffix is full name
 		},
 		{
-			name:     "json format with BD_ACTOR (project override ignored)",
-			bdActor:  "testbot@ignored-project",
-			jsonFlag: true,
-			nameFlag: false,
+			name:      "json format with SMOKE_NAME (project override ignored)",
+			smokeName: "testbot@ignored-project",
+			jsonFlag:  true,
+			nameFlag:  false,
 			wantJSON: map[string]string{
 				"name":    "testbot",
 				"project": actualProject, // @project is auto-detected
@@ -57,23 +53,23 @@ func TestWhoamiCommand(t *testing.T) {
 		},
 		{
 			name:       "agent-suffix format (project override ignored)",
-			bdActor:    "claude-swift-fox@ignored-project",
+			smokeName:  "claude-swift-fox@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   false,
 			wantOutput: "claude-swift-fox@" + actualProject, // Full name as suffix, project auto-detected
 		},
 		{
 			name:       "agent-suffix name only",
-			bdActor:    "claude-swift-fox@ignored-project",
+			smokeName:  "claude-swift-fox@ignored-project",
 			jsonFlag:   false,
 			nameFlag:   true,
 			wantOutput: "claude-swift-fox", // Full name as suffix
 		},
 		{
-			name:     "agent-suffix json format (project override ignored)",
-			bdActor:  "claude-swift-fox@ignored-project",
-			jsonFlag: true,
-			nameFlag: false,
+			name:      "agent-suffix json format (project override ignored)",
+			smokeName: "claude-swift-fox@ignored-project",
+			jsonFlag:  true,
+			nameFlag:  false,
 			wantJSON: map[string]string{
 				"name":    "claude-swift-fox",
 				"project": actualProject, // @project is auto-detected
@@ -84,8 +80,7 @@ func TestWhoamiCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set environment
-			os.Setenv("BD_ACTOR", tt.bdActor)
-			os.Setenv("SMOKE_AUTHOR", "")
+			os.Setenv("SMOKE_NAME", tt.smokeName)
 
 			// Set flags
 			whoamiJSON = tt.jsonFlag
