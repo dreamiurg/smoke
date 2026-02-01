@@ -121,3 +121,72 @@ func TestEnsureInitialized(t *testing.T) {
 	err = EnsureInitialized()
 	assert.NoError(t, err)
 }
+
+func TestValidateFeedPath(t *testing.T) {
+	// Save and restore env vars
+	origSmokeFeed := os.Getenv("SMOKE_FEED")
+	defer os.Setenv("SMOKE_FEED", origSmokeFeed)
+
+	t.Run("temp directory allowed", func(t *testing.T) {
+		tmpPath := filepath.Join(os.TempDir(), "test-feed.jsonl")
+		os.Setenv("SMOKE_FEED", tmpPath)
+
+		got, err := GetFeedPath()
+		assert.NoError(t, err)
+		assert.Contains(t, got, "test-feed.jsonl")
+	})
+
+	t.Run("private tmp allowed on macOS", func(t *testing.T) {
+		// /private/tmp is the resolved path of /tmp on macOS
+		tmpPath := "/private/tmp/test-feed.jsonl"
+		os.Setenv("SMOKE_FEED", tmpPath)
+
+		got, err := GetFeedPath()
+		assert.NoError(t, err)
+		assert.Equal(t, tmpPath, got)
+	})
+
+	t.Run("var folders allowed", func(t *testing.T) {
+		// /var/folders is used by macOS for temp files
+		tmpPath := "/var/folders/xx/test/feed.jsonl"
+		os.Setenv("SMOKE_FEED", tmpPath)
+
+		got, err := GetFeedPath()
+		assert.NoError(t, err)
+		assert.Equal(t, tmpPath, got)
+	})
+
+	t.Run("private var folders allowed", func(t *testing.T) {
+		// /private/var/folders is the resolved path on macOS
+		tmpPath := "/private/var/folders/xx/test/feed.jsonl"
+		os.Setenv("SMOKE_FEED", tmpPath)
+
+		got, err := GetFeedPath()
+		assert.NoError(t, err)
+		assert.Equal(t, tmpPath, got)
+	})
+
+	t.Run("TMPDIR path allowed", func(t *testing.T) {
+		tmpDir := os.TempDir()
+		tmpPath := filepath.Join(tmpDir, "custom", "feed.jsonl")
+		os.Setenv("SMOKE_FEED", tmpPath)
+
+		got, err := GetFeedPath()
+		assert.NoError(t, err)
+		assert.Equal(t, tmpPath, got)
+	})
+
+	t.Run("absolute system path rejected", func(t *testing.T) {
+		os.Setenv("SMOKE_FEED", "/etc/passwd")
+
+		_, err := GetFeedPath()
+		assert.ErrorIs(t, err, ErrInvalidFeedPath)
+	})
+
+	t.Run("usr path rejected", func(t *testing.T) {
+		os.Setenv("SMOKE_FEED", "/usr/local/feed.jsonl")
+
+		_, err := GetFeedPath()
+		assert.ErrorIs(t, err, ErrInvalidFeedPath)
+	})
+}
