@@ -414,6 +414,9 @@ func performFeedFormatCheck() Check {
 		return warnCheck(name, fmt.Sprintf("%d/%d lines valid", validLines, totalLines), "Some lines contain invalid JSON - manual inspection recommended")
 	}
 
+	if validLines == 1 {
+		return passCheck(name, "1 post, valid")
+	}
 	return passCheck(name, fmt.Sprintf("%d posts, all valid", validLines))
 }
 
