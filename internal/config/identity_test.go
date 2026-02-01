@@ -638,6 +638,12 @@ func TestGetIdentity_NameWithoutAt(t *testing.T) {
 // TestClaudeCodeSessionIdentity verifies that when running under Claude Code,
 // the session seed uses PPID instead of terminal session ID for per-session identity.
 func TestClaudeCodeSessionIdentity(t *testing.T) {
+	// This test only works when actually running under Claude Code, since we need
+	// a real Claude process ancestor for findClaudeAncestor() to detect
+	if claudePID := findClaudeAncestor(); claudePID == 0 {
+		t.Skip("This test requires actually running under Claude Code (need real Claude ancestor)")
+	}
+
 	origClaudeCode := os.Getenv("CLAUDECODE")
 	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
@@ -770,6 +776,12 @@ func TestIsPIDRunning(t *testing.T) {
 // TestSessionFileCrossProcessSharing tests the main use case:
 // Claude Code writes session file, ccstatusline reads it
 func TestSessionFileCrossProcessSharing(t *testing.T) {
+	// This test only works when actually running under Claude Code, since we need
+	// a real Claude process ancestor for findClaudeAncestor() to detect
+	if claudePID := findClaudeAncestor(); claudePID == 0 {
+		t.Skip("This test requires actually running under Claude Code (need real Claude ancestor)")
+	}
+
 	tmpDir := t.TempDir()
 	configDir := filepath.Join(tmpDir, ".config", "smoke")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
