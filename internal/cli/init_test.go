@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/hooks"
 )
 
@@ -431,4 +432,32 @@ func TestIsDirectory(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunInit_SetsSchemaVersion(t *testing.T) {
+	// Set up temp directory for config
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create .claude dir for hint check
+	claudeDir := filepath.Join(tempDir, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+
+	// Reset flags
+	initForce = false
+	initDryRun = false
+
+	// Run init
+	err := runInit(nil, nil)
+	require.NoError(t, err)
+
+	// Verify schema version was set
+	configMap, err := config.GetConfigAsMap()
+	require.NoError(t, err)
+
+	version, err := config.GetSchemaVersion(configMap)
+	require.NoError(t, err)
+	assert.Equal(t, config.CurrentSchemaVersion, version, "Expected schema version to be set to current version")
 }

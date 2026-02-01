@@ -175,6 +175,25 @@ func runInit(_ *cobra.Command, _ []string) error {
 		actions = append(actions, action)
 	}
 
+	// Apply migrations and ensure config has current schema version (for new and existing configs)
+	if !initDryRun {
+		applied, err := config.ApplyMigrations(false)
+		if err != nil {
+			return fmt.Errorf("applying migrations: %w", err)
+		}
+		// If no migrations were applied (new config), ensure schema version is set
+		if len(applied) == 0 {
+			configMap, err := config.GetConfigAsMap()
+			if err != nil {
+				return fmt.Errorf("reading config for schema version: %w", err)
+			}
+			configMap[config.SchemaVersionKey] = config.CurrentSchemaVersion
+			if err := config.WriteConfigMap(configMap); err != nil {
+				return fmt.Errorf("writing schema version to config: %w", err)
+			}
+		}
+	}
+
 	// Update ~/.claude/CLAUDE.md
 	hasHint, hintErr := config.HasSmokeHint()
 	switch {
