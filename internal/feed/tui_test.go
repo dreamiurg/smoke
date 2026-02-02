@@ -1287,3 +1287,302 @@ func TestModelUpdate_PressureEqualSign(t *testing.T) {
 		t.Errorf("Update(=) should increase pressure from %d to %d, got %d", initialPressure, initialPressure+1, updatedModel.pressure)
 	}
 }
+
+// TestUpdateDisplayedPosts tests the displayedPosts update logic
+func TestUpdateDisplayedPosts(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+
+	// Create posts
+	var posts []*Post
+	for i := 0; i < 5; i++ {
+		post, _ := NewPost("author", "project", "sfx", "content")
+		posts = append(posts, post)
+	}
+	model.posts = posts
+
+	t.Run("updates displayedPosts with newestOnTop", func(t *testing.T) {
+		model.newestOnTop = true
+		model.updateDisplayedPosts()
+
+		if len(model.displayedPosts) != 5 {
+			t.Errorf("displayedPosts should have 5 posts, got %d", len(model.displayedPosts))
+		}
+	})
+
+	t.Run("updates displayedPosts with oldestOnTop", func(t *testing.T) {
+		model.newestOnTop = false
+		model.updateDisplayedPosts()
+
+		if len(model.displayedPosts) != 5 {
+			t.Errorf("displayedPosts should have 5 posts, got %d", len(model.displayedPosts))
+		}
+	})
+
+	t.Run("clamps selectedPostIndex", func(t *testing.T) {
+		model.selectedPostIndex = 100 // Beyond range
+		model.updateDisplayedPosts()
+
+		if model.selectedPostIndex >= len(model.displayedPosts) {
+			t.Error("selectedPostIndex should be clamped to valid range")
+		}
+	})
+
+	t.Run("handles empty posts", func(t *testing.T) {
+		model.posts = nil
+		model.updateDisplayedPosts()
+
+		if model.displayedPosts != nil {
+			t.Error("displayedPosts should be nil when posts is empty")
+		}
+		if model.selectedPostIndex != 0 {
+			t.Error("selectedPostIndex should be 0 when posts is empty")
+		}
+	})
+}
+
+// TestBuildAllContentLinesWithPosts tests content line building with post tracking
+func TestBuildAllContentLinesWithPosts(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 24
+
+	// Create posts
+	var posts []*Post
+	for i := 0; i < 3; i++ {
+		post, _ := NewPost("author", "project", "sfx", "content")
+		posts = append(posts, post)
+	}
+	model.posts = posts
+	model.updateDisplayedPosts()
+
+	lines := model.buildAllContentLinesWithPosts()
+
+	if len(lines) == 0 {
+		t.Error("buildAllContentLinesWithPosts should return content lines")
+	}
+
+	// Check that some lines have valid post indices
+	hasPostLines := false
+	for _, line := range lines {
+		if line.postIndex >= 0 {
+			hasPostLines = true
+			break
+		}
+	}
+	if !hasPostLines {
+		t.Error("buildAllContentLinesWithPosts should have lines with post indices")
+	}
+}
+
+// TestFormatPostWithSelection tests selection indicator
+func TestFormatPostWithSelection(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+
+	post, _ := NewPost("author", "project", "sfx", "test content")
+
+	t.Run("selected post has indicator", func(t *testing.T) {
+		lines := model.formatPostWithSelection(post, true)
+		if len(lines) == 0 {
+			t.Fatal("formatPostWithSelection should return lines")
+		}
+		if !strings.Contains(lines[0], "▶") {
+			t.Error("selected post should have selection indicator")
+		}
+	})
+
+	t.Run("unselected post has no indicator", func(t *testing.T) {
+		lines := model.formatPostWithSelection(post, false)
+		if len(lines) == 0 {
+			t.Fatal("formatPostWithSelection should return lines")
+		}
+		// The first character should not be the indicator
+		if strings.HasPrefix(lines[0], "▶") {
+			t.Error("unselected post should not have selection indicator at start")
+		}
+	})
+}
+
+// TestHandleCopyMenuKey tests copy menu key handling
+func TestHandleCopyMenuKey(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+
+	// Create and load a post
+	post, _ := NewPost("author", "project", "sfx", "content")
+	model.posts = []*Post{post}
+	model.updateDisplayedPosts()
+	model.showCopyMenu = true
+
+	t.Run("escape closes menu", func(t *testing.T) {
+		m := model
+		msg := tea.KeyMsg{Type: tea.KeyEscape}
+		updated, _ := m.handleCopyMenuKey(msg)
+		updatedModel := updated.(Model)
+
+		if updatedModel.showCopyMenu {
+			t.Error("Escape should close copy menu")
+		}
+	})
+
+	t.Run("q closes menu", func(t *testing.T) {
+		m := model
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}
+		updated, _ := m.handleCopyMenuKey(msg)
+		updatedModel := updated.(Model)
+
+		if updatedModel.showCopyMenu {
+			t.Error("q should close copy menu")
+		}
+	})
+
+	t.Run("down moves menu selection", func(t *testing.T) {
+		m := model
+		m.copyMenuIndex = 0
+		msg := tea.KeyMsg{Type: tea.KeyDown}
+		updated, _ := m.handleCopyMenuKey(msg)
+		updatedModel := updated.(Model)
+
+		if updatedModel.copyMenuIndex != 1 {
+			t.Errorf("Down should move menu index to 1, got %d", updatedModel.copyMenuIndex)
+		}
+	})
+
+	t.Run("up moves menu selection", func(t *testing.T) {
+		m := model
+		m.copyMenuIndex = 1
+		msg := tea.KeyMsg{Type: tea.KeyUp}
+		updated, _ := m.handleCopyMenuKey(msg)
+		updatedModel := updated.(Model)
+
+		if updatedModel.copyMenuIndex != 0 {
+			t.Errorf("Up should move menu index to 0, got %d", updatedModel.copyMenuIndex)
+		}
+	})
+
+	t.Run("number keys select option", func(t *testing.T) {
+		tests := []struct {
+			key       string
+			wantIndex int
+		}{
+			{"1", 0},
+			{"2", 1},
+			{"3", 2},
+		}
+
+		for _, tt := range tests {
+			m := model
+			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)}
+			updated, _ := m.handleCopyMenuKey(msg)
+			updatedModel := updated.(Model)
+
+			if updatedModel.showCopyMenu {
+				t.Errorf("Key %s should close copy menu", tt.key)
+			}
+			// Note: We can't easily test the actual copy since it requires clipboard
+			// but we can verify the menu closed and an action was attempted
+		}
+	})
+}
+
+// TestRenderCopyMenuOverlay tests copy menu rendering
+func TestRenderCopyMenuOverlay(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 24
+	model.showCopyMenu = true
+	model.copyMenuIndex = 0
+
+	result := model.renderCopyMenuOverlay()
+
+	if result == "" {
+		t.Error("renderCopyMenuOverlay should return content")
+	}
+	if !strings.Contains(result, "Copy Post") {
+		t.Error("renderCopyMenuOverlay should contain title")
+	}
+	if !strings.Contains(result, "Text") {
+		t.Error("renderCopyMenuOverlay should contain Text option")
+	}
+	if !strings.Contains(result, "Square") {
+		t.Error("renderCopyMenuOverlay should contain Square option")
+	}
+	if !strings.Contains(result, "Landscape") {
+		t.Error("renderCopyMenuOverlay should contain Landscape option")
+	}
+	if !strings.Contains(result, "▶") {
+		t.Error("renderCopyMenuOverlay should show selection indicator")
+	}
+}
+
+// TestCopyConfirmationClears tests that copy confirmation clears on key press
+func TestCopyConfirmationClears(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.copyConfirmation = "✓ Copied"
+
+	// Any key should clear the confirmation
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.copyConfirmation != "" {
+		t.Error("Key press should clear copy confirmation")
+	}
+}
+
+// TestEnsureSelectedVisible tests auto-scroll behavior
+func TestEnsureSelectedVisible(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 10 // Small height to force scrolling
+
+	// Create many posts
+	var posts []*Post
+	for i := 0; i < 20; i++ {
+		post, _ := NewPost("author", "project", "sfx", "content line")
+		posts = append(posts, post)
+	}
+	model.posts = posts
+	model.updateDisplayedPosts()
+	model.initialScrollDone = true
+
+	t.Run("scrolls to keep selected visible", func(t *testing.T) {
+		model.selectedPostIndex = 15 // Select a post that's likely off-screen
+		model.scrollOffset = 0
+		model.ensureSelectedVisible()
+
+		// Scroll offset should have changed to show the selected post
+		// We can't predict exact offset, but it should be non-zero
+		if model.scrollOffset == 0 && len(model.displayedPosts) > 10 {
+			t.Error("ensureSelectedVisible should scroll when selected post is off-screen")
+		}
+	})
+
+	t.Run("handles empty posts", func(t *testing.T) {
+		m := model
+		m.displayedPosts = nil
+		m.ensureSelectedVisible() // Should not panic
+	})
+}
+
+// TestCopyMenuDoesNotOpenWithoutPosts tests that copy menu doesn't open without posts
+func TestCopyMenuDoesNotOpenWithoutPosts(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.posts = nil
+	model.displayedPosts = nil
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")}
+	updated, _ := model.Update(msg)
+	updatedModel := updated.(Model)
+
+	if updatedModel.showCopyMenu {
+		t.Error("Copy menu should not open when there are no posts")
+	}
+}
