@@ -207,3 +207,119 @@ func TestLoadReadState_EmptyFile(t *testing.T) {
 		t.Fatalf("Expected empty LastReadPostID, got %s", state.LastReadPostID)
 	}
 }
+
+func TestGetNudgeCount_NonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", originalHome) })
+	os.Setenv("HOME", tmpDir)
+
+	// GetNudgeCount returns 0 when file doesn't exist
+	count := GetNudgeCount()
+	if count != 0 {
+		t.Fatalf("Expected 0 for non-existent file, got %d", count)
+	}
+}
+
+func TestIncrementNudgeCount(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", originalHome) })
+	os.Setenv("HOME", tmpDir)
+
+	// Initial count is 0
+	count := GetNudgeCount()
+	if count != 0 {
+		t.Fatalf("Expected initial count 0, got %d", count)
+	}
+
+	// Increment once
+	err := IncrementNudgeCount()
+	if err != nil {
+		t.Fatalf("IncrementNudgeCount failed: %v", err)
+	}
+
+	count = GetNudgeCount()
+	if count != 1 {
+		t.Fatalf("Expected count 1 after first increment, got %d", count)
+	}
+
+	// Increment again
+	err = IncrementNudgeCount()
+	if err != nil {
+		t.Fatalf("Second IncrementNudgeCount failed: %v", err)
+	}
+
+	count = GetNudgeCount()
+	if count != 2 {
+		t.Fatalf("Expected count 2 after second increment, got %d", count)
+	}
+}
+
+func TestNudgeCount_PreservesLastReadPostID(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", originalHome) })
+	os.Setenv("HOME", tmpDir)
+
+	// Set a last read post ID first
+	err := SaveLastReadPostID("post-123")
+	if err != nil {
+		t.Fatalf("SaveLastReadPostID failed: %v", err)
+	}
+
+	// Increment nudge count
+	err = IncrementNudgeCount()
+	if err != nil {
+		t.Fatalf("IncrementNudgeCount failed: %v", err)
+	}
+
+	// Both values should be preserved
+	state, err := LoadReadState()
+	if err != nil {
+		t.Fatalf("LoadReadState failed: %v", err)
+	}
+
+	if state.LastReadPostID != "post-123" {
+		t.Fatalf("Expected LastReadPostID 'post-123', got '%s'", state.LastReadPostID)
+	}
+	if state.NudgeCount != 1 {
+		t.Fatalf("Expected NudgeCount 1, got %d", state.NudgeCount)
+	}
+}
+
+func TestSaveLastReadPostID_PreservesNudgeCount(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", originalHome) })
+	os.Setenv("HOME", tmpDir)
+
+	// Increment nudge count first
+	err := IncrementNudgeCount()
+	if err != nil {
+		t.Fatalf("IncrementNudgeCount failed: %v", err)
+	}
+	err = IncrementNudgeCount()
+	if err != nil {
+		t.Fatalf("Second IncrementNudgeCount failed: %v", err)
+	}
+
+	// Save a last read post ID
+	err = SaveLastReadPostID("post-456")
+	if err != nil {
+		t.Fatalf("SaveLastReadPostID failed: %v", err)
+	}
+
+	// Both values should be preserved
+	state, err := LoadReadState()
+	if err != nil {
+		t.Fatalf("LoadReadState failed: %v", err)
+	}
+
+	if state.LastReadPostID != "post-456" {
+		t.Fatalf("Expected LastReadPostID 'post-456', got '%s'", state.LastReadPostID)
+	}
+	if state.NudgeCount != 2 {
+		t.Fatalf("Expected NudgeCount 2, got %d", state.NudgeCount)
+	}
+}

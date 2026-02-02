@@ -38,6 +38,7 @@ type Model struct {
 	// Unread tracking fields
 	lastReadPostID string // Post ID marking read/unread boundary (set at TUI start)
 	unreadCount    int    // Count of unread posts (for status bar display)
+	nudgeCount     int    // Count of nudges fired (from smoke suggest)
 }
 
 // tickMsg is sent every 5 seconds for auto-refresh
@@ -68,6 +69,7 @@ func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *Layou
 		pressure:       config.GetPressure(),
 		version:        version,
 		lastReadPostID: lastReadID,
+		nudgeCount:     config.GetNudgeCount(),
 	}
 }
 
@@ -420,6 +422,9 @@ func (m Model) renderStatusBar() string {
 		markStr = fmt.Sprintf("(m)ark: %d new", m.unreadCount)
 	}
 
+	// Build nudge counter display
+	nudgeStr := fmt.Sprintf("nudges: %d", m.nudgeCount)
+
 	parts := []string{
 		fmt.Sprintf("(a)uto: %s", autoStr),
 		fmt.Sprintf("(s)ort: %s", sortStr),
@@ -427,6 +432,7 @@ func (m Model) renderStatusBar() string {
 		fmt.Sprintf("(t)heme: %s", m.theme.Name),
 		fmt.Sprintf("(c)ontrast: %s", m.contrast.Name),
 		markStr,
+		nudgeStr,
 		"(?) help",
 		"(q)uit",
 	}

@@ -14,6 +14,7 @@ import (
 // There's a single read marker shared across all sessions.
 type ReadState struct {
 	LastReadPostID string    `yaml:"last_read_post_id"`
+	NudgeCount     int       `yaml:"nudge_count,omitempty"`
 	Updated        time.Time `yaml:"updated"`
 }
 
@@ -109,8 +110,30 @@ func LoadLastReadPostID() string {
 
 // SaveLastReadPostID saves the last-read post ID to disk.
 func SaveLastReadPostID(postID string) error {
-	state := &ReadState{
-		LastReadPostID: postID,
+	// Preserve existing nudge count when updating read state
+	state, _ := LoadReadState()
+	if state == nil {
+		state = &ReadState{}
 	}
+	state.LastReadPostID = postID
+	return SaveReadState(state)
+}
+
+// GetNudgeCount returns the current nudge counter value.
+func GetNudgeCount() int {
+	state, err := LoadReadState()
+	if err != nil || state == nil {
+		return 0
+	}
+	return state.NudgeCount
+}
+
+// IncrementNudgeCount increments the nudge counter and saves to disk.
+func IncrementNudgeCount() error {
+	state, _ := LoadReadState()
+	if state == nil {
+		state = &ReadState{}
+	}
+	state.NudgeCount++
 	return SaveReadState(state)
 }

@@ -168,10 +168,13 @@ func runSuggest(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Nudge fired - log fire event
+	// Nudge fired - log fire event and increment counter
 	tracker.AddMetric(slog.Bool("fired", true))
 	tracker.AddMetric(slog.Int("roll", decision.roll))
 	tracker.AddMetric(slog.Int("threshold", decision.threshold))
+
+	// Increment nudge counter (ignore error - non-critical)
+	_ = config.IncrementNudgeCount()
 
 	// Load suggest config (contexts and examples)
 	suggestCfg := config.LoadSuggestConfig()
