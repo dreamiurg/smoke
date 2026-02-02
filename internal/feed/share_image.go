@@ -72,7 +72,7 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	fontSize := float64(dims.Width) * 0.025
 	if err := dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", fontSize); err != nil {
 		// Fallback to default if font not found
-		dc.LoadFontFace("/Library/Fonts/Courier New.ttf", fontSize)
+		_ = dc.LoadFontFace("/Library/Fonts/Courier New.ttf", fontSize)
 	}
 	handle := post.Author
 	if handle == "" {
@@ -84,7 +84,7 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	contentY := handleY + fontSize*2
 	dc.SetColor(textColor)
 	contentFontSize := fontSize * 1.5
-	dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", contentFontSize)
+	_ = dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", contentFontSize)
 
 	// Word wrap the content
 	maxWidth := cardWidth - 80
@@ -101,7 +101,7 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	footerY := float64(dims.Height) - innerPadding
 	dc.SetColor(accentColor)
 	footerFontSize := fontSize * 0.8
-	dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", footerFontSize)
+	_ = dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", footerFontSize)
 	dc.DrawString(ShareFooter, innerPadding, footerY)
 
 	// Encode to PNG
@@ -139,11 +139,12 @@ func parseHex(s string) (int64, error) {
 	var result int64
 	for _, c := range s {
 		result *= 16
-		if c >= '0' && c <= '9' {
+		switch {
+		case c >= '0' && c <= '9':
 			result += int64(c - '0')
-		} else if c >= 'a' && c <= 'f' {
+		case c >= 'a' && c <= 'f':
 			result += int64(c - 'a' + 10)
-		} else if c >= 'A' && c <= 'F' {
+		case c >= 'A' && c <= 'F':
 			result += int64(c - 'A' + 10)
 		}
 	}
