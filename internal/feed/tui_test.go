@@ -131,20 +131,27 @@ func TestModelUpdate_ThemeCycling(t *testing.T) {
 	}
 }
 
-func TestModelUpdate_ContrastCycling(t *testing.T) {
+func TestModelUpdate_CopyMenu(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
-	initialContrast := model.config.Contrast
 
+	// Create and load a post
+	post, _ := NewPost("test", "project", "sfx", "hello")
+	_ = store.Append(post)
+	loadMsg := loadPostsMsg{posts: []*Post{post}}
+	updated, _ := model.Update(loadMsg)
+	model = updated.(Model)
+
+	// Press 'c' to open copy menu
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")}
-	updated, _ := model.Update(msg)
+	updated, _ = model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.config.Contrast == initialContrast {
-		t.Error("Update(c) should cycle contrast")
+	if !updatedModel.showCopyMenu {
+		t.Error("Update(c) should open copy menu when post is selected")
 	}
-	if updatedModel.contrast.Name != updatedModel.config.Contrast {
-		t.Error("Update(c) should update model contrast to match config")
+	if updatedModel.copyMenuIndex != 0 {
+		t.Error("Update(c) should set copyMenuIndex to 0")
 	}
 }
 
@@ -532,9 +539,6 @@ func TestRenderHelpOverlay(t *testing.T) {
 	if !strings.Contains(result, "Theme:") {
 		t.Error("renderHelpOverlay() should show current theme")
 	}
-	if !strings.Contains(result, "Contrast:") {
-		t.Error("renderHelpOverlay() should show current contrast")
-	}
 	if !strings.Contains(result, "Auto:") {
 		t.Error("renderHelpOverlay() should show auto-refresh status")
 	}
@@ -543,6 +547,9 @@ func TestRenderHelpOverlay(t *testing.T) {
 	}
 	if !strings.Contains(result, "Cycle layout") {
 		t.Error("renderHelpOverlay() should show layout cycling keybinding")
+	}
+	if !strings.Contains(result, "Copy selected post") {
+		t.Error("renderHelpOverlay() should show copy keybinding")
 	}
 }
 
@@ -1091,24 +1098,25 @@ func TestInitialScrollPosition_PostsBeforeWindowSize(t *testing.T) {
 	}
 }
 
-func TestScrollKeys(t *testing.T) {
+func TestCursorNavigation(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 80
 	model.height = 10
 
-	// Add many posts
+	// Add posts and update displayedPosts
 	var posts []*Post
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 10; i++ {
 		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content"})
 	}
 	model.posts = posts
+	model.updateDisplayedPosts()
 	model.initialScrollDone = true
 
 	tests := []struct {
 		name      string
 		key       string
-		wantDelta int // expected change in scrollOffset
+		wantDelta int // expected change in selectedPostIndex
 	}{
 		{"down arrow", "down", 1},
 		{"j key", "j", 1},
@@ -1119,7 +1127,7 @@ func TestScrollKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := model
-			m.scrollOffset = 5 // start in middle
+			m.selectedPostIndex = 5 // start in middle
 
 			var msg tea.KeyMsg
 			switch tt.key {
@@ -1135,8 +1143,8 @@ func TestScrollKeys(t *testing.T) {
 			updatedModel := updated.(Model)
 
 			expected := 5 + tt.wantDelta
-			if updatedModel.scrollOffset != expected {
-				t.Errorf("%s: scrollOffset = %d, want %d", tt.name, updatedModel.scrollOffset, expected)
+			if updatedModel.selectedPostIndex != expected {
+				t.Errorf("%s: selectedPostIndex = %d, want %d", tt.name, updatedModel.selectedPostIndex, expected)
 			}
 		})
 	}
