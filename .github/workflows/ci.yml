@@ -11,7 +11,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
@@ -43,7 +43,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
@@ -87,7 +87,7 @@ jobs:
         goos: [darwin, linux]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v6
