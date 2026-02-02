@@ -1,3 +1,5 @@
+//go:build cgo && (darwin || (linux && !android))
+
 // Package feed provides clipboard functionality for the Smoke TUI.
 package feed
 

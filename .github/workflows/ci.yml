@@ -30,11 +30,15 @@ jobs:
           version: v2.1.6
           args: --timeout=5m
           skip-cache: true
+        env:
+          CGO_ENABLED: 0
 
       - name: Run govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+        env:
+          CGO_ENABLED: 0
 
   test:
     name: Test
@@ -54,8 +58,9 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
         env:
+          CGO_ENABLED: 0
           SMOKE_BIN: ${{ github.workspace }}/bin/smoke
 
       - name: Check coverage threshold
@@ -91,6 +96,7 @@ jobs:
 
       - name: Build
         env:
+          CGO_ENABLED: 0
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
