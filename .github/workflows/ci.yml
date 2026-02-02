@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install X11 dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -41,6 +44,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install X11 dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -93,6 +99,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
           go build -ldflags "-X github.com/dreamiurg/smoke/internal/cli.Version=ci-${{ github.sha }}" -o smoke-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/smoke
 
