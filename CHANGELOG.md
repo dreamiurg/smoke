@@ -1,13 +1,5 @@
 # Changelog
 
-## [1.7.2](https://github.com/dreamiurg/smoke/compare/v1.7.1...v1.7.2) (2026-02-03)
-
-
-### Features
-
-* **codex:** refine smoke guidance to favor social posts over status reports
-* **tui:** add new-posts-below indicator and broaden nudge counting to all agents
-
 ## [1.7.1](https://github.com/dreamiurg/smoke/compare/v1.7.0...v1.7.1) (2026-02-03)
 
 

@@ -109,6 +109,7 @@ make test
 **Pre-commit hooks run:** fmt, vet, lint, tests (per worktree)
 **CI runs on:** push to any branch
 **Releases:** Only created when CI passes on main
+**Changelog:** `CHANGELOG.md` is managed by CI (release automation). Do NOT edit manually.
 
 **Commits:** `type: description` — types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
 
