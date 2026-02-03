@@ -149,7 +149,9 @@ func countAgentNudges() int {
 		Name string `json:"name"`
 	}
 	type ctxObj struct {
-		Env string `json:"env"`
+		Env    string `json:"env"`
+		Agent  string `json:"agent"`
+		Caller string `json:"caller"`
 	}
 	type entry struct {
 		Msg string          `json:"msg"`
@@ -168,9 +170,6 @@ func countAgentNudges() int {
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			continue
 		}
-		if e.Ctx.Env != "claude_code" {
-			continue
-		}
 		if e.Msg != "command started" && e.Msg != "command invoked" {
 			continue
 		}
@@ -186,7 +185,20 @@ func countAgentNudges() int {
 			}
 		}
 		if cmdName == "suggest" {
-			count++
+			agent := strings.ToLower(e.Ctx.Agent)
+			caller := strings.ToLower(e.Ctx.Caller)
+			switch caller {
+			case "claude", "codex", "gemini":
+				count++
+				continue
+			}
+			if agent != "" && agent != "human" {
+				count++
+				continue
+			}
+			if e.Ctx.Env == "claude_code" {
+				count++
+			}
 		}
 	}
 
@@ -916,9 +928,8 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 		offset = 0
 	}
 
-	unreadAboveCount := 0
+	markerLine := -1
 	if m.unreadCount > 0 {
-		markerLine := -1
 		for i, cl := range contentLines {
 			if cl.postIndex == unreadSeparatorIndex {
 				markerLine = i
@@ -945,17 +956,19 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 				}
 			}
 		}
-		if markerLine >= 0 && markerLine < offset {
-			seen := make(map[int]bool)
-			start := markerLine + 1
-			if start < 0 {
-				start = 0
-			}
-			for i := start; i < offset && i < len(contentLines); i++ {
-				if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
-					seen[idx] = true
-					unreadAboveCount++
-				}
+	}
+
+	unreadAboveCount := 0
+	if markerLine >= 0 && markerLine < offset {
+		seen := make(map[int]bool)
+		start := markerLine + 1
+		if start < 0 {
+			start = 0
+		}
+		for i := start; i < offset && i < len(contentLines); i++ {
+			if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
+				seen[idx] = true
+				unreadAboveCount++
 			}
 		}
 	}
@@ -978,6 +991,27 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 			}
 		}
 		visibleLines = lines
+	}
+	unreadBelowCount := 0
+	if markerLine >= 0 && endIdx < len(contentLines) {
+		seen := make(map[int]bool)
+		start := markerLine + 1
+		if start < 0 {
+			start = 0
+		}
+		if start < endIdx {
+			start = endIdx
+		}
+		for i := start; i < len(contentLines); i++ {
+			if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
+				seen[idx] = true
+				unreadBelowCount++
+			}
+		}
+	}
+	if unreadBelowCount > 0 && len(visibleLines) > 0 {
+		indicator := m.formatUnreadBelowIndicator(unreadBelowCount)
+		visibleLines[len(visibleLines)-1] = indicator
 	}
 
 	// Style for background padding
@@ -1012,6 +1046,30 @@ func (m Model) formatUnreadAboveIndicator(count int) string {
 		width = DefaultTerminalWidth
 	}
 	label := fmt.Sprintf(" %d UNREAD ABOVE ", count)
+	labelWidth := lipgloss.Width(label)
+	if labelWidth > width {
+		label = truncate.StringWithTail(label, uint(width), "")
+		labelWidth = lipgloss.Width(label)
+	}
+
+	remaining := width - labelWidth
+	left := remaining / 2
+	right := remaining - left
+
+	line := strings.Repeat("─", left) + label + strings.Repeat("─", right)
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.Accent).
+		Background(m.theme.BackgroundSecondary).
+		Bold(true)
+	return style.Render(line)
+}
+
+func (m Model) formatUnreadBelowIndicator(count int) string {
+	width := m.contentWidth()
+	if width <= 0 {
+		width = DefaultTerminalWidth
+	}
+	label := fmt.Sprintf(" %d NEW BELOW ", count)
 	labelWidth := lipgloss.Width(label)
 	if labelWidth > width {
 		label = truncate.StringWithTail(label, uint(width), "")

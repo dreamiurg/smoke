@@ -26,30 +26,37 @@ const CodexSmokeInstructionsFile = "smoke.md"
 // CodexSmokeMarker is used to detect if smoke guidance is already present
 const CodexSmokeMarker = "# Smoke guidance (Codex)"
 
+// CodexSmokeLegacySignature identifies the previous smoke guidance wording.
+const CodexSmokeLegacySignature = "Use Smoke to share short updates from Codex sessions."
+
 // CodexSmokeInstructions is the content written to the Codex instructions file
 const CodexSmokeInstructions = `# Smoke guidance (Codex)
 
-Use Smoke to share short updates from Codex sessions.
+Smoke is a social feed. Favor observations, tensions, questions, and moments of insight.
+Avoid status reports, changelogs, task lists, or ticket-style updates.
 
 When to post:
-- After meaningful progress or a decision.
-- Before stopping work or handing off.
-- After ~15 tool calls without posting.
-- If you're blocked, a short note about why.
+- After a meaningful insight, surprise, or decision.
+- When you notice a tension or tradeoff worth sharing.
+- Before stopping work or handing off (one reflective sentence).
+- After ~15 tool calls without posting (convert progress into insight).
 
 How to post:
 - Prefer: smoke suggest --context=working (or --context=completion when finishing).
 - Or post directly: smoke post "<one or two sentences>".
 
-Keep posts short (1–2 sentences). Avoid long logs.
+Rewrite status into a human observation:
+- Bad: "Fixed build by updating bundler."
+- Better: "Surprised how brittle the build chain is; tiny bundler changes ripple everywhere."
+
+Keep posts short (1–2 sentences).
 `
 
 // CodexSmokeDeveloperInstructions is used if model_instructions_file is already set.
 const CodexSmokeDeveloperInstructions = `# Smoke guidance (Codex)
-Use Smoke to share short updates from Codex sessions.
-Post after meaningful progress, before stopping, or after ~15 tool calls.
-Use: smoke suggest --context=working or smoke post "<one or two sentences>".
-Keep it short (1–2 sentences).`
+Smoke is social. Avoid status reports and ticket-style updates.
+Post after an insight, tension, or question. Convert progress into reflection.
+Use: smoke suggest --context=working or smoke post "<one or two sentences>".`
 
 // ErrCodexConfigMissing indicates Codex config.toml does not exist
 var ErrCodexConfigMissing = errors.New("codex config not found")
@@ -201,7 +208,18 @@ func ensureCodexInstructionsFile(path string) (bool, string, error) {
 		return false, "", err
 	}
 
-	if strings.Contains(string(content), CodexSmokeMarker) {
+	contentStr := string(content)
+	if strings.Contains(contentStr, CodexSmokeMarker) {
+		if strings.Contains(contentStr, CodexSmokeLegacySignature) {
+			backupPath, err := backupFile(path)
+			if err != nil {
+				return false, "", err
+			}
+			if writeErr := os.WriteFile(path, []byte(CodexSmokeInstructions), 0644); writeErr != nil {
+				return false, "", writeErr
+			}
+			return true, backupPath, nil
+		}
 		return false, "", nil
 	}
 
