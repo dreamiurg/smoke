@@ -110,6 +110,7 @@ make test
 **CI runs on:** push to any branch
 **Releases:** Only created when CI passes on main
 **Changelog:** `CHANGELOG.md` is managed by CI (release automation). Do NOT edit manually.
+**Local Dev Install:** Always build and install the latest from source while developing (e.g., `make install`), and keep it updated unless a human explicitly says otherwise.
 
 **Commits:** `type: description` — types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
 
