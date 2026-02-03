@@ -232,7 +232,7 @@ func performCodexIntegrationCheck() Check {
 
 	msg := "not configured"
 	if !hasInstructions && configured {
-		msg = "instructions missing"
+		msg = "instructions missing or outdated"
 	}
 	return Check{
 		Name:    name,

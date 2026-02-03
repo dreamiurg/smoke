@@ -98,7 +98,7 @@ func GetCodexInstructionsPath() (string, error) {
 	return filepath.Join(home, CodexDir, CodexInstructionsDir, CodexSmokeInstructionsFile), nil
 }
 
-// HasCodexSmokeInstructions checks if the smoke instructions file exists and contains the marker.
+// HasCodexSmokeInstructions checks if the smoke instructions file exists and is current.
 func HasCodexSmokeInstructions() (bool, error) {
 	path, err := GetCodexInstructionsPath()
 	if err != nil {
@@ -111,7 +111,8 @@ func HasCodexSmokeInstructions() (bool, error) {
 		}
 		return false, err
 	}
-	return strings.Contains(string(content), CodexSmokeMarker), nil
+	contentStr := string(content)
+	return strings.Contains(contentStr, CodexSmokeMarker) && strings.Contains(contentStr, CodexSmokeVersionLine), nil
 }
 
 // IsSmokeConfiguredInCodex checks if Codex is configured to include smoke guidance.
