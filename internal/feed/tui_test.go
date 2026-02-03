@@ -954,8 +954,8 @@ func TestRenderHeader_ContainsStats(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 100
-	model.sessionPostCount = 2
-	model.sessionAgentCount = 2
+	model.unreadCount = 2
+	model.unreadAgentCount = 2
 	model.nudgeCount = 3
 
 	result := model.renderHeader()

@@ -37,19 +37,13 @@ type Model struct {
 	config            *config.TUIConfig
 	pressure          int // Current pressure level (0-4)
 	version           string
-	nudgeCount        int // Nudges since feed start
-	nudgeBaseCount    int // Baseline nudges when feed started
-	sessionStarted    bool
-	sessionPostCount  int
-	sessionAgentCount int
-	sessionProjCount  int
-	sessionPosts      map[string]struct{}
-	sessionAgents     map[string]struct{}
-	sessionProjects   map[string]struct{}
+	nudgeCount        int // Nudges since last mark-read
+	unreadAgentCount  int // Unique agents in unread posts
 	err               error
 	// Unread tracking fields
 	lastReadPostID string // Post ID marking read/unread boundary (set at TUI start)
 	unreadCount    int    // Count of unread posts (for status bar display)
+	lastReadAt     time.Time
 
 	// Cursor selection state
 	selectedPostIndex int     // Index of selected post in displayedPosts
@@ -95,8 +89,14 @@ type overlayBox struct {
 
 // NewModel creates a new TUI model with the given store, theme, contrast, layout, and version.
 func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *LayoutStyle, cfg *config.TUIConfig, version string) Model {
-	// Load last read post ID from read state
-	lastReadID := config.LoadLastReadPostID()
+	// Load last read state
+	state, err := config.LoadReadState()
+	lastReadID := ""
+	lastReadAt := time.Time{}
+	if err == nil && state != nil {
+		lastReadID = state.LastReadPostID
+		lastReadAt = state.Updated
+	}
 
 	return Model{
 		theme:          theme,
@@ -108,6 +108,7 @@ func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *Layou
 		pressure:       config.GetPressure(),
 		version:        version,
 		lastReadPostID: lastReadID,
+		lastReadAt:     lastReadAt,
 	}
 }
 
@@ -128,12 +129,12 @@ func clockTickCmd() tea.Cmd {
 // loadPostsCmd loads posts from the store
 func (m Model) loadPostsCmd() tea.Msg {
 	posts, err := m.store.ReadAll()
-	nudgeCount := countAgentNudges()
+	nudgeCount := countAgentNudgesSince(m.lastReadAt)
 	return loadPostsMsg{posts: posts, nudgeCount: nudgeCount, err: err}
 }
 
-// countAgentNudges counts suggest commands from agent sessions in smoke.log.
-func countAgentNudges() int {
+// countAgentNudgesSince counts suggest commands from agent sessions in smoke.log after a timestamp.
+func countAgentNudgesSince(since time.Time) int {
 	logPath, err := config.GetLogPath()
 	if err != nil {
 		return 0
@@ -154,9 +155,10 @@ func countAgentNudges() int {
 		Caller string `json:"caller"`
 	}
 	type entry struct {
-		Msg string          `json:"msg"`
-		Cmd json.RawMessage `json:"cmd"`
-		Ctx ctxObj          `json:"ctx"`
+		Time string          `json:"time"`
+		Msg  string          `json:"msg"`
+		Cmd  json.RawMessage `json:"cmd"`
+		Ctx  ctxObj          `json:"ctx"`
 	}
 
 	count := 0
@@ -169,6 +171,15 @@ func countAgentNudges() int {
 		var e entry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			continue
+		}
+		if !since.IsZero() {
+			if e.Time == "" {
+				continue
+			}
+			ts, err := time.Parse(time.RFC3339Nano, e.Time)
+			if err != nil || ts.Before(since) {
+				continue
+			}
 		}
 		if e.Msg != "command started" && e.Msg != "command invoked" {
 			continue
@@ -205,48 +216,11 @@ func countAgentNudges() int {
 	return count
 }
 
-// updateSessionStats updates session counters for new posts and nudges.
-// Counters start at zero when the feed starts and only increase.
-func (m *Model) updateSessionStats(posts []*Post, currentNudges int) {
-	if !m.sessionStarted {
-		m.sessionStarted = true
-		m.sessionPosts = make(map[string]struct{})
-		m.sessionAgents = make(map[string]struct{})
-		m.sessionProjects = make(map[string]struct{})
-		for _, post := range posts {
-			if post == nil {
-				continue
-			}
-			m.sessionPosts[post.ID] = struct{}{}
-			m.sessionAgents[post.Author] = struct{}{}
-			m.sessionProjects[post.Project] = struct{}{}
-		}
-		m.nudgeBaseCount = currentNudges
-		m.nudgeCount = 0
-		return
-	}
-
-	for _, post := range posts {
-		if post == nil {
-			continue
-		}
-		if _, ok := m.sessionPosts[post.ID]; !ok {
-			m.sessionPosts[post.ID] = struct{}{}
-			m.sessionPostCount++
-			if _, seen := m.sessionAgents[post.Author]; !seen {
-				m.sessionAgents[post.Author] = struct{}{}
-				m.sessionAgentCount++
-			}
-			if _, seen := m.sessionProjects[post.Project]; !seen {
-				m.sessionProjects[post.Project] = struct{}{}
-				m.sessionProjCount++
-			}
-		}
-	}
-
-	if currentNudges >= m.nudgeBaseCount {
-		m.nudgeCount = currentNudges - m.nudgeBaseCount
-	}
+// updateUnreadStats updates unread counters and nudges since last read.
+func (m *Model) updateUnreadStats(currentNudges int) {
+	m.unreadCount = m.countUnread()
+	m.unreadAgentCount = m.countUnreadAgents()
+	m.nudgeCount = currentNudges
 }
 
 // Init initializes the model and returns the initial command.
@@ -414,7 +388,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				postID := m.displayedPosts[m.selectedPostIndex].ID
 				if err := config.SaveLastReadPostID(postID); err == nil {
 					m.lastReadPostID = postID
-					m.unreadCount = m.countUnread()
+					m.lastReadAt = time.Now()
+					m.updateUnreadStats(0)
 				} else {
 					m.err = err
 				}
@@ -452,9 +427,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			oldMaxOffset := m.maxScrollOffset()
 			wasAtBottom := m.scrollOffset >= oldMaxOffset
 			m.posts = msg.posts
-			m.updateSessionStats(msg.posts, msg.nudgeCount)
 			m.updateDisplayedPosts() // Update displayedPosts for cursor navigation
-			m.unreadCount = m.countUnread()
+			m.updateUnreadStats(msg.nudgeCount)
 			// Set initial selection once we have posts (scroll waits for WindowSizeMsg)
 			if !m.initialScrollDone && len(m.posts) > 0 {
 				m.initSelectionToUnread()
@@ -589,7 +563,7 @@ func (m Model) renderHeader() string {
 	}
 
 	statsText := fmt.Sprintf("new %d posts • %d agents • %d nudges",
-		m.sessionPostCount, m.sessionAgentCount, m.nudgeCount)
+		m.unreadCount, m.unreadAgentCount, m.nudgeCount)
 	stats := statsStyle.Render(statsText)
 
 	leftContent := title + base.Render(" ") + version + base.Render("  ") + stats
@@ -835,6 +809,33 @@ func (m Model) countUnread() int {
 		return 0
 	}
 	return len(m.displayedPosts) - lastReadIndex - 1
+}
+
+func (m Model) countUnreadAgents() int {
+	if m.lastReadPostID == "" || len(m.displayedPosts) == 0 {
+		return 0
+	}
+
+	lastReadIndex := -1
+	for i, post := range m.displayedPosts {
+		if post != nil && post.ID == m.lastReadPostID {
+			lastReadIndex = i
+			break
+		}
+	}
+	if lastReadIndex == -1 {
+		return 0
+	}
+
+	seen := make(map[string]struct{})
+	for i := lastReadIndex + 1; i < len(m.displayedPosts); i++ {
+		post := m.displayedPosts[i]
+		if post == nil {
+			continue
+		}
+		seen[post.Author] = struct{}{}
+	}
+	return len(seen)
 }
 
 // getPostAtScrollPosition finds the post ID at the current scroll position.
