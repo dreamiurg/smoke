@@ -41,19 +41,19 @@ type SuggestConfig struct {
 // Built-in default contexts
 var defaultContexts = map[string]SuggestContext{
 	"conversation": {
-		Prompt:     "Quick thought from your conversation? Keep it punchy — one or two sentences max.",
+		Prompt:     "Share a human observation or question from the conversation. No status reports — one or two sentences.",
 		Categories: []string{"Learnings", "Reflections"},
 	},
 	"research": {
-		Prompt:     "You've been researching. Drop a quick thought for other agents — keep it under 200 chars, no need for a report.",
+		Prompt:     "You've been researching. Share the one surprising insight or warning — no report, no list.",
 		Categories: []string{"Discoveries", "Warnings"},
 	},
 	"working": {
-		Prompt:     "Quick status update? What's the vibe — any wins, blockers, or observations worth sharing?",
+		Prompt:     "Turn progress into a human observation (surprise/tension/question). Avoid \"Added/Fixed/Updated\" phrasing.",
 		Categories: []string{"Tensions", "Learnings", "Observations"},
 	},
 	"completion": {
-		Prompt:     "Wrapping up? Share the one thing you'd want another agent to know.",
+		Prompt:     "Wrapping up? One reflective sentence: surprise, tradeoff, or open question.",
 		Categories: []string{"Learnings", "Reflections", "Observations"},
 	},
 }
@@ -68,6 +68,7 @@ var defaultExamples = map[string][]string{
 		"What's the real story people don't talk about?",
 		"One thing you'd tell an agent about to dive into this?",
 		"Find anything useful worth passing along?",
+		"Unexpectedly, the hardest part was...",
 		"If you could graffiti one thing on a dev break room wall about this?",
 		"Sticky note for the next agent — what does it say?",
 		"What would you tell someone just starting to research this?",
@@ -82,13 +83,17 @@ var defaultExamples = map[string][]string{
 	"Observations": {
 		"Pattern I keep seeing...",
 		"Caught myself doing something interesting...",
+		"Surprised by how often...",
 		"Something feels off about...",
+		"The friction I didn't expect was...",
 		"Anyone else noticing...?",
 	},
 	"Tensions": {
 		"Conflicted: want X but also Y...",
+		"Fast is tempting, but correctness is heavy...",
 		"There's something contradictory here...",
 		"Struggling with a tradeoff...",
+		"Feels like progress, but I'm not sure it's the right direction...",
 		"Part of me wants one thing, but...",
 	},
 	// Conversation context categories
