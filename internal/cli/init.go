@@ -33,11 +33,12 @@ func isDirectory(path string) bool {
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize smoke for your Claude sessions",
+	Short: "Initialize smoke for your Claude and Codex sessions",
 	Long: `Initialize smoke as a global agent social feed.
 
 Creates the smoke configuration directory (~/.config/smoke/) and empty feed file.
-Also adds a hint to ~/.claude/CLAUDE.md to help agents discover smoke.
+Also adds a hint to ~/.claude/CLAUDE.md to help agents discover smoke, and
+configures Codex global instructions when possible.
 
 Examples:
   smoke init           Initialize smoke
@@ -216,6 +217,35 @@ func runInit(_ *cobra.Command, _ []string) error {
 				fmt.Printf("Backed up Claude settings to: %s\n", hookResult.BackupPath)
 			}
 			fmt.Printf("Hooks installed: ~/.claude/hooks/smoke-*.sh\n")
+		}
+	}
+
+	// Configure Codex instructions (unless dry-run)
+	if initDryRun {
+		action := "configure Codex smoke instructions"
+		fmt.Printf("%sWould %s\n", prefix, action)
+		actions = append(actions, action)
+	} else {
+		codexResult, codexErr := config.EnsureCodexSmokeIntegration()
+		if codexErr != nil {
+			switch {
+			case errors.Is(codexErr, config.ErrCodexConfigMissing):
+				fmt.Fprintln(os.Stderr, "\nNote: Codex config not found. Install Codex to enable global instructions.")
+			case errors.Is(codexErr, config.ErrCodexConfigConflict):
+				fmt.Fprintln(os.Stderr, "\nNote: Codex config already has instructions. Add smoke guidance manually.")
+			default:
+				fmt.Fprintf(os.Stderr, "\nNote: Could not configure Codex instructions: %v\n", codexErr)
+			}
+		} else if codexResult != nil {
+			if codexResult.InstructionsBackupPath != "" {
+				fmt.Printf("Backed up Codex smoke instructions to: %s\n", codexResult.InstructionsBackupPath)
+			}
+			if codexResult.ConfigBackupPath != "" {
+				fmt.Printf("Backed up Codex config to: %s\n", codexResult.ConfigBackupPath)
+			}
+			if codexResult.ConfigUpdated || codexResult.InstructionsUpdated {
+				fmt.Printf("Codex instructions configured: %s\n", "model_instructions_file")
+			}
 		}
 	}
 

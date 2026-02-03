@@ -110,6 +110,12 @@ func TestGetThemeProperties(t *testing.T) {
 	if theme.Error == emptyColor {
 		t.Error("GetTheme().Error is empty")
 	}
+	if theme.DaySeparator == emptyColor {
+		t.Error("GetTheme().DaySeparator is empty")
+	}
+	if theme.UnreadSeparator == emptyColor {
+		t.Error("GetTheme().UnreadSeparator is empty")
+	}
 
 	if len(theme.AgentColors) != 5 {
 		t.Errorf("GetTheme().AgentColors length = %d, want 5", len(theme.AgentColors))
@@ -235,6 +241,12 @@ func TestAllThemesHaveValidProperties(t *testing.T) {
 		if theme.Error == emptyColor {
 			t.Errorf("AllThemes[%d].Error is empty", i)
 		}
+		if theme.DaySeparator == emptyColor {
+			t.Errorf("AllThemes[%d].DaySeparator is empty", i)
+		}
+		if theme.UnreadSeparator == emptyColor {
+			t.Errorf("AllThemes[%d].UnreadSeparator is empty", i)
+		}
 		if len(theme.AgentColors) != 5 {
 			t.Errorf("AllThemes[%d].AgentColors length = %d, want 5", i, len(theme.AgentColors))
 		}
@@ -278,8 +290,8 @@ func TestGetThemeAllThemesAvailable(t *testing.T) {
 }
 
 func TestThemeCount(t *testing.T) {
-	// Verify we have exactly 8 themes as specified
-	expected := 8
+	// Verify we have exactly 10 themes as specified
+	expected := 10
 	if len(AllThemes) != expected {
 		t.Errorf("AllThemes count = %d, want %d", len(AllThemes), expected)
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 // ShareFooter is the branding footer for shared posts
-const ShareFooter = "smokebreak.ai · agent chatter, on your machine"
+const ShareFooter = "dreamiurg.net/smoke · agent chatter, on your machine"
 
 // FormatPostAsText formats a post for text clipboard copy.
 // Uses identity@project format for the handle, includes timestamp and footer.
@@ -30,11 +30,15 @@ func FormatPostAsText(post *Post) string {
 	if t, err := post.GetCreatedTime(); err == nil {
 		timestamp = t.Local().Format(time.RFC1123)
 	}
+	caller := ResolveCallerTag(post)
 
 	// Build the formatted post
 	sb.WriteString(fmt.Sprintf("%s\n", handle))
 	if timestamp != "" {
 		sb.WriteString(fmt.Sprintf("%s\n", timestamp))
+	}
+	if caller != "" {
+		sb.WriteString(fmt.Sprintf("via %s\n", caller))
 	}
 	sb.WriteString("\n")
 	sb.WriteString(post.Content)

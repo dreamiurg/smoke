@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
+	"github.com/dreamiurg/smoke/internal/hooks"
 )
 
 // isTerminal returns true if stdout is a terminal
@@ -105,6 +107,7 @@ var doctorCmd = &cobra.Command{
 	Long: `Diagnose smoke installation and report any issues.
 
 Checks configuration directory, feed file, and data integrity.
+Also checks agent integrations (Claude Code hooks, Codex instructions).
 Use --fix to automatically repair common problems.
 
 Examples:
@@ -173,6 +176,16 @@ func runChecks() []Category {
 			},
 		},
 		{
+			Name:   "CLAUDE CODE",
+			Checks: performHooksChecks(),
+		},
+		{
+			Name: "CODEX",
+			Checks: []Check{
+				performCodexIntegrationCheck(),
+			},
+		},
+		{
 			Name: "DATA",
 			Checks: []Check{
 				performFeedFormatCheck(),
@@ -187,6 +200,169 @@ func runChecks() []Category {
 			},
 		},
 	}
+}
+
+func performCodexIntegrationCheck() Check {
+	const name = "Codex Instructions"
+
+	configPath, err := config.GetCodexConfigPath()
+	if err != nil {
+		return failCheck(name, "error", err.Error(), false, nil)
+	}
+
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			return warnCheck(name, "codex config not found", "Install Codex or run 'smoke init' after installing")
+		}
+		return failCheck(name, "error", err.Error(), false, nil)
+	}
+
+	configured, err := config.IsSmokeConfiguredInCodex()
+	if err != nil {
+		return failCheck(name, "error", err.Error(), false, nil)
+	}
+	hasInstructions, err := config.HasCodexSmokeInstructions()
+	if err != nil {
+		return failCheck(name, "error", err.Error(), false, nil)
+	}
+
+	if configured && hasInstructions {
+		return passCheck(name, "configured (global instructions)")
+	}
+
+	msg := "not configured"
+	if !hasInstructions && configured {
+		msg = "instructions missing"
+	}
+	return Check{
+		Name:    name,
+		Status:  StatusWarn,
+		Message: msg,
+		Detail:  "Run 'smoke init' or 'smoke doctor --fix' (Codex)",
+		CanFix:  true,
+		Fix:     fixCodexIntegration,
+	}
+}
+
+// performHooksChecks verifies Claude Code hook scripts and settings configuration.
+func performHooksChecks() []Check {
+	status, err := hooks.GetStatus()
+	if err != nil {
+		return []Check{
+			failCheck("Hook Status", "error", err.Error(), false, nil),
+		}
+	}
+
+	return []Check{
+		checkHookScripts(status),
+		checkHookSettings(status),
+	}
+}
+
+// checkHookScripts evaluates hook script installation state.
+func checkHookScripts(status *hooks.Status) Check {
+	const name = "Claude Hooks"
+
+	switch status.State {
+	case hooks.StateInstalled:
+		return passCheck(name, "installed")
+	case hooks.StateNotInstalled:
+		return Check{
+			Name:    name,
+			Status:  StatusWarn,
+			Message: "not installed",
+			Detail:  "Run 'smoke hooks install' (Claude Code)",
+			CanFix:  true,
+			Fix:     fixHooksInstall,
+		}
+	case hooks.StatePartiallyInstalled:
+		missing := 0
+		for _, info := range status.Scripts {
+			if info.Status == hooks.StatusMissing {
+				missing++
+			}
+		}
+		msg := fmt.Sprintf("missing %d script(s)", missing)
+		return Check{
+			Name:    name,
+			Status:  StatusWarn,
+			Message: msg,
+			Detail:  "Run 'smoke hooks install' (Claude Code)",
+			CanFix:  true,
+			Fix:     fixHooksInstall,
+		}
+	case hooks.StateModified:
+		modified := 0
+		for _, info := range status.Scripts {
+			if info.Status == hooks.StatusModified {
+				modified++
+			}
+		}
+		msg := fmt.Sprintf("modified %d script(s)", modified)
+		return warnCheck(name, msg, "Run 'smoke hooks install --force' to overwrite (Claude Code)")
+	default:
+		return warnCheck(name, "unknown state", "Run 'smoke hooks status' for details (Claude Code)")
+	}
+}
+
+// checkHookSettings verifies hooks are registered in settings.json.
+func checkHookSettings(status *hooks.Status) Check {
+	const name = "Claude Hook Settings"
+
+	missing := []string{}
+	if !status.Settings.Stop {
+		missing = append(missing, "Stop")
+	}
+	if !status.Settings.PostToolUse {
+		missing = append(missing, "PostToolUse")
+	}
+
+	if len(missing) == 0 {
+		return passCheck(name, "configured")
+	}
+
+	msg := "missing: " + strings.Join(missing, ", ")
+	detail := "Run 'smoke hooks install' (Claude Code)"
+	canFix := status.State != hooks.StateModified
+	if status.State == hooks.StateModified {
+		detail = "Run 'smoke hooks install --force' to update settings (Claude Code)"
+	}
+
+	return Check{
+		Name:    name,
+		Status:  StatusWarn,
+		Message: msg,
+		Detail:  detail,
+		CanFix:  canFix,
+		Fix:     fixHooksInstall,
+	}
+}
+
+// fixHooksInstall installs or repairs Claude Code hooks.
+func fixHooksInstall() (*FixResult, error) {
+	result, err := hooks.Install(hooks.InstallOptions{Force: false})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return &FixResult{Description: "Installed Claude hooks"}, nil
+	}
+	return &FixResult{BackupPath: result.BackupPath, Description: "Installed Claude hooks"}, nil
+}
+
+func fixCodexIntegration() (*FixResult, error) {
+	result, err := config.EnsureCodexSmokeIntegration()
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return &FixResult{Description: "Configured Codex smoke instructions"}, nil
+	}
+	description := "Configured Codex smoke instructions"
+	if result.UsedDeveloperInstructions {
+		description = "Configured Codex developer instructions for smoke"
+	}
+	return &FixResult{BackupPath: result.ConfigBackupPath, Description: description}, nil
 }
 
 // formatCheck formats a single check result for display

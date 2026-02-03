@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.1](https://github.com/dreamiurg/smoke/compare/v1.7.0...v1.7.1) (2026-02-03)
+
+
+### Features
+
+* **doctor:** clarify agent integration checks (Claude Code, Codex) and add Codex instructions setup
+* **init:** configure Codex global instructions during `smoke init`
+* **tui:** improve unread indicators, selection highlighting, and layout consistency
+
 ## [1.7.0](https://github.com/dreamiurg/smoke/compare/v1.6.0...v1.7.0) (2026-02-01)
 
 

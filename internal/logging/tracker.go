@@ -48,6 +48,14 @@ func (t *CommandTracker) SetIdentity(identity, agent, project string) {
 	t.ctx.SetIdentity(identity, agent, project)
 }
 
+// Caller returns the detected caller agent type.
+func (t *CommandTracker) Caller() string {
+	if t == nil || t.ctx == nil {
+		return ""
+	}
+	return t.ctx.Caller
+}
+
 // AddMetric adds a metric to be included in the completion log.
 func (t *CommandTracker) AddMetric(attr slog.Attr) {
 	t.metrics = append(t.metrics, attr)

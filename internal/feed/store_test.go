@@ -498,3 +498,41 @@ func TestGetExamplePosts(t *testing.T) {
 		}
 	}
 }
+
+func TestStoreDeleteByID(t *testing.T) {
+	tmpFile := t.TempDir() + "/test.jsonl"
+	store := NewStoreWithPath(tmpFile)
+
+	if err := os.WriteFile(tmpFile, []byte{}, 0644); err != nil {
+		t.Fatalf("failed to create feed file: %v", err)
+	}
+
+	post1, _ := NewPost("author1", "proj", "s1", "first")
+	post2, _ := NewPost("author2", "proj", "s2", "second")
+
+	if err := store.Append(post1); err != nil {
+		t.Fatalf("Append() unexpected error: %v", err)
+	}
+	if err := store.Append(post2); err != nil {
+		t.Fatalf("Append() unexpected error: %v", err)
+	}
+
+	if err := store.DeleteByID(post1.ID); err != nil {
+		t.Fatalf("DeleteByID() unexpected error: %v", err)
+	}
+
+	posts, err := store.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll() unexpected error: %v", err)
+	}
+	if len(posts) != 1 {
+		t.Fatalf("expected 1 post after delete, got %d", len(posts))
+	}
+	if posts[0].ID != post2.ID {
+		t.Errorf("remaining post ID = %s, want %s", posts[0].ID, post2.ID)
+	}
+
+	if err := store.DeleteByID(post1.ID); err != ErrPostNotFound {
+		t.Errorf("DeleteByID() missing = %v, want ErrPostNotFound", err)
+	}
+}

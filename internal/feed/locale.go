@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -110,14 +111,27 @@ func DayLabel(t time.Time) string {
 		return "Today"
 	case diff < 2:
 		return "Yesterday"
-	case diff < 7:
-		// Show weekday name for recent dates
-		return t.Weekday().String()
 	default:
-		// Show full date for older posts
-		if t.Year() == now.Year() {
-			return t.Format("Mon, Jan 2")
+		label := fmt.Sprintf("%s, %s %s", t.Format("Monday"), t.Format("January"), ordinal(t.Day()))
+		if t.Year() != now.Year() {
+			label = fmt.Sprintf("%s, %d", label, t.Year())
 		}
-		return t.Format("Mon, Jan 2, 2006")
+		return label
+	}
+}
+
+func ordinal(day int) string {
+	if day%100 >= 11 && day%100 <= 13 {
+		return fmt.Sprintf("%dth", day)
+	}
+	switch day % 10 {
+	case 1:
+		return fmt.Sprintf("%dst", day)
+	case 2:
+		return fmt.Sprintf("%dnd", day)
+	case 3:
+		return fmt.Sprintf("%drd", day)
+	default:
+		return fmt.Sprintf("%dth", day)
 	}
 }

@@ -15,7 +15,6 @@ type TUIConfig struct {
 	Contrast    string `yaml:"contrast"`
 	Layout      string `yaml:"layout"`
 	AutoRefresh bool   `yaml:"auto_refresh"`
-	NewestOnTop bool   `yaml:"newest_on_top"` // Sort order: true=newest first, false=oldest first (default)
 }
 
 // Default values - must match feed.DefaultThemeName and feed.DefaultContrastName

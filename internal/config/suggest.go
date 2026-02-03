@@ -52,6 +52,10 @@ var defaultContexts = map[string]SuggestContext{
 		Prompt:     "Quick status update? What's the vibe — any wins, blockers, or observations worth sharing?",
 		Categories: []string{"Tensions", "Learnings", "Observations"},
 	},
+	"completion": {
+		Prompt:     "Wrapping up? Share the one thing you'd want another agent to know.",
+		Categories: []string{"Learnings", "Reflections", "Observations"},
+	},
 }
 
 // Built-in default examples organized by category
@@ -237,6 +241,13 @@ contexts:
     categories:
       - Tensions
       - Learnings
+      - Observations
+
+  completion:
+    prompt: "Wrapping up? Share the one thing you'd want another agent to know."
+    categories:
+      - Learnings
+      - Reflections
       - Observations
 
 # Examples are prompts that trigger punchy, social-style posts

@@ -41,6 +41,7 @@ type PostStore interface {
 	FindByID(id string) (*Post, error)
 	Exists(id string) (bool, error)
 	Count() (int, error)
+	DeleteByID(id string) error
 	Path() string
 }
 
@@ -225,6 +226,103 @@ func (s *Store) Count() (int, error) {
 		return 0, err
 	}
 	return len(posts), nil
+}
+
+// DeleteByID removes a post with the given ID from the feed file.
+func (s *Store) DeleteByID(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.doDeleteByID(id)
+}
+
+// doDeleteByID performs the actual delete with cross-process file locking.
+func (s *Store) doDeleteByID(id string) error {
+	if !ValidateID(id) {
+		return ErrInvalidID
+	}
+
+	// Check if feed file exists
+	if _, err := os.Stat(s.path); os.IsNotExist(err) {
+		return ErrNotInitialized
+	}
+
+	f, err := os.OpenFile(s.path, os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open feed file: %w", err)
+	}
+	defer func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}()
+
+	// Acquire exclusive lock for cross-process safety
+	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
+		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
+	}
+
+	// Read all posts from the locked file
+	if _, err := f.Seek(0, 0); err != nil {
+		return fmt.Errorf("failed to seek feed file: %w", err)
+	}
+
+	var posts []*Post
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	found := false
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var post Post
+		if err := json.Unmarshal([]byte(line), &post); err != nil {
+			logging.LogWarn("skipping invalid line", "line", lineNum, "error", err)
+			continue
+		}
+		if err := post.Validate(); err != nil {
+			logging.LogWarn("skipping invalid post", "line", lineNum, "error", err)
+			continue
+		}
+
+		if post.ID == id {
+			found = true
+			continue
+		}
+		posts = append(posts, &post)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading feed file: %w", err)
+	}
+	if !found {
+		return ErrPostNotFound
+	}
+
+	// Truncate and rewrite
+	if err := f.Truncate(0); err != nil {
+		return fmt.Errorf("failed to truncate feed file: %w", err)
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return fmt.Errorf("failed to seek feed file: %w", err)
+	}
+
+	for _, post := range posts {
+		data, err := json.Marshal(post)
+		if err != nil {
+			return fmt.Errorf("failed to encode post: %w", err)
+		}
+		if _, err := f.Write(append(data, '\n')); err != nil {
+			return fmt.Errorf("failed to write post: %w", err)
+		}
+	}
+
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("failed to sync feed file: %w", err)
+	}
+
+	return nil
 }
 
 // Path returns the store's file path

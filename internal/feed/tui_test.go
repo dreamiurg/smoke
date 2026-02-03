@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/dreamiurg/smoke/internal/config"
 )
@@ -489,7 +490,7 @@ func TestRenderStatusBar(t *testing.T) {
 	if result == "" {
 		t.Error("renderStatusBar() should return status bar")
 	}
-	if !strings.Contains(result, "(l)ayout:") {
+	if !strings.Contains(result, "Layout") {
 		t.Error("renderStatusBar() should show layout keybinding")
 	}
 }
@@ -517,7 +518,7 @@ func TestRenderHeader(t *testing.T) {
 	if result == "" {
 		t.Error("renderHeader() should return header bar")
 	}
-	if !strings.Contains(result, "smoke") {
+	if !strings.Contains(result, "SMOKE") {
 		t.Error("renderHeader() should show smoke title")
 	}
 }
@@ -921,7 +922,7 @@ func TestRenderContent(t *testing.T) {
 	post, _ := NewPost("test-author", "smoke", "test", "test content")
 	model.posts = []*Post{post}
 
-	result := model.renderContent(20)
+	result := model.renderContent(20, model.contentWidth())
 
 	if result == "" {
 		t.Error("renderContent() should return content")
@@ -941,8 +942,11 @@ func TestRenderHeader_IncludesVersion(t *testing.T) {
 
 	result := model.renderHeader()
 
-	if !strings.Contains(result, "[smoke v1.2.3]") {
-		t.Errorf("renderHeader() should include version badge [smoke v1.2.3], got: %s", result)
+	if !strings.Contains(result, "v1.2.3") {
+		t.Errorf("renderHeader() should include version v1.2.3, got: %s", result)
+	}
+	if !strings.Contains(result, "SMOKE") {
+		t.Errorf("renderHeader() should include SMOKE label, got: %s", result)
 	}
 }
 
@@ -950,10 +954,9 @@ func TestRenderHeader_ContainsStats(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 100
-	model.posts = []*Post{
-		{Author: "agent1@proj1"},
-		{Author: "agent2@proj1"},
-	}
+	model.sessionPostCount = 2
+	model.sessionAgentCount = 2
+	model.nudgeCount = 3
 
 	result := model.renderHeader()
 
@@ -963,8 +966,8 @@ func TestRenderHeader_ContainsStats(t *testing.T) {
 	if !strings.Contains(result, "2 agents") {
 		t.Error("renderHeader() should show agent count")
 	}
-	if !strings.Contains(result, "1 project") {
-		t.Error("renderHeader() should show project count")
+	if !strings.Contains(result, "3 nudges") {
+		t.Error("renderHeader() should show nudge count")
 	}
 }
 
@@ -981,7 +984,7 @@ func TestRenderHeader_ContainsClock(t *testing.T) {
 	}
 }
 
-func TestInitialScrollPosition_NewestOnTop(t *testing.T) {
+func TestInitialSelection_Unread(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	theme := GetTheme("dracula")
 	contrast := GetContrastLevel("medium")
@@ -991,110 +994,27 @@ func TestInitialScrollPosition_NewestOnTop(t *testing.T) {
 		Contrast:    "medium",
 		Layout:      "comfy",
 		AutoRefresh: false,
-		NewestOnTop: true,
 	}
 	model := NewModel(store, theme, contrast, layout, cfg, "test")
 
-	// Simulate window size message first
-	model.width = 80
-	model.height = 24
-
-	// Then simulate loading posts
+	now := time.Now().UTC()
 	posts := []*Post{
-		{ID: "1", Content: "post 1"},
-		{ID: "2", Content: "post 2"},
-		{ID: "3", Content: "post 3"},
+		{ID: "1", Content: "post 1", CreatedAt: now.Add(-3 * time.Minute).Format(time.RFC3339)},
+		{ID: "2", Content: "post 2", CreatedAt: now.Add(-2 * time.Minute).Format(time.RFC3339)},
+		{ID: "3", Content: "post 3", CreatedAt: now.Add(-1 * time.Minute).Format(time.RFC3339)},
+		{ID: "4", Content: "post 4", CreatedAt: now.Format(time.RFC3339)},
 	}
 
-	// Process WindowSizeMsg
-	updated, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	model = updated.(Model)
+	// Mark post 2 as last read, expect selection to move to post 3
+	model.lastReadPostID = "2"
 
-	// Process loadPostsMsg
-	updated, _ = model.Update(loadPostsMsg{posts: posts, err: nil})
-	model = updated.(Model)
-
-	// With newestOnTop=true, scroll should be at 0 (top)
-	if model.scrollOffset != 0 {
-		t.Errorf("initial scroll with newestOnTop=true should be 0, got %d", model.scrollOffset)
-	}
-}
-
-func TestInitialScrollPosition_OldestOnTop(t *testing.T) {
-	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("dracula")
-	contrast := GetContrastLevel("medium")
-	layout := GetLayout("comfy")
-	cfg := &config.TUIConfig{
-		Theme:       "dracula",
-		Contrast:    "medium",
-		Layout:      "comfy",
-		AutoRefresh: false,
-		NewestOnTop: false, // oldest on top
-	}
-	model := NewModel(store, theme, contrast, layout, cfg, "test")
-
-	// Create many posts to exceed screen height
-	var posts []*Post
-	for i := 0; i < 50; i++ {
-		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content that is reasonably long"})
-	}
-
-	// Process WindowSizeMsg first
-	updated, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
-	model = updated.(Model)
-
-	// Then process loadPostsMsg
-	updated, _ = model.Update(loadPostsMsg{posts: posts, err: nil})
-	model = updated.(Model)
-
-	// With newestOnTop=false, scroll should be at maxScrollOffset (bottom)
-	maxOffset := model.maxScrollOffset()
-	if model.scrollOffset != maxOffset {
-		t.Errorf("initial scroll with newestOnTop=false should be %d, got %d", maxOffset, model.scrollOffset)
-	}
-}
-
-// TestInitialScrollPosition_PostsBeforeWindowSize tests when loadPostsMsg arrives before WindowSizeMsg
-func TestInitialScrollPosition_PostsBeforeWindowSize(t *testing.T) {
-	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
-	theme := GetTheme("dracula")
-	contrast := GetContrastLevel("medium")
-	layout := GetLayout("comfy")
-	cfg := &config.TUIConfig{
-		Theme:       "dracula",
-		Contrast:    "medium",
-		Layout:      "comfy",
-		AutoRefresh: false,
-		NewestOnTop: false, // oldest on top, so should scroll to bottom
-	}
-	model := NewModel(store, theme, contrast, layout, cfg, "test")
-
-	// Create many posts
-	var posts []*Post
-	for i := 0; i < 50; i++ {
-		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content that is reasonably long"})
-	}
-
-	// Process loadPostsMsg FIRST (before window size is known)
-	// This simulates posts loading quickly before terminal reports size
 	updated, _ := model.Update(loadPostsMsg{posts: posts, err: nil})
 	model = updated.(Model)
-
-	t.Logf("After loadPostsMsg: scrollOffset=%d, height=%d, initialScrollDone=%v",
-		model.scrollOffset, model.height, model.initialScrollDone)
-
-	// THEN process WindowSizeMsg
 	updated, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	model = updated.(Model)
 
-	t.Logf("After WindowSizeMsg: scrollOffset=%d, height=%d, maxOffset=%d",
-		model.scrollOffset, model.height, model.maxScrollOffset())
-
-	// With newestOnTop=false, scroll should be at maxScrollOffset (bottom)
-	maxOffset := model.maxScrollOffset()
-	if model.scrollOffset != maxOffset {
-		t.Errorf("initial scroll with newestOnTop=false should be %d, got %d", maxOffset, model.scrollOffset)
+	if model.selectedPostIndex != 2 {
+		t.Errorf("selectedPostIndex = %d, want 2 (first unread)", model.selectedPostIndex)
 	}
 }
 
@@ -1150,34 +1070,64 @@ func TestCursorNavigation(t *testing.T) {
 	}
 }
 
-func TestSortToggleScrollsToNewest(t *testing.T) {
+func TestPageNavigationMovesSelection(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.width = 80
 	model.height = 10
-	model.newestOnTop = true
-	model.scrollOffset = 0
+
+	// Add posts and update displayedPosts
+	var posts []*Post
+	for i := 0; i < 30; i++ {
+		posts = append(posts, &Post{ID: string(rune('0' + (i % 10))), Content: "post content"})
+	}
+	model.posts = posts
+	model.updateDisplayedPosts()
 	model.initialScrollDone = true
 
-	// Add many posts
+	// Page down should move selection forward
+	model.selectedPostIndex = 0
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	updatedModel := updated.(Model)
+	if updatedModel.selectedPostIndex <= 0 {
+		t.Error("pgdown should move selection forward")
+	}
+
+	// Page up should move selection backward
+	updatedModel.selectedPostIndex = 5
+	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+	updatedModel = updated.(Model)
+	if updatedModel.selectedPostIndex >= 5 {
+		t.Error("pgup should move selection backward")
+	}
+}
+
+func TestHomeEndMovesSelection(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+	model.height = 10
+
 	var posts []*Post
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 10; i++ {
 		posts = append(posts, &Post{ID: string(rune('0' + i)), Content: "post content"})
 	}
 	model.posts = posts
+	model.updateDisplayedPosts()
+	model.initialScrollDone = true
 
-	// Toggle sort order with 's'
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}
-	updated, _ := model.Update(msg)
+	model.selectedPostIndex = 5
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyHome})
 	updatedModel := updated.(Model)
-
-	// Now newestOnTop should be false, and scroll should be at bottom
-	if updatedModel.newestOnTop {
-		t.Error("'s' should toggle newestOnTop to false")
+	if updatedModel.selectedPostIndex != 0 {
+		t.Error("home should move selection to top post")
 	}
-	maxOffset := updatedModel.maxScrollOffset()
-	if updatedModel.scrollOffset != maxOffset {
-		t.Errorf("after toggling to oldestOnTop, scroll should be at bottom (%d), got %d", maxOffset, updatedModel.scrollOffset)
+
+	updatedModel.selectedPostIndex = 3
+	updated, _ = updatedModel.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	updatedModel = updated.(Model)
+	if updatedModel.selectedPostIndex != len(updatedModel.displayedPosts)-1 {
+		t.Error("end should move selection to bottom post")
 	}
 }
 
@@ -1242,8 +1192,8 @@ func TestModelUpdate_PressureDecrease(t *testing.T) {
 	}
 }
 
-// TestModelUpdate_PressureWrapAroundUp tests wrapping from 4 to 0
-func TestModelUpdate_PressureWrapAroundUp(t *testing.T) {
+// TestModelUpdate_PressureClampUp tests clamping at max pressure
+func TestModelUpdate_PressureClampUp(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.pressure = 4
@@ -1252,13 +1202,13 @@ func TestModelUpdate_PressureWrapAroundUp(t *testing.T) {
 	updated, _ := model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.pressure != 0 {
-		t.Errorf("Update(+) at level 4 should wrap to 0, got %d", updatedModel.pressure)
+	if updatedModel.pressure != 4 {
+		t.Errorf("Update(+) at level 4 should stay at 4, got %d", updatedModel.pressure)
 	}
 }
 
-// TestModelUpdate_PressureWrapAroundDown tests wrapping from 0 to 4
-func TestModelUpdate_PressureWrapAroundDown(t *testing.T) {
+// TestModelUpdate_PressureClampDown tests clamping at min pressure
+func TestModelUpdate_PressureClampDown(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
 	model.pressure = 0
@@ -1267,8 +1217,8 @@ func TestModelUpdate_PressureWrapAroundDown(t *testing.T) {
 	updated, _ := model.Update(msg)
 	updatedModel := updated.(Model)
 
-	if updatedModel.pressure != 4 {
-		t.Errorf("Update(-) at level 0 should wrap to 4, got %d", updatedModel.pressure)
+	if updatedModel.pressure != 0 {
+		t.Errorf("Update(-) at level 0 should stay at 0, got %d", updatedModel.pressure)
 	}
 }
 
@@ -1301,17 +1251,7 @@ func TestUpdateDisplayedPosts(t *testing.T) {
 	}
 	model.posts = posts
 
-	t.Run("updates displayedPosts with newestOnTop", func(t *testing.T) {
-		model.newestOnTop = true
-		model.updateDisplayedPosts()
-
-		if len(model.displayedPosts) != 5 {
-			t.Errorf("displayedPosts should have 5 posts, got %d", len(model.displayedPosts))
-		}
-	})
-
-	t.Run("updates displayedPosts with oldestOnTop", func(t *testing.T) {
-		model.newestOnTop = false
+	t.Run("updates displayedPosts", func(t *testing.T) {
 		model.updateDisplayedPosts()
 
 		if len(model.displayedPosts) != 5 {
@@ -1376,7 +1316,7 @@ func TestBuildAllContentLinesWithPosts(t *testing.T) {
 	}
 }
 
-// TestFormatPostWithSelection tests selection indicator
+// TestFormatPostWithSelection tests selection highlighting
 func TestFormatPostWithSelection(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	model := testModel(store)
@@ -1384,13 +1324,19 @@ func TestFormatPostWithSelection(t *testing.T) {
 
 	post, _ := NewPost("author", "project", "sfx", "test content")
 
-	t.Run("selected post has indicator", func(t *testing.T) {
+	t.Run("selected post is highlighted without layout shift", func(t *testing.T) {
 		lines := model.formatPostWithSelection(post, true)
 		if len(lines) == 0 {
 			t.Fatal("formatPostWithSelection should return lines")
 		}
-		if !strings.Contains(lines[0], "▶") {
-			t.Error("selected post should have selection indicator")
+		if strings.HasPrefix(lines[0], "▶") {
+			t.Error("selected post should not use a triangle indicator")
+		}
+		if !strings.Contains(lines[0], "test content") {
+			t.Error("selected post should include content")
+		}
+		if model.width > 0 && lipgloss.Width(lines[0]) != model.contentWidth() {
+			t.Error("selected post line should be padded to full width")
 		}
 	})
 
@@ -1399,7 +1345,6 @@ func TestFormatPostWithSelection(t *testing.T) {
 		if len(lines) == 0 {
 			t.Fatal("formatPostWithSelection should return lines")
 		}
-		// The first character should not be the indicator
 		if strings.HasPrefix(lines[0], "▶") {
 			t.Error("unselected post should not have selection indicator at start")
 		}
@@ -1513,9 +1458,6 @@ func TestRenderCopyMenuOverlay(t *testing.T) {
 	}
 	if !strings.Contains(result, "Landscape") {
 		t.Error("renderCopyMenuOverlay should contain Landscape option")
-	}
-	if !strings.Contains(result, "▶") {
-		t.Error("renderCopyMenuOverlay should show selection indicator")
 	}
 }
 

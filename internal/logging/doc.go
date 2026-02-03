@@ -14,6 +14,7 @@
 //
 //	ctx.identity      Full identity string (e.g., "swift-fox@smoke")
 //	ctx.agent         Agent type: "claude", "human", "unknown"
+//	ctx.caller        Caller agent type: "claude", "codex", "gemini", "unknown"
 //	ctx.session       Session ID for correlation
 //	ctx.env           Environment: "claude_code", "ci", "terminal"
 //	ctx.project       Project name

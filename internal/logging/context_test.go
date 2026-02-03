@@ -89,6 +89,11 @@ func TestCaptureContext(t *testing.T) {
 	if ctx.Session == "" {
 		t.Error("Session should not be empty")
 	}
+	// Caller should be set
+	if ctx.Caller == "" {
+		t.Error("Caller should not be empty")
+	}
+
 }
 
 func TestContextSetIdentity(t *testing.T) {
