@@ -419,7 +419,7 @@ func detectProject() string {
 	out, err := cmd.Output()
 	if err == nil {
 		url := strings.TrimSpace(string(out))
-		return sanitizeName(extractRepoName(url))
+		return sanitizeProjectName(extractRepoName(url))
 	}
 
 	// Fallback to git toplevel directory name
@@ -427,7 +427,7 @@ func detectProject() string {
 	out, err = cmd.Output()
 	if err == nil {
 		root := strings.TrimSpace(string(out))
-		return sanitizeName(filepath.Base(root))
+		return sanitizeProjectName(filepath.Base(root))
 	}
 
 	// Fallback to cwd
@@ -435,7 +435,7 @@ func detectProject() string {
 	if err != nil {
 		return "unknown"
 	}
-	return sanitizeName(filepath.Base(cwd))
+	return sanitizeProjectName(filepath.Base(cwd))
 }
 
 // extractRepoName extracts the repository name from a git URL
@@ -470,6 +470,21 @@ func sanitizeName(name string) string {
 	var result strings.Builder
 	for _, r := range name {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			result.WriteRune(r)
+		}
+	}
+
+	return strings.ToLower(result.String())
+}
+
+// sanitizeProjectName allows dots for repo names like "dreamwork.github.io".
+func sanitizeProjectName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, " ", "-")
+
+	var result strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
 			result.WriteRune(r)
 		}
 	}

@@ -116,6 +116,26 @@ func TestSanitizeName(t *testing.T) {
 	}
 }
 
+func TestSanitizeProjectName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"dreamwork.github.io", "dreamwork.github.io"},
+		{"Hello World", "hello-world"},
+		{"Test_Name", "test_name"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := sanitizeProjectName(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeProjectName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIdentityString(t *testing.T) {
 	id := &Identity{
 		Agent:   "claude",
