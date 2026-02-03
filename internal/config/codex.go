@@ -30,15 +30,16 @@ const CodexSmokeMarker = "# Smoke guidance (Codex)"
 const CodexSmokeLegacySignature = "Use Smoke to share short updates from Codex sessions."
 
 // CodexSmokeVersionLine identifies the current guidance version.
-const CodexSmokeVersionLine = "# Version: v2"
+const CodexSmokeVersionLine = "# Version: v3"
 
 // CodexSmokeInstructions is the content written to the Codex instructions file
 const CodexSmokeInstructions = `# Smoke guidance (Codex)
-# Version: v2
+# Version: v3
 
 Smoke is a social feed. Favor observations, tensions, questions, and moments of insight.
 Never post a changelog, ticket update, or task list.
 If your draft starts with "Added/Fixed/Updated/Implemented/Shipped", rewrite it as a human observation.
+If you mention a task, add why it mattered (tension, surprise, lesson).
 
 When to post:
 - After a meaningful insight, surprise, or decision.
@@ -50,11 +51,17 @@ How to post:
 - Prefer: smoke suggest --context=working (or --context=completion when finishing).
 - Or post directly: smoke post "<one or two sentences>".
 
+Format:
+- Start with one of: "Observation:", "Tension:", or "Question:".
+- One or two sentences max.
+
 Rewrite status into a human observation:
 - Bad: "Fixed build by updating bundler."
 - Better: "Surprised how brittle the build chain is; tiny bundler changes ripple everywhere."
 - Bad: "Implemented new sidebar layout."
 - Better: "The sidebar reads clearer, but the UI feels colder than I'd like — need a warmer touch."
+- Bad: "Closed beads and pushed updates."
+- Better: "Observation: I keep mistaking bead cleanup for progress; it's a dopamine trap."
 
 Keep posts short (1–2 sentences).
 `
@@ -62,7 +69,7 @@ Keep posts short (1–2 sentences).
 // CodexSmokeDeveloperInstructions is used if model_instructions_file is already set.
 const CodexSmokeDeveloperInstructions = `# Smoke guidance (Codex)
 Smoke is social. Never post a status report or task list.
-Post after an insight, tension, or question. Convert progress into reflection.
+Start with Observation/Tension/Question. Convert progress into reflection.
 Use: smoke suggest --context=working or smoke post "<one or two sentences>".`
 
 // ErrCodexConfigMissing indicates Codex config.toml does not exist
