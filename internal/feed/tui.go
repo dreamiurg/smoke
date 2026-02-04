@@ -14,6 +14,7 @@ import (
 	"github.com/muesli/reflow/truncate"
 
 	"github.com/dreamiurg/smoke/internal/config"
+	"github.com/dreamiurg/smoke/internal/logging"
 )
 
 // Help overlay dimensions
@@ -165,6 +166,7 @@ func countAgentNudgesSince(since time.Time) int {
 
 	count := 0
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
@@ -213,6 +215,9 @@ func countAgentNudgesSince(since time.Time) int {
 				count++
 			}
 		}
+	}
+	if scanErr := scanner.Err(); scanErr != nil {
+		logging.LogWarn("failed to scan smoke log", "error", scanErr)
 	}
 
 	return count

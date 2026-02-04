@@ -49,11 +49,14 @@ func TestIsSmokeConfiguredInCodexModelFile(t *testing.T) {
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	instructionsPath, _ := GetCodexInstructionsPath()
+	instructionsPath, err := GetCodexInstructionsPath()
+	if err != nil {
+		t.Fatalf("GetCodexInstructionsPath() error: %v", err)
+	}
 	configPath := filepath.Join(configDir, CodexConfigFile)
 	content := "model = \"gpt-5.2-codex\"\nmodel_instructions_file = \"" + instructionsPath + "\"\n"
-	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(configPath, []byte(content), 0600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	found, err := IsSmokeConfiguredInCodex()
@@ -86,7 +89,10 @@ func TestEnsureCodexSmokeIntegration(t *testing.T) {
 		t.Fatal("EnsureCodexSmokeIntegration() returned nil result")
 	}
 
-	instructionsPath, _ := GetCodexInstructionsPath()
+	instructionsPath, err := GetCodexInstructionsPath()
+	if err != nil {
+		t.Fatalf("GetCodexInstructionsPath() error: %v", err)
+	}
 	data, err := os.ReadFile(instructionsPath)
 	if err != nil {
 		t.Fatalf("expected instructions file, got error: %v", err)

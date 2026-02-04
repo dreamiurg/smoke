@@ -4,22 +4,22 @@
 package feed
 
 import (
+	"sync"
+
 	"golang.design/x/clipboard"
 )
 
-// clipboardInitialized tracks if clipboard.Init() has been called
-var clipboardInitialized bool
+var (
+	clipboardOnce    sync.Once
+	clipboardInitErr error
+)
 
 // initClipboard initializes the clipboard library (only once)
 func initClipboard() error {
-	if clipboardInitialized {
-		return nil
-	}
-	if err := clipboard.Init(); err != nil {
-		return err
-	}
-	clipboardInitialized = true
-	return nil
+	clipboardOnce.Do(func() {
+		clipboardInitErr = clipboard.Init()
+	})
+	return clipboardInitErr
 }
 
 // CopyTextToClipboard copies text to the system clipboard.

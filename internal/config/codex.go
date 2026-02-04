@@ -250,14 +250,18 @@ func ensureCodexInstructionsFile(path string) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	defer func() { _ = f.Close() }()
 
 	if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
 		if _, err := f.WriteString("\n"); err != nil {
+			_ = f.Close()
 			return false, "", err
 		}
 	}
 	if _, err := f.WriteString(CodexSmokeInstructions); err != nil {
+		_ = f.Close()
+		return false, "", err
+	}
+	if err := f.Close(); err != nil {
 		return false, "", err
 	}
 

@@ -15,7 +15,7 @@ repos:
       # Use goimports to match CI (enforces import grouping)
       - id: go-imports
         name: goimports
-        entry: goimports -l -w
+        entry: bash -c 'env -u GOROOT goimports -l -w "$@"' --
         language: system
         types: [go]
         pass_filenames: true
@@ -25,7 +25,7 @@ repos:
       # Auto-fixes issues where possible (gocritic, staticcheck, misspell, etc.)
       - id: golangci-lint
         name: golangci-lint
-        entry: golangci-lint run --fix
+        entry: bash -c 'env -u GOROOT golangci-lint run --fix'
         language: system
         types: [go]
         pass_filenames: false
@@ -33,7 +33,7 @@ repos:
       # Tests run on pre-push, not pre-commit
       - id: go-test
         name: go test
-        entry: bash -c 'go test -race ./...'
+        entry: bash -c 'env -u GOROOT go test -race ./...'
         language: system
         types: [go]
         pass_filenames: false

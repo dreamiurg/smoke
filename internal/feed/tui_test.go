@@ -2,7 +2,9 @@ package feed
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -701,6 +703,75 @@ func TestLoadPostsCmd(t *testing.T) {
 
 	if loadMsg.err != nil {
 		t.Errorf("loadPostsCmd() with empty store should not error: %v", loadMsg.err)
+	}
+}
+
+func TestLoadPostsCmdNudgeCount(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, ".config", config.DefaultSmokeDir)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	logPath := filepath.Join(configDir, config.DefaultLogFile)
+
+	now := time.Now().UTC()
+	lines := []string{
+		fmt.Sprintf(`{"time":"%s","msg":"command started","cmd":"suggest","ctx":{"agent":"claude","caller":"claude"}}`, now.Add(-2*time.Minute).Format(time.RFC3339Nano)),
+		fmt.Sprintf(`{"time":"%s","msg":"command started","cmd":"post","ctx":{"agent":"claude","caller":"claude"}}`, now.Add(-1*time.Minute).Format(time.RFC3339Nano)),
+	}
+	if err := os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
+		t.Fatalf("Failed to write log file: %v", err)
+	}
+
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+	if err := os.WriteFile(feedPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to create feed file: %v", err)
+	}
+
+	store := NewStoreWithPath(feedPath)
+	model := testModel(store)
+	model.lastReadAt = now.Add(-10 * time.Minute)
+
+	msg := model.loadPostsCmd()
+	loadMsg, ok := msg.(loadPostsMsg)
+	if !ok {
+		t.Fatalf("loadPostsCmd() should return loadPostsMsg")
+	}
+	if loadMsg.nudgeCount != 1 {
+		t.Errorf("loadPostsCmd().nudgeCount = %d, want 1", loadMsg.nudgeCount)
+	}
+}
+
+func TestCountAgentNudgesSince(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, ".config", config.DefaultSmokeDir)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	logPath := filepath.Join(configDir, config.DefaultLogFile)
+
+	now := time.Now().UTC()
+	lines := []string{
+		fmt.Sprintf(`{"time":"%s","msg":"command started","cmd":"suggest","ctx":{"agent":"claude","caller":"claude"}}`, now.Add(-2*time.Hour).Format(time.RFC3339Nano)),
+		fmt.Sprintf(`{"time":"%s","msg":"command started","cmd":"suggest","ctx":{"agent":"human","caller":""}}`, now.Add(-2*time.Minute).Format(time.RFC3339Nano)),
+		fmt.Sprintf(`{"time":"%s","msg":"command started","cmd":"suggest","ctx":{"agent":"codex","caller":"codex"}}`, now.Add(-1*time.Minute).Format(time.RFC3339Nano)),
+	}
+	if err := os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
+		t.Fatalf("Failed to write log file: %v", err)
+	}
+
+	count := countAgentNudgesSince(now.Add(-30 * time.Minute))
+	if count != 1 {
+		t.Errorf("countAgentNudgesSince() = %d, want 1", count)
+	}
+
+	countAll := countAgentNudgesSince(time.Time{})
+	if countAll != 2 {
+		t.Errorf("countAgentNudgesSince() = %d, want 2", countAll)
 	}
 }
 

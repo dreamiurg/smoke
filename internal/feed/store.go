@@ -252,8 +252,12 @@ func (s *Store) doDeleteByID(id string) error {
 		return fmt.Errorf("failed to open feed file: %w", err)
 	}
 	defer func() {
-		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-		_ = f.Close()
+		if unlockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); unlockErr != nil {
+			logging.LogWarn("failed to unlock feed file", "error", unlockErr)
+		}
+		if closeErr := f.Close(); closeErr != nil {
+			logging.LogWarn("failed to close feed file", "error", closeErr)
+		}
 	}()
 
 	// Acquire exclusive lock for cross-process safety
@@ -308,8 +312,12 @@ func (s *Store) doDeleteByID(id string) error {
 	}
 	tmpPath := tmpFile.Name()
 	cleanupTemp := func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpPath)
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			logging.LogWarn("failed to close temp file", "error", closeErr)
+		}
+		if removeErr := os.Remove(tmpPath); removeErr != nil {
+			logging.LogWarn("failed to remove temp file", "error", removeErr)
+		}
 	}
 
 	if info, statErr := f.Stat(); statErr == nil {
