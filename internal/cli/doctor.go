@@ -210,11 +210,11 @@ func performCodexIntegrationCheck() Check {
 		return failCheck(name, "error", err.Error(), false, nil)
 	}
 
-	if _, err := os.Stat(configPath); err != nil {
-		if os.IsNotExist(err) {
+	if _, statErr := os.Stat(configPath); statErr != nil {
+		if os.IsNotExist(statErr) {
 			return warnCheck(name, "codex config not found", "Install Codex or run 'smoke init' after installing")
 		}
-		return failCheck(name, "error", err.Error(), false, nil)
+		return failCheck(name, "error", statErr.Error(), false, nil)
 	}
 
 	configured, err := config.IsSmokeConfiguredInCodex()

@@ -228,9 +228,9 @@ func ensureCodexInstructionsFile(path string) (bool, string, error) {
 		if strings.Contains(contentStr, CodexSmokeVersionLine) {
 			return false, "", nil
 		}
-		backupPath, err := backupFile(path)
-		if err != nil {
-			return false, "", err
+		backupPath, backupErr := backupFile(path)
+		if backupErr != nil {
+			return false, "", backupErr
 		}
 		if writeErr := os.WriteFile(path, []byte(CodexSmokeInstructions), 0644); writeErr != nil {
 			return false, "", writeErr

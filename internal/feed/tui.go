@@ -144,7 +144,9 @@ func countAgentNudgesSince(since time.Time) int {
 	if err != nil {
 		return 0
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	type cmdObj struct {
 		Name string `json:"name"`
@@ -506,7 +508,7 @@ func overlayLine(base, overlay string, left int, width int) string {
 		width = baseWidth
 	}
 	if baseWidth < width {
-		base = base + strings.Repeat(" ", width-baseWidth)
+		base += strings.Repeat(" ", width-baseWidth)
 		baseWidth = width
 	}
 	if left > baseWidth {
@@ -549,10 +551,10 @@ func (m Model) renderPressureIndicator() string {
 // renderHeader creates the header bar with version, stats, and clock
 func (m Model) renderHeader() string {
 	base := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
-	titleStyle := base.Copy().Foreground(m.theme.Accent).Bold(true)
-	versionStyle := base.Copy().Foreground(m.theme.TextMuted)
-	statsStyle := base.Copy().Foreground(m.theme.Text)
-	sepStyle := base.Copy().Foreground(m.theme.TextMuted)
+	titleStyle := base.Foreground(m.theme.Accent).Bold(true)
+	versionStyle := base.Foreground(m.theme.TextMuted)
+	statsStyle := base.Foreground(m.theme.Text)
+	sepStyle := base.Foreground(m.theme.TextMuted)
 
 	title := titleStyle.Render("SMOKE")
 	version := ""
@@ -584,9 +586,9 @@ func (m Model) renderHeader() string {
 // renderStatusBar creates the status bar showing settings and keybindings
 func (m Model) renderStatusBar() string {
 	base := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
-	keyStyle := base.Copy().Foreground(m.theme.Accent).Bold(true)
-	labelStyle := base.Copy().Foreground(m.theme.TextMuted)
-	valueStyle := base.Copy().Foreground(m.theme.Text)
+	keyStyle := base.Foreground(m.theme.Accent).Bold(true)
+	labelStyle := base.Foreground(m.theme.TextMuted)
+	valueStyle := base.Foreground(m.theme.Text)
 	sep := base.Render("  ")
 	width := m.width
 	if width <= 0 {
@@ -631,7 +633,8 @@ func (m Model) renderStatusBar() string {
 			labelStyle.Render(" config error"))
 	}
 
-	allItems := append(prefixItems, items...)
+	allItems := append([]string{}, prefixItems...)
+	allItems = append(allItems, items...)
 	statusText := fitStatusLine(allItems, sep, width)
 	statusText = clampStatusLine(statusText, width, base)
 	return statusText
