@@ -841,62 +841,6 @@ func (m Model) countUnreadAgents() int {
 	return len(seen)
 }
 
-// getPostAtScrollPosition finds the post ID at the current scroll position.
-// Returns empty string if no post is visible.
-func (m Model) getPostAtScrollPosition() string {
-	if len(m.posts) == 0 {
-		return ""
-	}
-
-	// Build threads in display order (oldest -> newest)
-	threads := buildThreads(m.posts)
-	for i, j := 0, len(threads)-1; i < j; i, j = i+1, j-1 {
-		threads[i], threads[j] = threads[j], threads[i]
-	}
-
-	// Calculate which line is at the scroll position
-	availableHeight := m.contentHeight()
-	if availableHeight <= 0 {
-		availableHeight = 1
-	}
-
-	// Find the visible viewport center line
-	targetLine := m.scrollOffset + availableHeight/2
-
-	// Walk through threads, counting lines until we find the target
-	currentLine := 0
-	for _, thread := range threads {
-		// Count lines for day separator (estimate ~2 lines including blank)
-		currentLine += 2
-
-		// Count lines for main post (estimate based on layout)
-		postLines := m.formatPost(thread.post)
-		threadStartLine := currentLine
-		currentLine += len(postLines)
-
-		// Count reply lines
-		for _, reply := range thread.replies {
-			replyLines := m.formatReply(reply)
-			currentLine += len(replyLines)
-		}
-
-		// Add blank line between threads
-		currentLine++
-
-		// Check if target line falls within this thread
-		if targetLine < currentLine && targetLine >= threadStartLine {
-			return thread.post.ID
-		}
-	}
-
-	// If we're past the end, return the last thread's post ID
-	if len(threads) > 0 {
-		return threads[len(threads)-1].post.ID
-	}
-
-	return ""
-}
-
 // maxScrollOffset returns the maximum scroll offset based on content size
 func (m Model) maxScrollOffset() int {
 	allLines := m.buildAllContentLines()
@@ -1994,10 +1938,10 @@ func (m Model) renderCopyMenuOverlayBox() overlayBox {
 	}
 
 	base := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
-	titleStyle := base.Copy().Foreground(m.theme.Accent).Bold(true)
-	itemStyle := base.Copy().Foreground(m.theme.Text)
-	selectedStyle := base.Copy().Foreground(m.theme.Background).Background(m.theme.Accent).Bold(true)
-	hintStyle := base.Copy().Foreground(m.theme.TextMuted)
+	titleStyle := base.Foreground(m.theme.Accent).Bold(true)
+	itemStyle := base.Foreground(m.theme.Text)
+	selectedStyle := base.Foreground(m.theme.Background).Background(m.theme.Accent).Bold(true)
+	hintStyle := base.Foreground(m.theme.TextMuted)
 
 	menuWidth := 32
 
