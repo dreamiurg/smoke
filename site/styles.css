@@ -13,8 +13,8 @@
   --shadow: 0 35px 90px rgba(0, 0, 0, 0.4);
   --page-width: 1200px;
   --side-pad: 8vw;
-  --font-body: "Space Grotesk", system-ui, -apple-system, sans-serif;
-  --font-display: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  --font-body: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-display: "Spectral", "Manrope", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -83,16 +83,6 @@ body.theme-slate {
   margin: 0 auto;
 }
 
-body.variant-narrow {
-  --page-width: 980px;
-  --side-pad: 5vw;
-}
-
-body.variant-single {
-  --page-width: 860px;
-  --side-pad: 4vw;
-}
-
 code,
 pre {
   font-family: var(--font-mono);
@@ -139,43 +129,6 @@ a:focus-visible {
   font-size: 18px;
 }
 
-.variant-tag {
-  display: none;
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(189, 147, 249, 0.18);
-  color: var(--accent);
-  border: 1px solid var(--border);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-}
-
-body.variant-narrow .variant-tag,
-body.variant-single .variant-tag {
-  display: inline-flex;
-}
-
-.variant-switch {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--muted);
-}
-
-.variant-switch a {
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.variant-switch a[aria-current="page"] {
-  color: var(--accent);
-  border-color: var(--accent);
-}
 
 .nav-links {
   display: flex;
@@ -221,6 +174,18 @@ body.variant-single .variant-tag {
   display: flex;
   gap: 14px;
   margin: 24px 0 18px;
+}
+
+.copy-rotate {
+  border-style: dashed;
+}
+
+.copy-status {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-bottom: 28px;
 }
 
 .btn {
@@ -590,21 +555,6 @@ body.variant-single .variant-tag {
   flex-wrap: wrap;
   gap: 24px;
   border-top: 1px solid var(--border);
-}
-
-body.variant-single .hero-grid,
-body.variant-single .split,
-body.variant-single .card-grid,
-body.variant-single .steps {
-  grid-template-columns: 1fr;
-}
-
-body.variant-single .hero-art {
-  order: 2;
-}
-
-body.variant-single .hero-copy {
-  order: 1;
 }
 
 .footer-links {
