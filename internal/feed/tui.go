@@ -921,27 +921,15 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 		}
 	}
 
-	// Extract visible lines
-	endIdx := offset + availableHeight
-	if endIdx > len(allLines) {
-		endIdx = len(allLines)
+	contentHeight := availableHeight
+	if contentHeight <= 0 {
+		contentHeight = 1
 	}
-	visibleLines := allLines[offset:endIdx]
-	if unreadAboveCount > 0 {
-		indicator := m.formatUnreadAboveIndicator(unreadAboveCount)
-		lines := make([]string, 0, availableHeight)
-		lines = append(lines, indicator)
-		for i := 0; i < availableHeight-1; i++ {
-			if i < len(visibleLines) {
-				lines = append(lines, visibleLines[i])
-			} else {
-				lines = append(lines, "")
-			}
+
+	computeUnreadBelow := func(endIdx int) int {
+		if markerLine < 0 || endIdx >= len(contentLines) {
+			return 0
 		}
-		visibleLines = lines
-	}
-	unreadBelowCount := 0
-	if markerLine >= 0 && endIdx < len(contentLines) {
 		seen := make(map[int]bool)
 		start := markerLine + 1
 		if start < 0 {
@@ -950,16 +938,48 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 		if start < endIdx {
 			start = endIdx
 		}
+		count := 0
 		for i := start; i < len(contentLines); i++ {
 			if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
 				seen[idx] = true
-				unreadBelowCount++
+				count++
 			}
 		}
+		return count
 	}
-	if unreadBelowCount > 0 && len(visibleLines) > 0 {
+
+	endIdx := offset + contentHeight
+	if endIdx > len(allLines) {
+		endIdx = len(allLines)
+	}
+	unreadBelowCount := computeUnreadBelow(endIdx)
+	if unreadBelowCount > 0 && contentHeight > 1 {
+		contentHeight--
+		endIdx = offset + contentHeight
+		if endIdx > len(allLines) {
+			endIdx = len(allLines)
+		}
+		unreadBelowCount = computeUnreadBelow(endIdx)
+	}
+
+	// Extract visible lines
+	visibleLines := allLines[offset:endIdx]
+	if unreadAboveCount > 0 {
+		indicator := m.formatUnreadAboveIndicator(unreadAboveCount)
+		lines := make([]string, 0, contentHeight)
+		lines = append(lines, indicator)
+		for i := 0; i < contentHeight-1; i++ {
+			if i < len(visibleLines) {
+				lines = append(lines, visibleLines[i])
+			} else {
+				lines = append(lines, "")
+			}
+		}
+		visibleLines = lines
+	}
+	if unreadBelowCount > 0 && contentHeight > 1 {
 		indicator := m.formatUnreadBelowIndicator(unreadBelowCount)
-		visibleLines[len(visibleLines)-1] = indicator
+		visibleLines = append(visibleLines, indicator)
 	}
 
 	// Style for background padding

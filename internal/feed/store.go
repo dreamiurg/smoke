@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"syscall"
@@ -300,26 +301,60 @@ func (s *Store) doDeleteByID(id string) error {
 		return ErrPostNotFound
 	}
 
-	// Truncate and rewrite
-	if err := f.Truncate(0); err != nil {
-		return fmt.Errorf("failed to truncate feed file: %w", err)
+	dir := filepath.Dir(s.path)
+	tmpFile, err := os.CreateTemp(dir, ".smoke-feed-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
-	if _, err := f.Seek(0, 0); err != nil {
-		return fmt.Errorf("failed to seek feed file: %w", err)
+	tmpPath := tmpFile.Name()
+	cleanupTemp := func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}
+
+	if info, statErr := f.Stat(); statErr == nil {
+		if chmodErr := tmpFile.Chmod(info.Mode()); chmodErr != nil {
+			cleanupTemp()
+			return fmt.Errorf("failed to set temp file permissions: %w", chmodErr)
+		}
 	}
 
 	for _, post := range posts {
 		data, err := json.Marshal(post)
 		if err != nil {
+			cleanupTemp()
 			return fmt.Errorf("failed to encode post: %w", err)
 		}
-		if _, err := f.Write(append(data, '\n')); err != nil {
+		if _, err := tmpFile.Write(append(data, '\n')); err != nil {
+			cleanupTemp()
 			return fmt.Errorf("failed to write post: %w", err)
 		}
 	}
 
-	if err := f.Sync(); err != nil {
-		return fmt.Errorf("failed to sync feed file: %w", err)
+	if err := tmpFile.Sync(); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to sync temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, s.path); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to replace feed file: %w", err)
+	}
+
+	dirHandle, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("failed to open feed directory: %w", err)
+	}
+	if err := dirHandle.Sync(); err != nil {
+		_ = dirHandle.Close()
+		return fmt.Errorf("failed to sync feed directory: %w", err)
+	}
+	if err := dirHandle.Close(); err != nil {
+		return fmt.Errorf("failed to close feed directory: %w", err)
 	}
 
 	return nil

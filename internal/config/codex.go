@@ -265,7 +265,7 @@ func ensureCodexInstructionsFile(path string) (bool, string, error) {
 }
 
 func hasTomlKey(content, key string) bool {
-	re := regexp.MustCompile(`(?m)^\\s*` + regexp.QuoteMeta(key) + `\\s*=`)
+	re := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(key) + `\s*=`)
 	return re.FindStringIndex(content) != nil
 }
 

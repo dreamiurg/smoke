@@ -47,6 +47,38 @@ func TestCommandTrackerSetIdentity(t *testing.T) {
 	}
 }
 
+func TestCommandTrackerCaller(t *testing.T) {
+	tests := []struct {
+		name     string
+		tracker  *CommandTracker
+		expected string
+	}{
+		{
+			name:     "nil tracker",
+			tracker:  nil,
+			expected: "",
+		},
+		{
+			name:     "nil context",
+			tracker:  &CommandTracker{},
+			expected: "",
+		},
+		{
+			name:     "caller present",
+			tracker:  &CommandTracker{ctx: &Context{Caller: "codex"}},
+			expected: "codex",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.tracker.Caller(); got != tt.expected {
+				t.Errorf("Caller() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestCommandTrackerAddMetric(t *testing.T) {
 	tracker := &CommandTracker{}
 	tracker.AddMetric(slog.String("test", "value"))
