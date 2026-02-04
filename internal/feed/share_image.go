@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"image/color"
 	"image/png"
+	"math"
+	"strings"
 
 	"github.com/fogleman/gg"
 )
@@ -69,10 +71,7 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	// Draw handle
 	handleY := dotY + 50
 	fontSize := float64(dims.Width) * 0.025
-	if err := dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", fontSize); err != nil {
-		// Fallback to default if font not found
-		_ = dc.LoadFontFace("/Library/Fonts/Courier New.ttf", fontSize)
-	}
+	loadMonoFont(dc, fontSize)
 	handle := post.Author
 	if handle == "" {
 		handle = "anonymous"
@@ -99,31 +98,61 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	caller := ResolveCallerTag(post)
 	if caller != "" {
 		dc.SetColor(projectColor)
-		dc.DrawString("  via "+caller, innerPadding+handleWidth, handleY)
+		callerLabel := " (" + caller + ")"
+		dc.DrawString(callerLabel, innerPadding+handleWidth, handleY)
 	}
 
 	// Draw content
 	contentY := handleY + fontSize*2
 	dc.SetColor(textColor)
 	contentFontSize := fontSize * 1.5
-	_ = dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", contentFontSize)
+	minFontSize := fontSize * 0.8
 
-	// Word wrap the content
 	maxWidth := cardWidth - 80
-	lines := dc.WordWrap(post.Content, maxWidth)
-	lineHeight := contentFontSize * 1.4
-	for i, line := range lines {
-		if contentY+float64(i)*lineHeight > float64(dims.Height)-innerPadding-60 {
-			break // Stop if we run out of space
+	footerFontSize := fontSize * 0.8
+	footerY := float64(dims.Height) - innerPadding
+	contentMaxY := footerY - (footerFontSize * 1.6)
+	if contentMaxY < contentY {
+		contentMaxY = contentY
+	}
+	availableHeight := contentMaxY - contentY
+
+	var lines []string
+	var lineHeight float64
+	for {
+		loadMonoFont(dc, contentFontSize)
+		lines = dc.WordWrap(post.Content, maxWidth)
+		lineHeight = contentFontSize * 1.4
+		totalHeight := lineHeight * float64(len(lines))
+		if totalHeight <= availableHeight || contentFontSize <= minFontSize {
+			break
 		}
-		dc.DrawString(line, innerPadding, contentY+float64(i)*lineHeight)
+		contentFontSize -= 1.0
+	}
+
+	if availableHeight > 0 && len(lines) > 0 {
+		maxLines := int(math.Floor(availableHeight / lineHeight))
+		if maxLines <= 0 {
+			lines = nil
+		}
+		if len(lines) > maxLines && maxLines > 0 {
+			lines = lines[:maxLines]
+			last := strings.TrimRight(lines[maxLines-1], " ")
+			lines[maxLines-1] = last + "…"
+		}
+		if maxLines > 0 {
+			for i, line := range lines {
+				if i >= maxLines {
+					break
+				}
+				dc.DrawString(line, innerPadding, contentY+float64(i)*lineHeight)
+			}
+		}
 	}
 
 	// Draw footer
-	footerY := float64(dims.Height) - innerPadding
 	dc.SetColor(accentColor)
-	footerFontSize := fontSize * 0.8
-	_ = dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", footerFontSize)
+	loadMonoFont(dc, footerFontSize)
 	dc.DrawString(ShareFooter, innerPadding, footerY)
 
 	// Encode to PNG
@@ -194,4 +223,10 @@ func drawRoundedRect(dc *gg.Context, x, y, w, h, r float64) {
 	dc.LineTo(x, y+r)
 	dc.QuadraticTo(x, y, x+r, y)
 	dc.ClosePath()
+}
+
+func loadMonoFont(dc *gg.Context, size float64) {
+	if err := dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", size); err != nil {
+		_ = dc.LoadFontFace("/Library/Fonts/Courier New.ttf", size)
+	}
 }

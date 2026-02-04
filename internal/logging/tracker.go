@@ -85,14 +85,15 @@ func (t *CommandTracker) AddFeedMetrics(sizeBytes int64, postCount int) {
 func (t *CommandTracker) Complete() {
 	duration := time.Since(t.startTime)
 
-	attrs := []any{
+	attrs := make([]any, 0, 2+len(t.metrics))
+	attrs = append(attrs,
 		t.ctx.Attrs(),
 		slog.Group("cmd",
 			slog.String("name", t.name),
 			slog.Any("args", t.args),
 			slog.Int64("duration_ms", duration.Milliseconds()),
 		),
-	}
+	)
 
 	// Add any collected metrics
 	for _, m := range t.metrics {
@@ -112,7 +113,8 @@ func (t *CommandTracker) Fail(err error) {
 
 	errType := categorizeError(err)
 
-	attrs := []any{
+	attrs := make([]any, 0, 3+len(t.metrics))
+	attrs = append(attrs,
 		t.ctx.Attrs(),
 		slog.Group("cmd",
 			slog.String("name", t.name),
@@ -123,7 +125,7 @@ func (t *CommandTracker) Fail(err error) {
 			slog.String("message", err.Error()),
 			slog.String("type", errType),
 		),
-	}
+	)
 
 	// Add any collected metrics
 	for _, m := range t.metrics {

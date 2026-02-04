@@ -13,6 +13,10 @@ if [ ! -f "Makefile" ]; then
 fi
 
 # Run pre-commit target
-make pre-commit
+if command -v mise >/dev/null 2>&1 && [ -f ".mise.toml" ]; then
+    mise exec -- make pre-commit
+else
+    make pre-commit
+fi
 
 echo "Pre-commit checks passed."

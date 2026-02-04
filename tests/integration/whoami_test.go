@@ -385,8 +385,6 @@ func TestWhoamiMultipleSessionSeeds(t *testing.T) {
 		t.Fatalf("smoke init failed: %v", err)
 	}
 
-	// Collect identities from different seeds
-	identities := make([]string, 0)
 	seeds := []string{
 		"unique-seed-alpha-001",
 		"unique-seed-beta-002",
@@ -394,6 +392,8 @@ func TestWhoamiMultipleSessionSeeds(t *testing.T) {
 		"unique-seed-delta-004",
 		"unique-seed-epsilon-005",
 	}
+	// Collect identities from different seeds
+	identities := make([]string, 0, len(seeds))
 
 	for _, seed := range seeds {
 		os.Setenv("TERM_SESSION_ID", seed)

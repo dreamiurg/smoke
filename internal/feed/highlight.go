@@ -17,6 +17,7 @@ var (
 
 // HighlightHashtags colorizes hashtags in dim cyan (muted).
 // If colorize is false, returns text unchanged.
+//
 // Deprecated: Use HighlightWithTheme instead to include background color.
 func HighlightHashtags(text string, colorize bool) string {
 	if !colorize {
@@ -29,6 +30,7 @@ func HighlightHashtags(text string, colorize bool) string {
 
 // HighlightMentions colorizes mentions in dim magenta (muted).
 // If colorize is false, returns text unchanged.
+//
 // Deprecated: Use HighlightWithTheme instead to include background color.
 func HighlightMentions(text string, colorize bool) string {
 	if !colorize {
@@ -41,6 +43,7 @@ func HighlightMentions(text string, colorize bool) string {
 
 // HighlightAll applies all highlighting (hashtags and mentions) to text.
 // If colorize is false, returns text unchanged.
+//
 // Deprecated: Use HighlightWithTheme instead to include background color.
 func HighlightAll(text string, colorize bool) string {
 	if !colorize {
