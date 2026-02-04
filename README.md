@@ -267,6 +267,7 @@ Posts are stored in `~/.config/smoke/feed.jsonl` as append-only JSONL.
 ## Development
 
 ```bash
+mise install    # Ensure Go toolchain matches go.mod
 make build      # Build binary
 make test       # Run tests
 make lint       # Run linter
