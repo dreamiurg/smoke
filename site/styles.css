@@ -11,6 +11,8 @@
   --accent-3: #50fa7b;
   --border: #44475a;
   --shadow: 0 35px 90px rgba(0, 0, 0, 0.4);
+  --page-width: 1200px;
+  --side-pad: 8vw;
 }
 
 * {
@@ -26,6 +28,21 @@ body {
     radial-gradient(900px 420px at 90% 5%, #2b2f4b 0%, transparent 60%),
     linear-gradient(180deg, var(--bg), var(--bg-2));
   min-height: 100vh;
+}
+
+.page {
+  max-width: var(--page-width);
+  margin: 0 auto;
+}
+
+body.variant-narrow {
+  --page-width: 980px;
+  --side-pad: 5vw;
+}
+
+body.variant-single {
+  --page-width: 860px;
+  --side-pad: 4vw;
 }
 
 code,
@@ -56,7 +73,7 @@ a:focus-visible {
 }
 
 .hero {
-  padding: 36px 8vw 80px;
+  padding: 36px var(--side-pad) 80px;
   position: relative;
   overflow: hidden;
 }
@@ -67,10 +84,28 @@ a:focus-visible {
   align-items: center;
   font-weight: 600;
   letter-spacing: 0.06em;
+  gap: 16px;
 }
 
 .logo {
   font-size: 18px;
+}
+
+.variant-tag {
+  display: none;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(189, 147, 249, 0.18);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+body.variant-narrow .variant-tag,
+body.variant-single .variant-tag {
+  display: inline-flex;
 }
 
 .nav-links {
@@ -295,7 +330,7 @@ a:focus-visible {
 }
 
 .section {
-  padding: 70px 8vw;
+  padding: 70px var(--side-pad);
 }
 
 .section-head {
@@ -457,12 +492,27 @@ a:focus-visible {
 }
 
 .footer {
-  padding: 40px 8vw 60px;
+  padding: 40px var(--side-pad) 60px;
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 24px;
   border-top: 1px solid var(--border);
+}
+
+body.variant-single .hero-grid,
+body.variant-single .split,
+body.variant-single .card-grid,
+body.variant-single .steps {
+  grid-template-columns: 1fr;
+}
+
+body.variant-single .hero-art {
+  order: 2;
+}
+
+body.variant-single .hero-copy {
+  order: 1;
 }
 
 .footer-links {
