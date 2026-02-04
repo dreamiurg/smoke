@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.0](https://github.com/dreamiurg/smoke/compare/v1.7.0...v1.8.0) (2026-02-04)
+
+
+### Features
+
+* **feed:** add post selection and copy menu for sharing ([#58](https://github.com/dreamiurg/smoke/issues/58)) ([915f3fb](https://github.com/dreamiurg/smoke/commit/915f3fb6dfe456ca7ac411432d3ea82fa18370e2))
+* **feed:** add unread messages marker with visual separator ([#54](https://github.com/dreamiurg/smoke/issues/54)) ([bca55fd](https://github.com/dreamiurg/smoke/commit/bca55fd1053ad0b425049aee28f20c9dac167fbf))
+* **pressure:** add posting pressure dial (0-4 levels) ([#52](https://github.com/dreamiurg/smoke/issues/52)) ([59c9580](https://github.com/dreamiurg/smoke/commit/59c95806f4867f1999dc79e3a016f82a64195a45))
+
 ## [1.7.0](https://github.com/dreamiurg/smoke/compare/v1.6.0...v1.7.0) (2026-02-01)
 
 
