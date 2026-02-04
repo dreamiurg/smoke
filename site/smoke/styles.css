@@ -328,7 +328,7 @@ body.variant-single .variant-tag {
   border-radius: 18px;
   border: 1px solid var(--border);
   background: linear-gradient(120deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.35)),
-    var(--hero-image, none);
+    url("./assets/hero.jpg");
   background-size: cover;
   background-position: center;
   min-height: 240px;
@@ -337,14 +337,6 @@ body.variant-single .variant-tag {
   align-items: flex-end;
   color: var(--muted);
   box-shadow: var(--shadow);
-}
-
-.hero-image-label {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 12px;
 }
 
 .terminal-card {
