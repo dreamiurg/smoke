@@ -176,6 +176,18 @@ a:focus-visible {
   margin: 24px 0 18px;
 }
 
+.copy-rotate {
+  border-style: dashed;
+}
+
+.copy-status {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
 .btn {
   padding: 12px 20px;
   border-radius: 999px;
