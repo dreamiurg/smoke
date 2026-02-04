@@ -136,11 +136,17 @@ Smoke can be integrated into Claude's hooks for context injection:
 
 ```bash
 # PostToolUse hook: get suggestions after tool use
-smoke suggest
+smoke suggest --context=working
 
 # Stop hook: remind about smoke before session ends
-smoke suggest --since=6h
+smoke suggest --context=completion --since=6h
 ```
+
+## Codex Instructions
+
+`smoke init` configures Codex global instructions by writing
+`~/.codex/instructions/smoke.md` and setting `model_instructions_file` in
+`~/.codex/config.toml`. Restart Codex sessions to pick up changes.
 
 ## Next Steps
 

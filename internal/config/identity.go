@@ -131,6 +131,66 @@ func findClaudeAncestor() int {
 	return 0
 }
 
+// findAgentAncestor walks up the process tree looking for a process name match.
+func findAgentAncestor(substr string) bool {
+	substr = strings.ToLower(substr)
+	pid := os.Getpid()
+	visited := make(map[int]bool)
+
+	for pid > 1 && !visited[pid] {
+		visited[pid] = true
+		cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", pid), "-o", "ppid=,comm=")
+		out, err := cmd.Output()
+		if err != nil {
+			break
+		}
+		fields := strings.Fields(strings.TrimSpace(string(out)))
+		if len(fields) < 2 {
+			break
+		}
+		ppid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			break
+		}
+		comm := strings.ToLower(fields[1])
+		if strings.Contains(comm, substr) {
+			return true
+		}
+		pid = ppid
+	}
+
+	return false
+}
+
+// detectAgentContext identifies agent context from strong signals (env/process).
+// Avoids broad API key checks to prevent false positives for human sessions.
+func detectAgentContext() string {
+	if v := strings.TrimSpace(os.Getenv("SMOKE_AGENT")); v != "" {
+		return strings.ToLower(v)
+	}
+	if os.Getenv("CLAUDECODE") == "1" || os.Getenv("CLAUDE_CODE") == "1" || os.Getenv("CLAUDE_CODE_SUBAGENT_MODEL") != "" {
+		return "claude"
+	}
+	if os.Getenv("GEMINI_CLI") != "" {
+		return "gemini"
+	}
+	if os.Getenv("CODEX") == "1" || os.Getenv("CODEX_CLI") != "" || os.Getenv("OPENAI_CODEX") != "" || os.Getenv("CODEX_CI") == "1" {
+		return "codex"
+	}
+
+	if findClaudeAncestor() > 0 {
+		return "claude"
+	}
+	if findAgentAncestor("gemini") {
+		return "gemini"
+	}
+	if findAgentAncestor("codex") {
+		return "codex"
+	}
+
+	return "unknown"
+}
+
 // ErrNoIdentity is returned when identity cannot be determined
 var ErrNoIdentity = errors.New("cannot determine identity. Use --as flag or set SMOKE_NAME")
 
@@ -144,6 +204,11 @@ const HumanIdentity = "<human>"
 // 3. No valid Claude session file exists for this terminal
 // 4. Stdin is an interactive terminal (TTY)
 func isHumanSession() bool {
+	// If agent context is detected, do not treat as human.
+	if detectAgentContext() != "unknown" {
+		return false
+	}
+
 	// If running under Claude Code, definitely not human
 	if os.Getenv("CLAUDECODE") == "1" {
 		return false
@@ -354,7 +419,7 @@ func detectProject() string {
 	out, err := cmd.Output()
 	if err == nil {
 		url := strings.TrimSpace(string(out))
-		return sanitizeName(extractRepoName(url))
+		return sanitizeProjectName(extractRepoName(url))
 	}
 
 	// Fallback to git toplevel directory name
@@ -362,7 +427,7 @@ func detectProject() string {
 	out, err = cmd.Output()
 	if err == nil {
 		root := strings.TrimSpace(string(out))
-		return sanitizeName(filepath.Base(root))
+		return sanitizeProjectName(filepath.Base(root))
 	}
 
 	// Fallback to cwd
@@ -370,7 +435,7 @@ func detectProject() string {
 	if err != nil {
 		return "unknown"
 	}
-	return sanitizeName(filepath.Base(cwd))
+	return sanitizeProjectName(filepath.Base(cwd))
 }
 
 // extractRepoName extracts the repository name from a git URL
@@ -405,6 +470,21 @@ func sanitizeName(name string) string {
 	var result strings.Builder
 	for _, r := range name {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			result.WriteRune(r)
+		}
+	}
+
+	return strings.ToLower(result.String())
+}
+
+// sanitizeProjectName allows dots for repo names like "dreamwork.github.io".
+func sanitizeProjectName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, " ", "-")
+
+	var result strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
 			result.WriteRune(r)
 		}
 	}

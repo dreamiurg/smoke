@@ -68,7 +68,6 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 
 	// Draw handle
 	handleY := dotY + 50
-	dc.SetColor(accentColor)
 	fontSize := float64(dims.Width) * 0.025
 	if err := dc.LoadFontFace("/System/Library/Fonts/SFNSMono.ttf", fontSize); err != nil {
 		// Fallback to default if font not found
@@ -78,7 +77,30 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	if handle == "" {
 		handle = "anonymous"
 	}
-	dc.DrawString(handle, innerPadding, handleY)
+
+	agent, project := SplitIdentity(handle)
+	agentColor := agentColorForTheme(agent, theme)
+	projectColor := hexToColor(theme.TextMuted.Dark)
+
+	dc.SetColor(agentColor)
+	dc.DrawString(agent, innerPadding, handleY)
+
+	handleWidth := 0.0
+	agentWidth, _ := dc.MeasureString(agent)
+	handleWidth += agentWidth
+
+	if project != "" {
+		dc.SetColor(projectColor)
+		dc.DrawString("@"+project, innerPadding+agentWidth, handleY)
+		projectWidth, _ := dc.MeasureString("@" + project)
+		handleWidth += projectWidth
+	}
+
+	caller := ResolveCallerTag(post)
+	if caller != "" {
+		dc.SetColor(projectColor)
+		dc.DrawString("  via "+caller, innerPadding+handleWidth, handleY)
+	}
 
 	// Draw content
 	contentY := handleY + fontSize*2
@@ -111,6 +133,15 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	}
 
 	return buf.Bytes(), nil
+}
+
+// agentColorForTheme returns the agent name color based on theme palette.
+func agentColorForTheme(agent string, theme *Theme) color.Color {
+	if theme == nil || len(theme.AgentColors) == 0 {
+		return color.Black
+	}
+	idx := hashString(agent) % len(theme.AgentColors)
+	return hexToColor(string(theme.AgentColors[idx]))
 }
 
 // hexToColor converts a hex color string to color.Color

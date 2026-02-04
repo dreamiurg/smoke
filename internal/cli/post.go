@@ -66,6 +66,7 @@ func runPost(_ *cobra.Command, args []string) error {
 		tracker.Fail(err)
 		return err
 	}
+	post.Caller = tracker.Caller()
 
 	// Store post
 	feedPath, err := config.GetFeedPath()

@@ -1,9 +1,12 @@
 package logging
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +15,7 @@ import (
 type Context struct {
 	Identity string // Full identity string "swift-fox@smoke"
 	Agent    string // Agent type: "claude", "human", "unknown"
+	Caller   string // Caller agent type: claude, codex, gemini, unknown
 	Session  string // Session ID for correlation
 	Env      string // Environment: "claude_code", "ci", "terminal"
 	Project  string // Project name
@@ -25,6 +29,7 @@ func CaptureContext() *Context {
 		Env:     detectEnv(),
 		Cwd:     getCwd(),
 		Session: getSessionID(),
+		Caller:  detectCallerAgent(),
 	}
 	return ctx
 }
@@ -42,6 +47,7 @@ func (c *Context) Attrs() slog.Attr {
 	attrs := []any{
 		slog.String("identity", c.Identity),
 		slog.String("agent", c.Agent),
+		slog.String("caller", c.Caller),
 		slog.String("session", c.Session),
 		slog.String("env", c.Env),
 		slog.String("project", c.Project),
@@ -79,6 +85,84 @@ func detectEnv() string {
 	}
 
 	return "unknown"
+}
+
+// detectCallerAgent attempts to identify the calling agent type.
+func detectCallerAgent() string {
+	if v := strings.TrimSpace(os.Getenv("SMOKE_AGENT")); v != "" {
+		return strings.ToLower(v)
+	}
+	if os.Getenv("CLAUDECODE") == "1" || os.Getenv("CLAUDE_CODE") == "1" {
+		return "claude"
+	}
+	if os.Getenv("CLAUDE_CODE_SUBAGENT_MODEL") != "" ||
+		os.Getenv("ANTHROPIC_API_KEY") != "" ||
+		os.Getenv("ANTHROPIC_MODEL") != "" ||
+		os.Getenv("ANTHROPIC_DEFAULT_OPUS_MODEL") != "" ||
+		os.Getenv("ANTHROPIC_DEFAULT_SONNET_MODEL") != "" ||
+		os.Getenv("ANTHROPIC_DEFAULT_HAIKU_MODEL") != "" {
+		return "claude"
+	}
+	if os.Getenv("GEMINI_CLI") != "" {
+		return "gemini"
+	}
+	if os.Getenv("CODEX") == "1" || os.Getenv("CODEX_CLI") != "" || os.Getenv("OPENAI_CODEX") != "" ||
+		os.Getenv("CODEX_CI") == "1" {
+		return "codex"
+	}
+	if os.Getenv("GEMINI_API_KEY") != "" || os.Getenv("GOOGLE_API_KEY") != "" ||
+		os.Getenv("GEMINI_MODEL") != "" || os.Getenv("GOOGLE_CLOUD_PROJECT") != "" ||
+		os.Getenv("GOOGLE_CLOUD_LOCATION") != "" {
+		return "gemini"
+	}
+	if os.Getenv("OPENAI_API_KEY") != "" {
+		return "codex"
+	}
+	if findAgentAncestor("claude") {
+		return "claude"
+	}
+	if findAgentAncestor("codex") {
+		return "codex"
+	}
+	if findAgentAncestor("gemini") {
+		return "gemini"
+	}
+	return "unknown"
+}
+
+// DetectCallerAgent returns the detected caller agent type.
+func DetectCallerAgent() string {
+	return detectCallerAgent()
+}
+
+// findAgentAncestor walks up the process tree looking for a process name match.
+func findAgentAncestor(substr string) bool {
+	substr = strings.ToLower(substr)
+	pid := os.Getpid()
+	visited := make(map[int]bool)
+
+	for pid > 1 && !visited[pid] {
+		visited[pid] = true
+		cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", pid), "-o", "ppid=,comm=")
+		out, err := cmd.Output()
+		if err != nil {
+			break
+		}
+		fields := strings.Fields(strings.TrimSpace(string(out)))
+		if len(fields) < 2 {
+			break
+		}
+		ppid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			break
+		}
+		comm := strings.ToLower(fields[1])
+		if strings.Contains(comm, substr) {
+			return true
+		}
+		pid = ppid
+	}
+	return false
 }
 
 // isTerminal checks if stdout is a terminal.

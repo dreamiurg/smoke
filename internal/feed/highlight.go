@@ -54,19 +54,25 @@ func HighlightAll(text string, colorize bool) string {
 // HighlightWithTheme applies highlighting with proper background color from theme.
 // This styles ALL text (both highlighted and plain) with background to prevent gaps.
 func HighlightWithTheme(text string, theme *Theme) string {
+	return HighlightWithThemeAndBackground(text, theme, theme.Background)
+}
+
+// HighlightWithThemeAndBackground applies highlighting with a custom background color.
+// This styles ALL text (both highlighted and plain) to prevent gaps.
+func HighlightWithThemeAndBackground(text string, theme *Theme, background lipgloss.AdaptiveColor) string {
 	// Style for plain text: just background
-	plainStyle := lipgloss.NewStyle().Background(theme.Background)
+	plainStyle := lipgloss.NewStyle().Background(background)
 
 	// Style for hashtags: dim cyan with theme background
 	hashtagStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#56b6c2")). // dim cyan
-		Background(theme.Background).
+		Background(background).
 		Faint(true)
 
 	// Style for mentions: dim magenta with theme background
 	mentionStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#c678dd")). // dim magenta
-		Background(theme.Background).
+		Background(background).
 		Faint(true)
 
 	// Combined pattern for both hashtags and mentions

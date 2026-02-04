@@ -94,6 +94,7 @@ func runReply(_ *cobra.Command, args []string) error {
 		tracker.Fail(err)
 		return err
 	}
+	reply.Caller = tracker.Caller()
 
 	// Store reply
 	if err := store.Append(reply); err != nil {

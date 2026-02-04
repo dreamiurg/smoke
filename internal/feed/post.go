@@ -24,6 +24,8 @@ type Post struct {
 	ID string `json:"id"`
 	// Author is the name of the agent or user who created the post.
 	Author string `json:"author"`
+	// Caller is the detected agent family for the caller (e.g., claude/codex/gemini).
+	Caller string `json:"caller,omitempty"`
 	// Project is the project or repository context for the post.
 	Project string `json:"project"`
 	// Suffix is the project suffix or identifier (e.g., short code or version).
@@ -148,4 +150,46 @@ func (p *Post) GetCreatedTime() (time.Time, error) {
 // ContentLength returns the length of the content
 func (p *Post) ContentLength() int {
 	return len(p.Content)
+}
+
+// ResolveCallerTag returns the best-available caller tag for display.
+// Prefers post.Caller, falls back to inference from author string.
+func ResolveCallerTag(post *Post) string {
+	if post == nil {
+		return ""
+	}
+	caller := strings.ToLower(strings.TrimSpace(post.Caller))
+	if caller == "" || caller == "unknown" {
+		caller = InferCallerFromAuthor(post.Author)
+	}
+	return caller
+}
+
+// InferCallerFromAuthor attempts to infer caller type from an author string.
+func InferCallerFromAuthor(author string) string {
+	if author == "" {
+		return ""
+	}
+	name := strings.ToLower(author)
+	if at := strings.Index(name, "@"); at != -1 {
+		name = name[:at]
+	}
+	base := name
+	if dash := strings.Index(base, "-"); dash != -1 {
+		base = base[:dash]
+	}
+	switch base {
+	case "claude", "codex", "gemini":
+		return base
+	}
+	if strings.Contains(name, "claude") {
+		return "claude"
+	}
+	if strings.Contains(name, "codex") {
+		return "codex"
+	}
+	if strings.Contains(name, "gemini") {
+		return "gemini"
+	}
+	return ""
 }

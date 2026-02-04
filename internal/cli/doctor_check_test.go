@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/dreamiurg/smoke/internal/config"
 )
 
 func TestCheckConfigDir(t *testing.T) {
@@ -375,6 +377,72 @@ func TestCheckConfigFile(t *testing.T) {
 	}
 }
 
+func TestPerformCodexIntegrationCheck(t *testing.T) {
+	t.Run("config missing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
+
+		check := performCodexIntegrationCheck()
+
+		if check.Status != StatusWarn {
+			t.Errorf("performCodexIntegrationCheck().Status = %v, want StatusWarn", check.Status)
+		}
+		if check.CanFix {
+			t.Error("performCodexIntegrationCheck().CanFix = true, want false when config missing")
+		}
+		if !strings.Contains(check.Message, "codex config not found") {
+			t.Errorf("performCodexIntegrationCheck().Message = %q, want codex config not found", check.Message)
+		}
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
+
+		configDir := filepath.Join(tmpDir, config.CodexDir)
+		if err := os.MkdirAll(filepath.Join(configDir, config.CodexInstructionsDir), 0755); err != nil {
+			t.Fatal(err)
+		}
+		instructionsPath := filepath.Join(configDir, config.CodexInstructionsDir, config.CodexSmokeInstructionsFile)
+		if err := os.WriteFile(instructionsPath, []byte(config.CodexSmokeInstructions), 0644); err != nil {
+			t.Fatal(err)
+		}
+		configPath := filepath.Join(configDir, config.CodexConfigFile)
+		if err := os.WriteFile(configPath, []byte("model_instructions_file = \""+instructionsPath+"\"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		check := performCodexIntegrationCheck()
+
+		if check.Status != StatusPass {
+			t.Errorf("performCodexIntegrationCheck().Status = %v, want StatusPass", check.Status)
+		}
+	})
+
+	t.Run("not configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
+
+		configDir := filepath.Join(tmpDir, config.CodexDir)
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		configPath := filepath.Join(configDir, config.CodexConfigFile)
+		if err := os.WriteFile(configPath, []byte("model = \"gpt-5.2-codex\"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		check := performCodexIntegrationCheck()
+
+		if check.Status != StatusWarn {
+			t.Errorf("performCodexIntegrationCheck().Status = %v, want StatusWarn", check.Status)
+		}
+		if !check.CanFix {
+			t.Error("performCodexIntegrationCheck().CanFix = false, want true when config present")
+		}
+	})
+}
+
 func TestFixConfigDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -646,7 +714,7 @@ func TestRunChecks(t *testing.T) {
 		}
 	}
 
-	expectedCategories := []string{"INSTALLATION", "DATA", "VERSION"}
+	expectedCategories := []string{"INSTALLATION", "CLAUDE CODE", "CODEX", "DATA", "VERSION"}
 	for _, expected := range expectedCategories {
 		if !categoryNames[expected] {
 			t.Errorf("runChecks() missing expected category: %s", expected)

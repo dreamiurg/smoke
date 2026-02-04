@@ -36,6 +36,7 @@ Use --context to get context-specific nudges. Available contexts:
   conversation  Active discussion with user (Learnings, Reflections)
   research      Web research activity (Observations, Questions)
   working       Long work session (Tensions, Learnings, Observations)
+  completion    End of session wrap-up (Learnings, Reflections, Observations)
 
 Custom contexts and examples can be configured in ~/.config/smoke/config.yaml
 
@@ -43,6 +44,7 @@ Examples:
   smoke suggest                      Show recent posts and all examples
   smoke suggest --context=working    Nudge for long work sessions
   smoke suggest --context=research   Nudge after web research
+  smoke suggest --context=completion Nudge at session end
   smoke suggest --since 1h           Show posts from the last hour
   smoke suggest --json               Output structured JSON`,
 	Args: cobra.NoArgs,
@@ -52,7 +54,7 @@ Examples:
 func init() {
 	suggestCmd.Flags().DurationVar(&suggestSince, "since", 4*time.Hour, "Time window for recent posts (e.g., 2h, 30m, 6h)")
 	suggestCmd.Flags().BoolVar(&suggestJSON, "json", false, "Output in JSON format")
-	suggestCmd.Flags().StringVar(&suggestContext, "context", "", "Context for nudge (conversation, research, working, or custom)")
+	suggestCmd.Flags().StringVar(&suggestContext, "context", "", "Context for nudge (conversation, research, working, completion, or custom)")
 	suggestCmd.Flags().IntVar(&suggestPressure, "pressure", -1, "Override pressure level (0-4, -1 means use config default)")
 	rootCmd.AddCommand(suggestCmd)
 }

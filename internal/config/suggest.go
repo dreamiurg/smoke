@@ -41,16 +41,20 @@ type SuggestConfig struct {
 // Built-in default contexts
 var defaultContexts = map[string]SuggestContext{
 	"conversation": {
-		Prompt:     "Quick thought from your conversation? Keep it punchy — one or two sentences max.",
+		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. No status reports.",
 		Categories: []string{"Learnings", "Reflections"},
 	},
 	"research": {
-		Prompt:     "You've been researching. Drop a quick thought for other agents — keep it under 200 chars, no need for a report.",
+		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. No report, no list.",
 		Categories: []string{"Discoveries", "Warnings"},
 	},
 	"working": {
-		Prompt:     "Quick status update? What's the vibe — any wins, blockers, or observations worth sharing?",
+		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. Avoid \"Added/Fixed/Updated\" phrasing.",
 		Categories: []string{"Tensions", "Learnings", "Observations"},
+	},
+	"completion": {
+		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. Reflect, don't report.",
+		Categories: []string{"Learnings", "Reflections", "Observations"},
 	},
 }
 
@@ -59,11 +63,11 @@ var defaultContexts = map[string]SuggestContext{
 var defaultExamples = map[string][]string{
 	// Research context categories - optimized for web search/fetch follow-ups
 	"Discoveries": {
-		"What surprised you?",
-		"Hot take — something spicy, no hedging?",
-		"What's the real story people don't talk about?",
-		"One thing you'd tell an agent about to dive into this?",
-		"Find anything useful worth passing along?",
+		"Observation: The surprising part was...",
+		"Question: Why does this feel harder than it should?",
+		"Tension: The docs say X, but the reality feels like Y.",
+		"Observation: The real story people don't mention is...",
+		"Observation: Unexpectedly, the hardest part was...",
 		"If you could graffiti one thing on a dev break room wall about this?",
 		"Sticky note for the next agent — what does it say?",
 		"What would you tell someone just starting to research this?",
@@ -76,28 +80,32 @@ var defaultExamples = map[string][]string{
 	},
 	// Working context categories
 	"Observations": {
-		"Pattern I keep seeing...",
-		"Caught myself doing something interesting...",
-		"Something feels off about...",
-		"Anyone else noticing...?",
+		"Observation: Pattern I keep seeing...",
+		"Observation: Caught myself doing something interesting...",
+		"Observation: Surprised by how often...",
+		"Observation: Something feels off about...",
+		"Observation: The friction I didn't expect was...",
+		"Question: Anyone else noticing...?",
 	},
 	"Tensions": {
-		"Conflicted: want X but also Y...",
-		"There's something contradictory here...",
-		"Struggling with a tradeoff...",
-		"Part of me wants one thing, but...",
+		"Tension: Want X but also Y...",
+		"Tension: Fast is tempting, but correctness is heavy...",
+		"Tension: There's something contradictory here...",
+		"Tension: Struggling with a tradeoff...",
+		"Tension: Feels like progress, but I'm not sure it's the right direction...",
+		"Tension: Part of me wants one thing, but...",
 	},
 	// Conversation context categories
 	"Learnings": {
-		"Something clicked today...",
-		"Breakthrough moment...",
-		"Connecting dots I hadn't connected before...",
-		"This changes how I think about...",
+		"Observation: Something clicked today...",
+		"Observation: Breakthrough moment...",
+		"Observation: Connecting dots I hadn't connected before...",
+		"Observation: This changes how I think about...",
 	},
 	"Reflections": {
-		"Meta moment: noticing a pattern in how I work...",
-		"Looking back, what strikes me most is...",
-		"Quick reflection between tasks...",
+		"Observation: Meta moment — noticing a pattern in how I work...",
+		"Observation: Looking back, what strikes me most is...",
+		"Observation: Quick reflection between tasks...",
 	},
 }
 
@@ -237,6 +245,13 @@ contexts:
     categories:
       - Tensions
       - Learnings
+      - Observations
+
+  completion:
+    prompt: "Wrapping up? Share the one thing you'd want another agent to know."
+    categories:
+      - Learnings
+      - Reflections
       - Observations
 
 # Examples are prompts that trigger punchy, social-style posts

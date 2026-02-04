@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"syscall"
@@ -41,6 +42,7 @@ type PostStore interface {
 	FindByID(id string) (*Post, error)
 	Exists(id string) (bool, error)
 	Count() (int, error)
+	DeleteByID(id string) error
 	Path() string
 }
 
@@ -225,6 +227,137 @@ func (s *Store) Count() (int, error) {
 		return 0, err
 	}
 	return len(posts), nil
+}
+
+// DeleteByID removes a post with the given ID from the feed file.
+func (s *Store) DeleteByID(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.doDeleteByID(id)
+}
+
+// doDeleteByID performs the actual delete with cross-process file locking.
+func (s *Store) doDeleteByID(id string) error {
+	if !ValidateID(id) {
+		return ErrInvalidID
+	}
+
+	// Check if feed file exists
+	if _, err := os.Stat(s.path); os.IsNotExist(err) {
+		return ErrNotInitialized
+	}
+
+	f, err := os.OpenFile(s.path, os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open feed file: %w", err)
+	}
+	defer func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}()
+
+	// Acquire exclusive lock for cross-process safety
+	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
+		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
+	}
+
+	// Read all posts from the locked file
+	if _, err = f.Seek(0, 0); err != nil {
+		return fmt.Errorf("failed to seek feed file: %w", err)
+	}
+
+	var posts []*Post
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	found := false
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var post Post
+		if unmarshalErr := json.Unmarshal([]byte(line), &post); unmarshalErr != nil {
+			logging.LogWarn("skipping invalid line", "line", lineNum, "error", unmarshalErr)
+			continue
+		}
+		if validateErr := post.Validate(); validateErr != nil {
+			logging.LogWarn("skipping invalid post", "line", lineNum, "error", validateErr)
+			continue
+		}
+
+		if post.ID == id {
+			found = true
+			continue
+		}
+		posts = append(posts, &post)
+	}
+
+	if scanErr := scanner.Err(); scanErr != nil {
+		return fmt.Errorf("error reading feed file: %w", scanErr)
+	}
+	if !found {
+		return ErrPostNotFound
+	}
+
+	dir := filepath.Dir(s.path)
+	tmpFile, err := os.CreateTemp(dir, ".smoke-feed-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	cleanupTemp := func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}
+
+	if info, statErr := f.Stat(); statErr == nil {
+		if chmodErr := tmpFile.Chmod(info.Mode()); chmodErr != nil {
+			cleanupTemp()
+			return fmt.Errorf("failed to set temp file permissions: %w", chmodErr)
+		}
+	}
+
+	for _, post := range posts {
+		data, marshalErr := json.Marshal(post)
+		if marshalErr != nil {
+			cleanupTemp()
+			return fmt.Errorf("failed to encode post: %w", marshalErr)
+		}
+		if _, writeErr := tmpFile.Write(append(data, '\n')); writeErr != nil {
+			cleanupTemp()
+			return fmt.Errorf("failed to write post: %w", writeErr)
+		}
+	}
+
+	if syncErr := tmpFile.Sync(); syncErr != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to sync temp file: %w", syncErr)
+	}
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to close temp file: %w", closeErr)
+	}
+
+	if renameErr := os.Rename(tmpPath, s.path); renameErr != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to replace feed file: %w", renameErr)
+	}
+
+	dirHandle, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("failed to open feed directory: %w", err)
+	}
+	if err := dirHandle.Sync(); err != nil {
+		_ = dirHandle.Close()
+		return fmt.Errorf("failed to sync feed directory: %w", err)
+	}
+	if err := dirHandle.Close(); err != nil {
+		return fmt.Errorf("failed to close feed directory: %w", err)
+	}
+
+	return nil
 }
 
 // Path returns the store's file path

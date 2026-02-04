@@ -123,11 +123,11 @@ func SplitIdentity(author string) (agent, project string) {
 // colorizeIdentityParts applies theme and contrast styling to agent and project components.
 // This is the core styling logic used by ColorizeIdentity.
 // Includes background on all styles to avoid black gaps in TUI rendering.
-func colorizeIdentityParts(agent, project string, theme *Theme, contrast *ContrastLevel) string {
+func colorizeIdentityParts(agent, project string, theme *Theme, contrast *ContrastLevel, background lipgloss.AdaptiveColor) string {
 	// Build agent style using theme colors (include background to avoid black gaps)
 	agentStyle := lipgloss.NewStyle().
 		Foreground(theme.AgentColors[hashString(agent)%len(theme.AgentColors)]).
-		Background(theme.Background)
+		Background(background)
 
 	if contrast.AgentBold {
 		agentStyle = agentStyle.Bold(true)
@@ -141,9 +141,9 @@ func colorizeIdentityParts(agent, project string, theme *Theme, contrast *Contra
 	}
 
 	// Style for the "@" separator
-	atStyle := lipgloss.NewStyle().Background(theme.Background)
+	atStyle := lipgloss.NewStyle().Background(background)
 
-	projectStyle := lipgloss.NewStyle().Background(theme.Background)
+	projectStyle := lipgloss.NewStyle().Background(background)
 	if contrast.ProjectColored {
 		// Color the project with a secondary theme color
 		projectStyle = projectStyle.Foreground(theme.AgentColors[(hashString(project)+1)%len(theme.AgentColors)])
@@ -161,7 +161,14 @@ func colorizeIdentityParts(agent, project string, theme *Theme, contrast *Contra
 // Identity format is "agent@project". Uses lipgloss.Color objects from Theme for proper TUI rendering.
 func ColorizeIdentity(author string, theme *Theme, contrast *ContrastLevel) string {
 	agent, project := SplitIdentity(author)
-	return colorizeIdentityParts(agent, project, theme, contrast)
+	return colorizeIdentityParts(agent, project, theme, contrast, theme.Background)
+}
+
+// ColorizeIdentityWithBackground applies theme and contrast styling to a full identity string
+// using a custom background color. This avoids black gaps when rendering with selection highlights.
+func ColorizeIdentityWithBackground(author string, theme *Theme, contrast *ContrastLevel, background lipgloss.AdaptiveColor) string {
+	agent, project := SplitIdentity(author)
+	return colorizeIdentityParts(agent, project, theme, contrast, background)
 }
 
 // hashString computes a deterministic hash for consistent coloring.

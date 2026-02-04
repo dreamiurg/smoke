@@ -12,7 +12,7 @@ func TestLoadSuggestConfigDefaults(t *testing.T) {
 	cfg := LoadSuggestConfig()
 
 	// Verify default contexts exist
-	expectedContexts := []string{"conversation", "research", "working"}
+	expectedContexts := []string{"conversation", "research", "working", "completion"}
 	for _, name := range expectedContexts {
 		ctx := cfg.GetContext(name)
 		if ctx == nil {
@@ -96,12 +96,12 @@ func TestListContextNames(t *testing.T) {
 	cfg := LoadSuggestConfig()
 
 	names := cfg.ListContextNames()
-	if len(names) < 3 {
-		t.Errorf("expected at least 3 contexts, got %d", len(names))
+	if len(names) < 4 {
+		t.Errorf("expected at least 4 contexts, got %d", len(names))
 	}
 
 	// Check that expected contexts are in the list
-	expected := map[string]bool{"conversation": false, "research": false, "working": false}
+	expected := map[string]bool{"conversation": false, "research": false, "working": false, "completion": false}
 	for _, name := range names {
 		if _, ok := expected[name]; ok {
 			expected[name] = true
@@ -122,8 +122,8 @@ func TestDefaultSuggestConfigYAML(t *testing.T) {
 		t.Fatal("DefaultSuggestConfigYAML returned empty string")
 	}
 
-	// Should contain all three default contexts
-	contexts := []string{"conversation:", "research:", "working:"}
+	// Should contain all four default contexts
+	contexts := []string{"conversation:", "research:", "working:", "completion:"}
 	for _, ctx := range contexts {
 		if !contains(yaml, ctx) {
 			t.Errorf("YAML should contain context %q", ctx)

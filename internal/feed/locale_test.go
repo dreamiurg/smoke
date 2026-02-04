@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -125,7 +126,7 @@ func TestDayLabel(t *testing.T) {
 	}{
 		{"Today", today, "Today"},
 		{"Yesterday", yesterday, "Yesterday"},
-		{"Two days ago", twoDaysAgo, twoDaysAgo.Weekday().String()},
+		{"Two days ago", twoDaysAgo, fmt.Sprintf("%s, %s %s", twoDaysAgo.Format("Monday"), twoDaysAgo.Format("January"), ordinal(twoDaysAgo.Day()))},
 	}
 
 	for _, tt := range tests {
@@ -139,14 +140,15 @@ func TestDayLabel(t *testing.T) {
 
 	// Test that week-old posts show weekday
 	weekAgoLabel := DayLabel(weekAgo)
-	expectedWeekDay := weekAgo.Format("Mon, Jan 2")
+	expectedWeekDay := fmt.Sprintf("%s, %s %s", weekAgo.Format("Monday"), weekAgo.Format("January"), ordinal(weekAgo.Day()))
 	if weekAgoLabel != expectedWeekDay {
 		t.Errorf("DayLabel(weekAgo) = %q, want %q", weekAgoLabel, expectedWeekDay)
 	}
 
 	// Test that year-old posts include year
 	yearAgoLabel := DayLabel(yearAgo)
-	if yearAgoLabel != yearAgo.Format("Mon, Jan 2, 2006") {
+	expectedYear := fmt.Sprintf("%s, %s %s, %d", yearAgo.Format("Monday"), yearAgo.Format("January"), ordinal(yearAgo.Day()), yearAgo.Year())
+	if yearAgoLabel != expectedYear {
 		t.Errorf("DayLabel(yearAgo) = %q, want format with year", yearAgoLabel)
 	}
 }

@@ -5,8 +5,25 @@
 
 set -euo pipefail
 
+# Ensure smoke is discoverable in hook environment
+export PATH="${HOME}/go/bin:/opt/homebrew/bin:/usr/local/bin:${PATH}"
+SMOKE_BIN="${SMOKE_BIN:-smoke}"
+
+# Hook log for diagnostics
+HOOK_LOG="${HOME}/.claude/hooks/smoke-hook.log"
+log_event() {
+    local event="$1"
+    local session="${CLAUDE_SESSION_ID:-default}"
+    local tools_since="${CLAUDE_TOOL_COUNT_SINCE_LAST_HUMAN:-0}"
+    local tools_total="${CLAUDE_TOOL_COUNT:-$tools_since}"
+    local now
+    now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    printf "%s | session=%s | tools=%s | tools_since=%s | event=%s\n" "$now" "$session" "$tools_total" "$tools_since" "$event" >> "$HOOK_LOG" 2>/dev/null || true
+}
+
 # Check if smoke is available
-if ! command -v smoke &> /dev/null; then
+if ! command -v "$SMOKE_BIN" &> /dev/null; then
+    log_event "smoke_missing"
     exit 0
 fi
 
@@ -44,7 +61,11 @@ TIME_SINCE_PROMPT=$((NOW - LAST_PROMPT))
 if [ "$TOOL_COUNT" -gt "$TOOL_THRESHOLD" ] && [ "$TIME_SINCE_PROMPT" -gt "$TIME_THRESHOLD" ]; then
     # Reset timestamp on nudge
     echo "$NOW" > "$STATE_FILE"
-    smoke suggest --context=working 2>/dev/null || true
+    if "$SMOKE_BIN" suggest --context=working >/dev/null 2>&1; then
+        log_event "nudge_hook_fired"
+    else
+        log_event "nudge_hook_error"
+    fi
 fi
 
 # Cleanup: remove state files older than 24 hours

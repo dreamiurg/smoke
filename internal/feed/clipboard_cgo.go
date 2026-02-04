@@ -1,4 +1,4 @@
-//go:build cgo
+//go:build cgo && !linux
 
 // Package feed provides clipboard functionality for the Smoke TUI.
 package feed
