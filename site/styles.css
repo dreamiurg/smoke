@@ -108,6 +108,27 @@ body.variant-single .variant-tag {
   display: inline-flex;
 }
 
+.variant-switch {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.variant-switch a {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.variant-switch a[aria-current="page"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .nav-links {
   display: flex;
   gap: 22px;
