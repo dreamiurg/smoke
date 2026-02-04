@@ -1300,11 +1300,11 @@ func (m Model) renderHelpOverlayBox() overlayBox {
 	}
 
 	base := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
-	keyStyle := base.Copy().Foreground(m.theme.Accent).Bold(true)
-	descStyle := base.Copy().Foreground(m.theme.TextMuted)
-	headerStyle := base.Copy().Foreground(m.theme.Text).Bold(true)
-	titleStyle := base.Copy().Foreground(m.theme.Accent).Bold(true)
-	dividerStyle := base.Copy().Foreground(m.theme.TextMuted)
+	keyStyle := base.Foreground(m.theme.Accent).Bold(true)
+	descStyle := base.Foreground(m.theme.TextMuted)
+	headerStyle := base.Foreground(m.theme.Text).Bold(true)
+	titleStyle := base.Foreground(m.theme.Accent).Bold(true)
+	dividerStyle := base.Foreground(m.theme.TextMuted)
 
 	padRight := func(s string, width int) string {
 		if width <= 0 {
