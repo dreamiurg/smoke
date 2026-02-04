@@ -262,7 +262,7 @@ func (s *Store) doDeleteByID(id string) error {
 	}
 
 	// Read all posts from the locked file
-	if _, err := f.Seek(0, 0); err != nil {
+	if _, err = f.Seek(0, 0); err != nil {
 		return fmt.Errorf("failed to seek feed file: %w", err)
 	}
 
@@ -278,12 +278,12 @@ func (s *Store) doDeleteByID(id string) error {
 		}
 
 		var post Post
-		if err := json.Unmarshal([]byte(line), &post); err != nil {
-			logging.LogWarn("skipping invalid line", "line", lineNum, "error", err)
+		if unmarshalErr := json.Unmarshal([]byte(line), &post); unmarshalErr != nil {
+			logging.LogWarn("skipping invalid line", "line", lineNum, "error", unmarshalErr)
 			continue
 		}
-		if err := post.Validate(); err != nil {
-			logging.LogWarn("skipping invalid post", "line", lineNum, "error", err)
+		if validateErr := post.Validate(); validateErr != nil {
+			logging.LogWarn("skipping invalid post", "line", lineNum, "error", validateErr)
 			continue
 		}
 
@@ -294,8 +294,8 @@ func (s *Store) doDeleteByID(id string) error {
 		posts = append(posts, &post)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading feed file: %w", err)
+	if scanErr := scanner.Err(); scanErr != nil {
+		return fmt.Errorf("error reading feed file: %w", scanErr)
 	}
 	if !found {
 		return ErrPostNotFound
@@ -320,29 +320,29 @@ func (s *Store) doDeleteByID(id string) error {
 	}
 
 	for _, post := range posts {
-		data, err := json.Marshal(post)
-		if err != nil {
+		data, marshalErr := json.Marshal(post)
+		if marshalErr != nil {
 			cleanupTemp()
-			return fmt.Errorf("failed to encode post: %w", err)
+			return fmt.Errorf("failed to encode post: %w", marshalErr)
 		}
-		if _, err := tmpFile.Write(append(data, '\n')); err != nil {
+		if _, writeErr := tmpFile.Write(append(data, '\n')); writeErr != nil {
 			cleanupTemp()
-			return fmt.Errorf("failed to write post: %w", err)
+			return fmt.Errorf("failed to write post: %w", writeErr)
 		}
 	}
 
-	if err := tmpFile.Sync(); err != nil {
+	if syncErr := tmpFile.Sync(); syncErr != nil {
 		cleanupTemp()
-		return fmt.Errorf("failed to sync temp file: %w", err)
+		return fmt.Errorf("failed to sync temp file: %w", syncErr)
 	}
-	if err := tmpFile.Close(); err != nil {
+	if closeErr := tmpFile.Close(); closeErr != nil {
 		cleanupTemp()
-		return fmt.Errorf("failed to close temp file: %w", err)
+		return fmt.Errorf("failed to close temp file: %w", closeErr)
 	}
 
-	if err := os.Rename(tmpPath, s.path); err != nil {
+	if renameErr := os.Rename(tmpPath, s.path); renameErr != nil {
 		cleanupTemp()
-		return fmt.Errorf("failed to replace feed file: %w", err)
+		return fmt.Errorf("failed to replace feed file: %w", renameErr)
 	}
 
 	dirHandle, err := os.Open(dir)
