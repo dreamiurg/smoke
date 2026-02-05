@@ -121,7 +121,7 @@ func TestFormatSuggestPost(t *testing.T) {
 	}
 }
 
-func TestFormatSuggestPostTruncatesLongContent(t *testing.T) {
+func TestFormatSuggestPostShowsFullContent(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "suggest_test")
 	if err != nil {
 		t.Fatal(err)
@@ -145,13 +145,12 @@ func TestFormatSuggestPostTruncatesLongContent(t *testing.T) {
 	buf.ReadFrom(tmpFile)
 	output := buf.String()
 
-	// Should contain "..." indicating truncation
-	if !contains(output, "...") {
-		t.Error("long content should be truncated with '...'")
+	// Should include the full content (no truncation)
+	if !contains(output, longContent) {
+		t.Error("long content should be shown in full")
 	}
-	// Should not contain the full content
-	if contains(output, "preview width limit") {
-		t.Error("content should have been truncated")
+	if contains(output, "...") {
+		t.Error("output should not be truncated with '...'")
 	}
 }
 

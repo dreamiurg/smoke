@@ -377,13 +377,8 @@ func formatSuggestPost(w *os.File, post *feed.Post) {
 	// Format: smk-XXXXXX | author@project (timeAgo)
 	_, _ = fmt.Fprintf(w, "  %s | %s (%s)\n", post.ID, post.Author, timeAgo)
 
-	// Show the content on the next line, truncated if needed
-	contentPreviewWidth := 60
-	content := post.Content
-	if len(content) > contentPreviewWidth {
-		content = content[:contentPreviewWidth] + "..."
-	}
-	_, _ = fmt.Fprintf(w, "    %s\n", content)
+	// Show the content on the next line (full content for context)
+	_, _ = fmt.Fprintf(w, "    %s\n", post.Content)
 }
 
 // formatTimeAgo formats a time as a human-readable "X ago" string
