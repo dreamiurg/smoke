@@ -1365,10 +1365,9 @@ func TestHandleCopyMenuKey(t *testing.T) {
 	t.Run("escape closes menu", func(t *testing.T) {
 		m := model
 		msg := tea.KeyMsg{Type: tea.KeyEscape}
-		updated, _ := m.handleCopyMenuKey(msg)
-		updatedModel := updated.(Model)
+		m.handleCopyMenuKey(msg)
 
-		if updatedModel.showCopyMenu {
+		if m.showCopyMenu {
 			t.Error("Escape should close copy menu")
 		}
 	})
@@ -1376,10 +1375,9 @@ func TestHandleCopyMenuKey(t *testing.T) {
 	t.Run("q closes menu", func(t *testing.T) {
 		m := model
 		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}
-		updated, _ := m.handleCopyMenuKey(msg)
-		updatedModel := updated.(Model)
+		m.handleCopyMenuKey(msg)
 
-		if updatedModel.showCopyMenu {
+		if m.showCopyMenu {
 			t.Error("q should close copy menu")
 		}
 	})
@@ -1388,11 +1386,10 @@ func TestHandleCopyMenuKey(t *testing.T) {
 		m := model
 		m.copyMenuIndex = 0
 		msg := tea.KeyMsg{Type: tea.KeyDown}
-		updated, _ := m.handleCopyMenuKey(msg)
-		updatedModel := updated.(Model)
+		m.handleCopyMenuKey(msg)
 
-		if updatedModel.copyMenuIndex != 1 {
-			t.Errorf("Down should move menu index to 1, got %d", updatedModel.copyMenuIndex)
+		if m.copyMenuIndex != 1 {
+			t.Errorf("Down should move menu index to 1, got %d", m.copyMenuIndex)
 		}
 	})
 
@@ -1400,11 +1397,10 @@ func TestHandleCopyMenuKey(t *testing.T) {
 		m := model
 		m.copyMenuIndex = 1
 		msg := tea.KeyMsg{Type: tea.KeyUp}
-		updated, _ := m.handleCopyMenuKey(msg)
-		updatedModel := updated.(Model)
+		m.handleCopyMenuKey(msg)
 
-		if updatedModel.copyMenuIndex != 0 {
-			t.Errorf("Up should move menu index to 0, got %d", updatedModel.copyMenuIndex)
+		if m.copyMenuIndex != 0 {
+			t.Errorf("Up should move menu index to 0, got %d", m.copyMenuIndex)
 		}
 	})
 
@@ -1421,10 +1417,9 @@ func TestHandleCopyMenuKey(t *testing.T) {
 		for _, tt := range tests {
 			m := model
 			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)}
-			updated, _ := m.handleCopyMenuKey(msg)
-			updatedModel := updated.(Model)
+			m.handleCopyMenuKey(msg)
 
-			if updatedModel.showCopyMenu {
+			if m.showCopyMenu {
 				t.Errorf("Key %s should close copy menu", tt.key)
 			}
 			// Note: We can't easily test the actual copy since it requires clipboard

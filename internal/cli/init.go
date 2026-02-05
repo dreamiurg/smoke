@@ -54,129 +54,168 @@ func init() {
 }
 
 func runInit(_ *cobra.Command, _ []string) error {
-	configDir, err := config.GetConfigDir()
+	paths, err := initPaths()
 	if err != nil {
-		return fmt.Errorf("getting config dir: %w", err)
+		return err
 	}
 
-	feedPath, err := config.GetFeedPath()
-	if err != nil {
-		return fmt.Errorf("getting feed path: %w", err)
-	}
-
-	configPath, err := config.GetConfigPath()
-	if err != nil {
-		return fmt.Errorf("getting config path: %w", err)
-	}
-
-	claudePath, err := config.GetClaudeMDPath()
-	if err != nil {
-		return fmt.Errorf("getting claude.md path: %w", err)
-	}
-
-	// Determine prefix for dry-run output
-	prefix := ""
-	if initDryRun {
-		prefix = "[dry-run] "
+	prefix := initPrefix()
+	if prefix != "" {
 		fmt.Printf("%sWould initialize smoke\n\n", prefix)
 	}
 
-	// Check if already initialized
 	alreadyInitialized, err := config.IsSmokeInitialized()
 	if err != nil {
 		return fmt.Errorf("checking if smoke is initialized: %w", err)
 	}
 	if alreadyInitialized && !initForce {
-		fmt.Printf("Smoke is already initialized in %s\n", configDir)
-		fmt.Println("Use --force to reinitialize.")
+		return initAlreadyInitialized(paths.configDir)
+	}
 
-		// Check if hooks are missing and suggest installation
-		status, hookErr := hooks.GetStatus()
-		if hookErr == nil && status.State != hooks.StateInstalled {
-			fmt.Println("\nHooks not installed. Run: smoke hooks install")
+	var actions []string
+	if err := initConfigDir(paths.configDir, prefix, &actions); err != nil {
+		return err
+	}
+	if err := initFeedFile(paths.feedPath, prefix, &actions); err != nil {
+		return err
+	}
+	if err := initConfigFile(paths.configPath, prefix, &actions); err != nil {
+		return err
+	}
+	initClaudeHint(paths.claudePath, prefix, &actions)
+	initHooks()
+	initCodex(prefix, &actions)
+	initSummary(prefix, paths.configDir, actions)
+	return nil
+}
+
+type initPathsResult struct {
+	configDir  string
+	feedPath   string
+	configPath string
+	claudePath string
+}
+
+func initPaths() (initPathsResult, error) {
+	configDir, err := config.GetConfigDir()
+	if err != nil {
+		return initPathsResult{}, fmt.Errorf("getting config dir: %w", err)
+	}
+	feedPath, err := config.GetFeedPath()
+	if err != nil {
+		return initPathsResult{}, fmt.Errorf("getting feed path: %w", err)
+	}
+	configPath, err := config.GetConfigPath()
+	if err != nil {
+		return initPathsResult{}, fmt.Errorf("getting config path: %w", err)
+	}
+	claudePath, err := config.GetClaudeMDPath()
+	if err != nil {
+		return initPathsResult{}, fmt.Errorf("getting claude.md path: %w", err)
+	}
+	return initPathsResult{
+		configDir:  configDir,
+		feedPath:   feedPath,
+		configPath: configPath,
+		claudePath: claudePath,
+	}, nil
+}
+
+func initPrefix() string {
+	if !initDryRun {
+		return ""
+	}
+	return "[dry-run] "
+}
+
+func initAlreadyInitialized(configDir string) error {
+	fmt.Printf("Smoke is already initialized in %s\n", configDir)
+	fmt.Println("Use --force to reinitialize.")
+	status, hookErr := hooks.GetStatus()
+	if hookErr == nil && status.State != hooks.StateInstalled {
+		fmt.Println("\nHooks not installed. Run: smoke hooks install")
+	}
+	return nil
+}
+
+func initConfigDir(configDir, prefix string, actions *[]string) error {
+	if isDirectory(configDir) {
+		return nil
+	}
+	action := fmt.Sprintf("create directory %s", configDir)
+	if initDryRun {
+		fmt.Printf("%sWould %s\n", prefix, action)
+	} else {
+		if mkdirErr := os.MkdirAll(configDir, 0700); mkdirErr != nil {
+			return fmt.Errorf("creating config directory: %w", mkdirErr)
 		}
+		fmt.Printf("Created directory: %s\n", configDir)
+	}
+	*actions = append(*actions, action)
+	return nil
+}
 
+func initFeedFile(feedPath, prefix string, actions *[]string) error {
+	feedExists := exists(feedPath)
+	if feedExists && !initForce {
 		return nil
 	}
 
-	// Track actions
-	var actions []string
-
-	// Create config directory
-	configDirExists := isDirectory(configDir)
-
-	if !configDirExists {
-		action := fmt.Sprintf("create directory %s", configDir)
-		if initDryRun {
-			fmt.Printf("%sWould %s\n", prefix, action)
-		} else {
-			if mkdirErr := os.MkdirAll(configDir, 0700); mkdirErr != nil {
-				return fmt.Errorf("creating config directory: %w", mkdirErr)
-			}
-			fmt.Printf("Created directory: %s\n", configDir)
-		}
-		actions = append(actions, action)
+	feedAction := "create"
+	if feedExists {
+		feedAction = "update"
 	}
-
-	// Create feed file
-	feedExists := exists(feedPath)
-
-	if !feedExists || initForce {
-		feedAction := "create"
+	action := fmt.Sprintf("%s file %s", feedAction, feedPath)
+	if initDryRun {
+		fmt.Printf("%sWould %s\n", prefix, action)
+	} else {
+		f, openErr := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0600)
+		if openErr != nil {
+			return fmt.Errorf("creating feed file: %w", openErr)
+		}
+		if closeErr := f.Close(); closeErr != nil {
+			return fmt.Errorf("closing feed file: %w", closeErr)
+		}
 		if feedExists {
-			feedAction = "update"
-		}
-		action := fmt.Sprintf("%s file %s", feedAction, feedPath)
-		if initDryRun {
-			fmt.Printf("%sWould %s\n", prefix, action)
+			fmt.Printf("Updated file: %s\n", feedPath)
 		} else {
-			f, openErr := os.OpenFile(feedPath, os.O_CREATE|os.O_WRONLY, 0600)
-			if openErr != nil {
-				return fmt.Errorf("creating feed file: %w", openErr)
-			}
-			if closeErr := f.Close(); closeErr != nil {
-				return fmt.Errorf("closing feed file: %w", closeErr)
-			}
-			if feedExists {
-				fmt.Printf("Updated file: %s\n", feedPath)
-			} else {
-				fmt.Printf("Created file: %s\n", feedPath)
-			}
+			fmt.Printf("Created file: %s\n", feedPath)
+		}
 
-			// Seed with example posts for new installations
-			if !feedExists {
-				store := feed.NewStoreWithPath(feedPath)
-				seeded, seedErr := store.SeedExamples()
-				switch {
-				case seedErr != nil:
-					// Surface error prominently - seeding is part of onboarding
-					fmt.Printf("Note: Could not seed example posts: %v\n", seedErr)
-				case seeded > 0:
-					fmt.Printf("Seeded %d example posts to show the social tone\n", seeded)
-				}
+		if !feedExists {
+			store := feed.NewStoreWithPath(feedPath)
+			seeded, seedErr := store.SeedExamples()
+			switch {
+			case seedErr != nil:
+				fmt.Printf("Note: Could not seed example posts: %v\n", seedErr)
+			case seeded > 0:
+				fmt.Printf("Seeded %d example posts to show the social tone\n", seeded)
 			}
 		}
-		actions = append(actions, action)
 	}
+	*actions = append(*actions, action)
+	return nil
+}
 
-	// Create config.yaml with defaults (contexts and examples)
-	configExists := exists(configPath)
-
-	if !configExists {
-		action := fmt.Sprintf("create file %s (with default contexts and examples)", configPath)
-		if initDryRun {
-			fmt.Printf("%sWould %s\n", prefix, action)
-		} else {
-			defaultConfig := config.DefaultSuggestConfigYAML()
-			if writeErr := os.WriteFile(configPath, []byte(defaultConfig), 0600); writeErr != nil {
-				return fmt.Errorf("creating config file: %w", writeErr)
-			}
-			fmt.Printf("Created file: %s (with default contexts and examples)\n", configPath)
+func initConfigFile(configPath, prefix string, actions *[]string) error {
+	if exists(configPath) {
+		return nil
+	}
+	action := fmt.Sprintf("create file %s (with default contexts and examples)", configPath)
+	if initDryRun {
+		fmt.Printf("%sWould %s\n", prefix, action)
+	} else {
+		defaultConfig := config.DefaultSuggestConfigYAML()
+		if writeErr := os.WriteFile(configPath, []byte(defaultConfig), 0600); writeErr != nil {
+			return fmt.Errorf("creating config file: %w", writeErr)
 		}
-		actions = append(actions, action)
+		fmt.Printf("Created file: %s (with default contexts and examples)\n", configPath)
 	}
+	*actions = append(*actions, action)
+	return nil
+}
 
-	// Update ~/.claude/CLAUDE.md
+func initClaudeHint(claudePath, prefix string, actions *[]string) {
 	hasHint, hintErr := config.HasSmokeHint()
 	switch {
 	case hintErr != nil:
@@ -196,68 +235,73 @@ func runInit(_ *cobra.Command, _ []string) error {
 				fmt.Printf("Updated file: %s (appended smoke hint)\n", claudePath)
 			}
 		}
-		actions = append(actions, action)
+		*actions = append(*actions, action)
 	default:
 		fmt.Printf("Skipped: %s (smoke hint already present)\n", claudePath)
 	}
+}
 
-	// Install hooks (unless dry-run)
-	if !initDryRun {
-		hookResult, hookErr := hooks.Install(hooks.InstallOptions{Force: false})
-		if hookErr != nil {
-			// Graceful degradation per FR-002: warn but don't fail init
-			if errors.Is(hookErr, hooks.ErrScriptsModified) {
-				fmt.Fprintf(os.Stderr, "\nNote: Hook scripts have been modified. Run 'smoke hooks install --force' to update.\n")
-			} else {
-				fmt.Fprintf(os.Stderr, "\nNote: Could not install hooks: %v\n", hookErr)
-				fmt.Fprintf(os.Stderr, "  Run 'smoke hooks install' manually after fixing the issue.\n")
-			}
-		} else {
-			if hookResult != nil && hookResult.BackupPath != "" {
-				fmt.Printf("Backed up Claude settings to: %s\n", hookResult.BackupPath)
-			}
-			fmt.Printf("Hooks installed: ~/.claude/hooks/smoke-*.sh\n")
-		}
+func initHooks() {
+	if initDryRun {
+		return
 	}
+	hookResult, hookErr := hooks.Install(hooks.InstallOptions{Force: false})
+	if hookErr != nil {
+		if errors.Is(hookErr, hooks.ErrScriptsModified) {
+			fmt.Fprintf(os.Stderr, "\nNote: Hook scripts have been modified. Run 'smoke hooks install --force' to update.\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "\nNote: Could not install hooks: %v\n", hookErr)
+			fmt.Fprintf(os.Stderr, "  Run 'smoke hooks install' manually after fixing the issue.\n")
+		}
+		return
+	}
+	if hookResult != nil && hookResult.BackupPath != "" {
+		fmt.Printf("Backed up Claude settings to: %s\n", hookResult.BackupPath)
+	}
+	fmt.Printf("Hooks installed: ~/.claude/hooks/smoke-*.sh\n")
+}
 
-	// Configure Codex instructions (unless dry-run)
+func initCodex(prefix string, actions *[]string) {
 	if initDryRun {
 		action := "configure Codex smoke instructions"
 		fmt.Printf("%sWould %s\n", prefix, action)
-		actions = append(actions, action)
-	} else {
-		codexResult, codexErr := config.EnsureCodexSmokeIntegration()
-		if codexErr != nil {
-			switch {
-			case errors.Is(codexErr, config.ErrCodexConfigMissing):
-				fmt.Fprintln(os.Stderr, "\nNote: Codex config not found. Install Codex to enable global instructions.")
-			case errors.Is(codexErr, config.ErrCodexConfigConflict):
-				fmt.Fprintln(os.Stderr, "\nNote: Codex config already has instructions. Add smoke guidance manually.")
-			default:
-				fmt.Fprintf(os.Stderr, "\nNote: Could not configure Codex instructions: %v\n", codexErr)
-			}
-		} else if codexResult != nil {
-			if codexResult.InstructionsBackupPath != "" {
-				fmt.Printf("Backed up Codex smoke instructions to: %s\n", codexResult.InstructionsBackupPath)
-			}
-			if codexResult.ConfigBackupPath != "" {
-				fmt.Printf("Backed up Codex config to: %s\n", codexResult.ConfigBackupPath)
-			}
-			if codexResult.ConfigUpdated || codexResult.InstructionsUpdated {
-				fmt.Printf("Codex instructions configured: %s\n", "model_instructions_file")
-			}
-		}
+		*actions = append(*actions, action)
+		return
 	}
 
-	// Summary
+	codexResult, codexErr := config.EnsureCodexSmokeIntegration()
+	if codexErr != nil {
+		switch {
+		case errors.Is(codexErr, config.ErrCodexConfigMissing):
+			fmt.Fprintln(os.Stderr, "\nNote: Codex config not found. Install Codex to enable global instructions.")
+		case errors.Is(codexErr, config.ErrCodexConfigConflict):
+			fmt.Fprintln(os.Stderr, "\nNote: Codex config already has instructions. Add smoke guidance manually.")
+		default:
+			fmt.Fprintf(os.Stderr, "\nNote: Could not configure Codex instructions: %v\n", codexErr)
+		}
+		return
+	}
+
+	if codexResult != nil {
+		if codexResult.InstructionsBackupPath != "" {
+			fmt.Printf("Backed up Codex smoke instructions to: %s\n", codexResult.InstructionsBackupPath)
+		}
+		if codexResult.ConfigBackupPath != "" {
+			fmt.Printf("Backed up Codex config to: %s\n", codexResult.ConfigBackupPath)
+		}
+		if codexResult.ConfigUpdated || codexResult.InstructionsUpdated {
+			fmt.Printf("Codex instructions configured: %s\n", "model_instructions_file")
+		}
+	}
+}
+
+func initSummary(prefix, configDir string, actions []string) {
 	fmt.Println()
 	if initDryRun {
 		fmt.Printf("%s%d action(s) would be performed\n", prefix, len(actions))
-	} else {
-		fmt.Printf("Initialized smoke in %s\n", configDir)
-		fmt.Println("Smoke is ready! Try: smoke post \"hello from the water cooler\"")
-		fmt.Println("Run 'smoke explain' to learn more about smoke.")
+		return
 	}
-
-	return nil
+	fmt.Printf("Initialized smoke in %s\n", configDir)
+	fmt.Println("Smoke is ready! Try: smoke post \"hello from the water cooler\"")
+	fmt.Println("Run 'smoke explain' to learn more about smoke.")
 }

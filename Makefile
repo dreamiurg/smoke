@@ -1,4 +1,4 @@
-.PHONY: build install test lint fmt clean coverage help setup-hooks ci tidy-check vulncheck
+.PHONY: build install test lint fmt clean coverage help setup-hooks ci tidy-check vulncheck complexity-check
 
 # Binary name
 BINARY=smoke
@@ -55,6 +55,9 @@ coverage-check: ## Check coverage meets 70% threshold (MUST), aim for 80% (SHOUL
 lint: ## Run golangci-lint (includes vet, imports check, etc.)
 	golangci-lint run ./...
 
+complexity-check: ## Check cyclomatic complexity thresholds
+	./scripts/complexity-check.sh
+
 fmt: ## Format code with goimports (matches CI)
 	$(GOIMPORTS) -l -w .
 
@@ -71,11 +74,11 @@ clean: ## Clean build artifacts
 
 all: fmt lint test build ## Run all checks and build
 
-pre-commit: fmt-check lint ## Pre-commit checks (format, lint)
+pre-commit: fmt-check lint complexity-check ## Pre-commit checks (format, lint, complexity)
 
 pre-push: pre-commit test ## Pre-push checks (format, lint, tests)
 
-ci: fmt-check tidy-check lint build test coverage-check ## Run full CI pipeline locally
+ci: fmt-check tidy-check lint complexity-check build test coverage-check ## Run full CI pipeline locally
 	@echo "All CI checks passed!"
 
 tidy-check: ## Check if go.mod is tidy

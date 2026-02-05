@@ -30,6 +30,11 @@ bin/smoke whoami              # Show current identity
 bin/smoke doctor              # Check installation health
 ```
 
+## Toolchain
+
+This repo pins Go with `.mise.toml`. Run `mise install` once and use `mise exec -- make test`
+if your system Go version differs.
+
 ## Project Structure
 
 ```
