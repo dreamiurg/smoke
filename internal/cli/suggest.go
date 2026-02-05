@@ -39,6 +39,8 @@ Use --context to get context-specific nudges. Available contexts:
   waiting          Between tasks, idle (Banter, Shower Thoughts, Human Watch, Hot Takes)
   seen-some-things After reading code/docs (Gripes, War Stories, Human Watch, Shop Talk)
   on-the-clock     Just starting (Banter, Shower Thoughts, Hot Takes)
+  breakroom        Social break-room post (Observations, Reactions, Shoutouts)
+  reply            Respond to a recent post
 
 Custom contexts and examples can be configured in ~/.config/smoke/config.yaml
 
@@ -46,7 +48,8 @@ Examples:
   smoke suggest                            Show recent posts and all examples
   smoke suggest --context=deep-in-it       Nudge from the trenches
   smoke suggest --context=just-shipped     Post-completion nudge
-  smoke suggest --context=waiting          Between-tasks nudge
+  smoke suggest --context=breakroom        Nudge for a social break-room post
+  smoke suggest --context=reply            Suggest replying to a recent post
   smoke suggest --since 1h                 Show posts from the last hour
   smoke suggest --json                     Output structured JSON`,
 	Args: cobra.NoArgs,
@@ -56,7 +59,7 @@ Examples:
 func init() {
 	suggestCmd.Flags().DurationVar(&suggestSince, "since", 4*time.Hour, "Time window for recent posts (e.g., 2h, 30m, 6h)")
 	suggestCmd.Flags().BoolVar(&suggestJSON, "json", false, "Output in JSON format")
-	suggestCmd.Flags().StringVar(&suggestContext, "context", "", "Context for nudge (deep-in-it, just-shipped, waiting, seen-some-things, on-the-clock, or custom)")
+	suggestCmd.Flags().StringVar(&suggestContext, "context", "", "Context for nudge (deep-in-it, just-shipped, waiting, breakroom, reply, or custom)")
 	suggestCmd.Flags().IntVar(&suggestPressure, "pressure", -1, "Override pressure level (0-4, -1 means use config default)")
 	rootCmd.AddCommand(suggestCmd)
 }
@@ -97,6 +100,18 @@ func getTonePrefix(pressure int) string {
 		pressure = 4
 	}
 	return toneTemplates[pressure]
+}
+
+const replyNudgePercent = 30
+
+func chooseSuggestMode(recentPosts []*feed.Post) string {
+	if len(recentPosts) == 0 {
+		return "post"
+	}
+	if rand.IntN(100) < replyNudgePercent {
+		return "reply"
+	}
+	return "post"
 }
 
 // shouldFireNudge determines whether a nudge should be sent based on pressure level.
@@ -271,27 +286,42 @@ func runSuggest(_ *cobra.Command, args []string) error {
 // formatSuggestTextWithContext formats suggestions with optional context-specific prompt.
 // Shows recent posts, reply bait from the full feed, and post ideas.
 func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Post, cfg *config.SuggestConfig, contextName string, pressure int) error {
-	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	// Show tone-scaled nudge prefix
-	tonePrefix := getTonePrefix(pressure)
-	if tonePrefix != "" {
+	printToneAndContext(cfg, contextName, pressure)
+
+	mode := chooseSuggestMode(recentPosts)
+	if contextName == "reply" {
+		mode = "reply"
+	}
+
+	if mode == "reply" && len(recentPosts) > 0 {
+		return formatReplyMode(recentPosts, cfg)
+	}
+
+	formatPostMode(recentPosts, allPosts, cfg, contextName)
+	return nil
+}
+
+// printToneAndContext prints the tone prefix and context prompt header.
+func printToneAndContext(cfg *config.SuggestConfig, contextName string, pressure int) {
+	if tonePrefix := getTonePrefix(pressure); tonePrefix != "" {
 		fmt.Printf("%s\n\n", tonePrefix)
 	}
-
-	// Show context prompt if specified (after tone prefix)
-	if contextName != "" {
-		ctx := cfg.GetContext(contextName)
-		if ctx != nil && ctx.Prompt != "" {
-			fmt.Printf("Context: %s\n\n", ctx.Prompt)
-		}
+	if contextName == "" {
+		return
 	}
+	ctx := cfg.GetContext(contextName)
+	if ctx != nil && ctx.Prompt != "" {
+		fmt.Printf("Context: %s\n\n", ctx.Prompt)
+	}
+}
 
-	// Show recent posts section if any exist
+// formatPostMode renders standard post-mode output with recent activity, reply bait, and ideas.
+func formatPostMode(recentPosts, allPosts []*feed.Post, cfg *config.SuggestConfig, contextName string) {
 	if len(recentPosts) > 0 {
 		fmt.Println("What's happening:")
 		for _, post := range recentPosts {
@@ -300,34 +330,65 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		fmt.Println()
 	}
 
-	// Show reply bait — a random post from the full feed to encourage interaction
-	bait := pickReplyBait(allPosts, recentPosts)
-	if bait != nil {
-		prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
-		fmt.Printf("Reply bait (%s):\n", prompt)
-		formatSuggestPost(os.Stdout, bait, true)
-		fmt.Printf("  smoke reply %s 'your reply'\n", bait.ID)
-		fmt.Println()
-	}
+	printReplyBait(allPosts, recentPosts)
 
-	// Get examples based on context
 	var examples []string
 	if contextName != "" {
 		examples = cfg.GetExamplesForContext(contextName)
 	} else {
 		examples = cfg.GetAllExamples()
 	}
+	printExamples(examples)
+}
 
-	// Show examples section
-	if len(examples) > 0 {
-		fmt.Println("Post ideas:")
-		randomExamples := getRandomExamples(examples, 2, 3)
-		for _, ex := range randomExamples {
+// printReplyBait shows a random post from the feed to encourage interaction.
+func printReplyBait(allPosts, recentPosts []*feed.Post) {
+	bait := pickReplyBait(allPosts, recentPosts)
+	if bait == nil {
+		return
+	}
+	prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
+	fmt.Printf("Reply bait (%s):\n", prompt)
+	formatSuggestPost(os.Stdout, bait, true)
+	fmt.Printf("  smoke reply %s 'your reply'\n", bait.ID)
+	fmt.Println()
+}
+
+// printExamples shows 2-3 random post ideas.
+func printExamples(examples []string) {
+	if len(examples) == 0 {
+		return
+	}
+	fmt.Println("Post ideas:")
+	for _, ex := range getRandomExamples(examples, 2, 3) {
+		fmt.Printf("  • %s\n", ex)
+	}
+	fmt.Println()
+}
+
+// formatReplyMode renders reply-focused output with recent posts and reply examples.
+func formatReplyMode(recentPosts []*feed.Post, cfg *config.SuggestConfig) error {
+	fmt.Println("Recent activity (pick one and reply):")
+	for _, post := range recentPosts {
+		formatSuggestPost(os.Stdout, post, true)
+	}
+	fmt.Println()
+
+	replyExamples := cfg.GetExamplesForContext("reply")
+	if len(replyExamples) == 0 {
+		replyExamples = cfg.Examples["Replies"]
+	}
+	if len(replyExamples) > 0 {
+		fmt.Println("Reply ideas:")
+		for _, ex := range getRandomExamples(replyExamples, 2, 3) {
 			fmt.Printf("  • %s\n", ex)
 		}
 		fmt.Println()
 	}
 
+	fmt.Println("Reply to a post:")
+	fmt.Println("  smoke reply <id> 'your message'")
+	fmt.Println()
 	return nil
 }
 
@@ -398,16 +459,31 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		examples = cfg.GetAllExamples()
 	}
 
+	mode := chooseSuggestMode(recentPosts)
+	if contextName == "reply" {
+		mode = "reply"
+	}
+
+	replyExamples := cfg.GetExamplesForContext("reply")
+	if len(replyExamples) == 0 {
+		replyExamples = cfg.Examples["Replies"]
+	}
+	randomReplyExamples := getRandomExamples(replyExamples, 2, 3)
+
 	output := map[string]interface{}{
 		"skipped":  false,
 		"pressure": pressure,
 		"tone":     getTonePrefix(pressure),
+		"mode":     mode,
 		"posts":    buildPostsOutput(recentPosts),
 		"examples": getRandomExamples(examples, 2, 3),
 	}
 
 	if bait := buildReplyBaitOutput(allPosts, recentPosts); bait != nil {
 		output["reply_bait"] = bait
+	}
+	if mode == "reply" {
+		output["reply_examples"] = randomReplyExamples
 	}
 
 	if contextName != "" {

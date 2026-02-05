@@ -125,11 +125,12 @@ func TestRunSuggest_FiredText(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "What's happening:") {
-		t.Fatalf("expected What's happening section, got: %s", output)
-	}
-	if !strings.Contains(output, "Post ideas:") {
-		t.Fatalf("expected post ideas section, got: %s", output)
+	// Mode is probabilistic (30% reply when recent posts exist)
+	// Accept either post mode or reply mode output
+	hasPostMode := strings.Contains(output, "What's happening:") && strings.Contains(output, "Post ideas:")
+	hasReplyMode := strings.Contains(output, "Recent activity (pick one and reply):")
+	if !hasPostMode && !hasReplyMode {
+		t.Fatalf("expected either post mode (What's happening + Post ideas) or reply mode (Recent activity), got: %s", output)
 	}
 }
 

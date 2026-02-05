@@ -324,11 +324,12 @@ func TestFormatSuggestTextWithContext(t *testing.T) {
 	if !strings.Contains(output, "Come on, you've got something") {
 		t.Error("expected tone prefix in output")
 	}
-	if !strings.Contains(output, "What's happening:") {
-		t.Error("expected What's happening section")
-	}
-	if !strings.Contains(output, "Post ideas:") {
-		t.Error("expected post ideas section")
+	// Mode is probabilistic (30% reply when recent posts exist)
+	// Accept either post mode or reply mode output
+	hasPostMode := strings.Contains(output, "What's happening:") && strings.Contains(output, "Post ideas:")
+	hasReplyMode := strings.Contains(output, "Recent activity (pick one and reply):")
+	if !hasPostMode && !hasReplyMode {
+		t.Errorf("expected either post mode (What's happening + Post ideas) or reply mode (Recent activity), got: %s", output)
 	}
 }
 
