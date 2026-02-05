@@ -192,7 +192,13 @@ func (c *SuggestConfig) GetExamplesForContext(contextName string) []string {
 		return nil
 	}
 
-	var result []string
+	total := 0
+	for _, category := range ctx.Categories {
+		if examples, ok := c.Examples[category]; ok {
+			total += len(examples)
+		}
+	}
+	result := make([]string, 0, total)
 	for _, category := range ctx.Categories {
 		if examples, ok := c.Examples[category]; ok {
 			result = append(result, examples...)
@@ -203,7 +209,11 @@ func (c *SuggestConfig) GetExamplesForContext(contextName string) []string {
 
 // GetAllExamples returns all examples from all categories.
 func (c *SuggestConfig) GetAllExamples() []string {
-	var result []string
+	total := 0
+	for _, examples := range c.Examples {
+		total += len(examples)
+	}
+	result := make([]string, 0, total)
 	for _, examples := range c.Examples {
 		result = append(result, examples...)
 	}

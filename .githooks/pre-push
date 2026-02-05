@@ -13,6 +13,10 @@ if [ ! -f "Makefile" ]; then
 fi
 
 # Run pre-push target (includes pre-commit + tests)
-make pre-push
+if command -v mise >/dev/null 2>&1 && [ -f ".mise.toml" ]; then
+    mise exec -- make pre-push
+else
+    make pre-push
+fi
 
 echo "Pre-push checks passed."

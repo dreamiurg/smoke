@@ -84,6 +84,21 @@ func TestRenderShareCard(t *testing.T) {
 		}
 	})
 
+	t.Run("handles long content without error", func(t *testing.T) {
+		longContent := strings.Repeat("This is a long line of text that should wrap across multiple lines. ", 8)
+		if len(longContent) > MaxContentLength-1 {
+			longContent = longContent[:MaxContentLength-1]
+		}
+		longPost, _ := NewPost("test-author", "test-project", "test-suffix", longContent)
+		data, err := RenderShareCard(longPost, theme, LandscapeImage)
+		if err != nil {
+			t.Fatalf("RenderShareCard failed for long content: %v", err)
+		}
+		if len(data) == 0 {
+			t.Fatal("RenderShareCard returned empty data for long content")
+		}
+	})
+
 	t.Run("works with different themes", func(t *testing.T) {
 		themes := []string{"dracula", "monokai", "nord", "gruvbox", "catppuccin"}
 		for _, themeName := range themes {
