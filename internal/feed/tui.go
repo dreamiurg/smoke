@@ -238,217 +238,296 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Handle any-key-to-dismiss when help is visible
-		if m.showHelp {
-			m.showHelp = false
-			return m, nil
-		}
-
-		// Handle copy menu key events
-		if m.showCopyMenu {
-			return m.handleCopyMenuKey(msg)
-		}
-
-		// Clear copy confirmation on any key press
-		m.copyConfirmation = ""
-		m.deleteNotice = ""
-		if msg.String() != "d" {
-			m.deleteArmed = false
-			m.deletePostID = ""
-		}
-
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-
-		case "r":
-			return m, m.loadPostsCmd
-
-		case "a":
-			// Toggle auto-refresh
-			m.autoRefresh = !m.autoRefresh
-			m.config.AutoRefresh = m.autoRefresh
-			m.err = config.SaveTUIConfig(m.config)
-			if m.autoRefresh {
-				return m, tickCmd()
-			}
-			return m, nil
-
-		case "up", "k":
-			// Move cursor up to previous post
-			if m.selectedPostIndex > 0 {
-				m.selectedPostIndex--
-				m.ensureSelectedVisible()
-			}
-			return m, nil
-
-		case "down", "j":
-			// Move cursor down to next post
-			if m.selectedPostIndex < len(m.displayedPosts)-1 {
-				m.selectedPostIndex++
-				m.ensureSelectedVisible()
-			}
-			return m, nil
-
-		case "pgup", "ctrl+u":
-			// Move selection up by one page (cursor-style)
-			m.moveSelectionByPage(-1)
-			return m, nil
-
-		case "pgdown", "ctrl+d":
-			// Move selection down by one page (cursor-style)
-			m.moveSelectionByPage(1)
-			return m, nil
-
-		case "home", "g":
-			// Jump to top post
-			m.moveSelectionToEdge(true)
-			return m, nil
-
-		case "end", "G":
-			// Jump to bottom post
-			m.moveSelectionToEdge(false)
-			return m, nil
-
-		case "l":
-			m.config.Layout = NextLayout(m.config.Layout)
-			m.layout = GetLayout(m.config.Layout)
-			m.err = config.SaveTUIConfig(m.config)
-			return m, nil
-
-		case "L":
-			m.config.Layout = PrevLayout(m.config.Layout)
-			m.layout = GetLayout(m.config.Layout)
-			m.err = config.SaveTUIConfig(m.config)
-			return m, nil
-
-		case "t":
-			m.config.Theme = NextTheme(m.config.Theme)
-			m.theme = GetTheme(m.config.Theme)
-			m.err = config.SaveTUIConfig(m.config)
-			return m, nil
-
-		case "T":
-			m.config.Theme = PrevTheme(m.config.Theme)
-			m.theme = GetTheme(m.config.Theme)
-			m.err = config.SaveTUIConfig(m.config)
-			return m, nil
-
-		case "c":
-			// Open copy menu for selected post
-			if len(m.displayedPosts) > 0 && m.selectedPostIndex >= 0 && m.selectedPostIndex < len(m.displayedPosts) {
-				m.showCopyMenu = true
-				m.copyMenuIndex = 0
-			}
-			return m, nil
-
-		case "d":
-			if len(m.displayedPosts) == 0 || m.selectedPostIndex < 0 || m.selectedPostIndex >= len(m.displayedPosts) {
-				m.deleteNotice = "⚠ No post selected"
-				return m, nil
-			}
-			post := m.displayedPosts[m.selectedPostIndex]
-			if post == nil {
-				m.deleteNotice = "⚠ No post selected"
-				return m, nil
-			}
-			if m.deleteArmed && m.deletePostID == post.ID {
-				if err := m.store.DeleteByID(post.ID); err != nil {
-					m.deleteNotice = "⚠ Delete failed"
-				} else {
-					m.deleteNotice = "✓ Deleted post"
-					m.deleteArmed = false
-					m.deletePostID = ""
-					return m, m.loadPostsCmd
-				}
-				return m, nil
-			}
-			m.deleteArmed = true
-			m.deletePostID = post.ID
-			m.deleteNotice = "Press d again to delete"
-			return m, nil
-
-		case "+", "=":
-			// Increase pressure (clamped)
-			if m.pressure < 4 {
-				m.pressure++
-				m.err = config.SetPressure(m.pressure)
-			}
-			return m, nil
-
-		case "-":
-			// Decrease pressure (clamped)
-			if m.pressure > 0 {
-				m.pressure--
-				m.err = config.SetPressure(m.pressure)
-			}
-			return m, nil
-
-		case " ", "space":
-			// Mark read up to selected post
-			if len(m.displayedPosts) > 0 && m.selectedPostIndex >= 0 && m.selectedPostIndex < len(m.displayedPosts) {
-				postID := m.displayedPosts[m.selectedPostIndex].ID
-				if err := config.SaveLastReadPostID(postID); err == nil {
-					m.lastReadPostID = postID
-					m.lastReadAt = time.Now()
-					m.updateUnreadStats(0)
-				} else {
-					m.err = err
-				}
-			}
-			return m, nil
-
-		case "?":
-			m.showHelp = !m.showHelp
-			return m, nil
-
-		}
-
+		return m.handleKeyMsg(msg)
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		// Set initial scroll position once we know the height and have posts
-		if !m.initialScrollDone && len(m.posts) > 0 {
-			m.ensureSelectedVisibleWithUnread()
-			m.initialScrollDone = true
-		}
-
+		m = m.handleWindowSizeMsg(msg)
+		return m, nil
 	case tickMsg:
-		if m.autoRefresh {
-			return m, tea.Batch(m.loadPostsCmd, tickCmd())
-		}
-		return m, nil
-
+		return m.handleTickMsg()
 	case clockTickMsg:
-		// Just trigger a re-render for clock update
 		return m, clockTickCmd()
-
 	case loadPostsMsg:
-		if msg.err == nil {
-			oldCount := len(m.posts)
-			oldMaxOffset := m.maxScrollOffset()
-			wasAtBottom := m.scrollOffset >= oldMaxOffset
-			m.posts = msg.posts
-			m.updateDisplayedPosts() // Update displayedPosts for cursor navigation
-			m.updateUnreadStats(msg.nudgeCount)
-			// Set initial selection once we have posts (scroll waits for WindowSizeMsg)
-			if !m.initialScrollDone && len(m.posts) > 0 {
-				m.initSelectionToUnread()
-				if m.height > 0 {
-					m.ensureSelectedVisibleWithUnread()
-					m.initialScrollDone = true
-				}
-			} else if len(m.posts) > oldCount && m.height > 0 {
-				// Auto-scroll when NEW posts arrive (after initial load) in auto-refresh mode
-				if m.autoRefresh && wasAtBottom {
-					m.scrollOffset = m.maxScrollOffset()
-				}
-			}
-		}
-		return m, nil
+		return m.handleLoadPostsMsg(msg)
 	}
 
 	return m, nil
+}
+
+func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if cmd, handled := m.handleOverlayKey(msg); handled {
+		return m, cmd
+	}
+
+	m.clearTransientKeyState(msg)
+
+	if cmd, handled := m.handleGlobalKeys(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleNavigationKeys(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleLayoutKeys(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleThemeKeys(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleCopyKey(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleDeleteKey(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handlePressureKeys(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleReadKey(msg); handled {
+		return m, cmd
+	}
+	if cmd, handled := m.handleHelpKey(msg); handled {
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+func (m *Model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.showHelp {
+		m.showHelp = false
+		return nil, true
+	}
+	if m.showCopyMenu {
+		return m.handleCopyMenuKey(msg), true
+	}
+	return nil, false
+}
+
+func (m *Model) clearTransientKeyState(msg tea.KeyMsg) {
+	m.copyConfirmation = ""
+	m.deleteNotice = ""
+	if msg.String() != "d" {
+		m.deleteArmed = false
+		m.deletePostID = ""
+	}
+}
+
+func (m *Model) handleGlobalKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return tea.Quit, true
+	case "r":
+		return m.loadPostsCmd, true
+	case "a":
+		m.autoRefresh = !m.autoRefresh
+		m.config.AutoRefresh = m.autoRefresh
+		m.err = config.SaveTUIConfig(m.config)
+		if m.autoRefresh {
+			return tickCmd(), true
+		}
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *Model) handleNavigationKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "up", "k":
+		if m.selectedPostIndex > 0 {
+			m.selectedPostIndex--
+			m.ensureSelectedVisible()
+		}
+		return nil, true
+	case "down", "j":
+		if m.selectedPostIndex < len(m.displayedPosts)-1 {
+			m.selectedPostIndex++
+			m.ensureSelectedVisible()
+		}
+		return nil, true
+	case "pgup", "ctrl+u":
+		m.moveSelectionByPage(-1)
+		return nil, true
+	case "pgdown", "ctrl+d":
+		m.moveSelectionByPage(1)
+		return nil, true
+	case "home", "g":
+		m.moveSelectionToEdge(true)
+		return nil, true
+	case "end", "G":
+		m.moveSelectionToEdge(false)
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "l":
+		m.config.Layout = NextLayout(m.config.Layout)
+		m.layout = GetLayout(m.config.Layout)
+		m.err = config.SaveTUIConfig(m.config)
+		return nil, true
+	case "L":
+		m.config.Layout = PrevLayout(m.config.Layout)
+		m.layout = GetLayout(m.config.Layout)
+		m.err = config.SaveTUIConfig(m.config)
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *Model) handleThemeKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "t":
+		m.config.Theme = NextTheme(m.config.Theme)
+		m.theme = GetTheme(m.config.Theme)
+		m.err = config.SaveTUIConfig(m.config)
+		return nil, true
+	case "T":
+		m.config.Theme = PrevTheme(m.config.Theme)
+		m.theme = GetTheme(m.config.Theme)
+		m.err = config.SaveTUIConfig(m.config)
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *Model) handleCopyKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if msg.String() != "c" {
+		return nil, false
+	}
+	if len(m.displayedPosts) > 0 && m.selectedPostIndex >= 0 && m.selectedPostIndex < len(m.displayedPosts) {
+		m.showCopyMenu = true
+		m.copyMenuIndex = 0
+	}
+	return nil, true
+}
+
+func (m *Model) handleDeleteKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if msg.String() != "d" {
+		return nil, false
+	}
+	if len(m.displayedPosts) == 0 || m.selectedPostIndex < 0 || m.selectedPostIndex >= len(m.displayedPosts) {
+		m.deleteNotice = "⚠ No post selected"
+		return nil, true
+	}
+	post := m.displayedPosts[m.selectedPostIndex]
+	if post == nil {
+		m.deleteNotice = "⚠ No post selected"
+		return nil, true
+	}
+	if m.deleteArmed && m.deletePostID == post.ID {
+		if err := m.store.DeleteByID(post.ID); err != nil {
+			m.deleteNotice = "⚠ Delete failed"
+		} else {
+			m.deleteNotice = "✓ Deleted post"
+			m.deleteArmed = false
+			m.deletePostID = ""
+			return m.loadPostsCmd, true
+		}
+		return nil, true
+	}
+	m.deleteArmed = true
+	m.deletePostID = post.ID
+	m.deleteNotice = "Press d again to delete"
+	return nil, true
+}
+
+func (m *Model) handlePressureKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "+", "=":
+		if m.pressure < 4 {
+			m.pressure++
+			m.err = config.SetPressure(m.pressure)
+		}
+		return nil, true
+	case "-":
+		if m.pressure > 0 {
+			m.pressure--
+			m.err = config.SetPressure(m.pressure)
+		}
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *Model) handleReadKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if msg.String() != " " && msg.String() != "space" {
+		return nil, false
+	}
+	if len(m.displayedPosts) > 0 && m.selectedPostIndex >= 0 && m.selectedPostIndex < len(m.displayedPosts) {
+		postID := m.displayedPosts[m.selectedPostIndex].ID
+		if err := config.SaveLastReadPostID(postID); err == nil {
+			m.lastReadPostID = postID
+			m.lastReadAt = time.Now()
+			m.updateUnreadStats(0)
+		} else {
+			m.err = err
+		}
+	}
+	return nil, true
+}
+
+func (m *Model) handleHelpKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if msg.String() != "?" {
+		return nil, false
+	}
+	m.showHelp = !m.showHelp
+	return nil, true
+}
+
+func (m Model) handleWindowSizeMsg(msg tea.WindowSizeMsg) Model {
+	m.width = msg.Width
+	m.height = msg.Height
+	if !m.initialScrollDone && len(m.posts) > 0 {
+		m.ensureSelectedVisibleWithUnread()
+		m.initialScrollDone = true
+	}
+	return m
+}
+
+func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
+	if m.autoRefresh {
+		return m, tea.Batch(m.loadPostsCmd, tickCmd())
+	}
+	return m, nil
+}
+
+func (m Model) handleLoadPostsMsg(msg loadPostsMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		return m, nil
+	}
+
+	oldCount := len(m.posts)
+	oldMaxOffset := m.maxScrollOffset()
+	wasAtBottom := m.scrollOffset >= oldMaxOffset
+	m.posts = msg.posts
+	m.updateDisplayedPosts()
+	m.updateUnreadStats(msg.nudgeCount)
+
+	m.initSelectionIfNeeded()
+	m.autoScrollIfNeeded(oldCount, wasAtBottom)
+
+	return m, nil
+}
+
+func (m *Model) initSelectionIfNeeded() {
+	if m.initialScrollDone || len(m.posts) == 0 {
+		return
+	}
+	m.initSelectionToUnread()
+	if m.height > 0 {
+		m.ensureSelectedVisibleWithUnread()
+		m.initialScrollDone = true
+	}
+}
+
+func (m *Model) autoScrollIfNeeded(oldCount int, wasAtBottom bool) {
+	if len(m.posts) <= oldCount || m.height <= 0 {
+		return
+	}
+	if m.autoRefresh && wasAtBottom {
+		m.scrollOffset = m.maxScrollOffset()
+	}
 }
 
 // View renders the current state of the model as a string.
@@ -1864,49 +1943,49 @@ func (m Model) formatReplyWithSelection(reply *Post, isSelected bool) []string {
 }
 
 // handleCopyMenuKey handles key events when the copy menu is visible.
-func (m Model) handleCopyMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleCopyMenuKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "q", "esc":
 		m.showCopyMenu = false
-		return m, nil
+		return nil
 
 	case "up", "k":
 		if m.copyMenuIndex > 0 {
 			m.copyMenuIndex--
 		}
-		return m, nil
+		return nil
 
 	case "down", "j":
 		if m.copyMenuIndex < 2 {
 			m.copyMenuIndex++
 		}
-		return m, nil
+		return nil
 
 	case "enter", " ":
 		m.showCopyMenu = false
 		m.executeCopyAction()
-		return m, nil
+		return nil
 
 	case "1":
 		m.showCopyMenu = false
 		m.copyMenuIndex = 0
 		m.executeCopyAction()
-		return m, nil
+		return nil
 
 	case "2":
 		m.showCopyMenu = false
 		m.copyMenuIndex = 1
 		m.executeCopyAction()
-		return m, nil
+		return nil
 
 	case "3":
 		m.showCopyMenu = false
 		m.copyMenuIndex = 2
 		m.executeCopyAction()
-		return m, nil
+		return nil
 	}
 
-	return m, nil
+	return nil
 }
 
 // executeCopyAction performs the copy operation based on copyMenuIndex.
