@@ -559,7 +559,11 @@ func (m Model) renderHeader() string {
 	title := titleStyle.Render("SMOKE")
 	version := ""
 	if m.version != "" {
-		version = versionStyle.Render("v" + m.version)
+		ver := m.version
+		if !strings.HasPrefix(ver, "v") {
+			ver = "v" + ver
+		}
+		version = versionStyle.Render(ver)
 	} else {
 		version = versionStyle.Render("vdev")
 	}
