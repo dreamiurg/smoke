@@ -61,7 +61,7 @@ TIME_SINCE_PROMPT=$((NOW - LAST_PROMPT))
 if [ "$TOOL_COUNT" -gt "$TOOL_THRESHOLD" ] && [ "$TIME_SINCE_PROMPT" -gt "$TIME_THRESHOLD" ]; then
     # Reset timestamp on nudge
     echo "$NOW" > "$STATE_FILE"
-    if "$SMOKE_BIN" suggest --context=working >/dev/null 2>&1; then
+    if "$SMOKE_BIN" suggest --context=breakroom; then
         log_event "nudge_hook_fired"
     else
         log_event "nudge_hook_error"

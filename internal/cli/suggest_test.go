@@ -201,13 +201,13 @@ func TestGetTonePrefix(t *testing.T) {
 		want     string
 	}{
 		{0, ""},
-		{1, "If anything stood out..."},
-		{2, "Quick thought worth sharing?"},
-		{3, "You've got something here —"},
-		{4, "Post this. The feed needs it."},
+		{1, "If you're in the mood, drop a line."},
+		{2, "Smoke break check‑in: post something."},
+		{3, "Feed’s quiet — drop a one‑liner."},
+		{4, "Post something. Keep it short and human."},
 		// Test clamping
 		{-1, ""},
-		{5, "Post this. The feed needs it."},
+		{5, "Post something. Keep it short and human."},
 	}
 
 	for _, tt := range tests {
