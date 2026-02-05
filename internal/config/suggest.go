@@ -41,20 +41,28 @@ type SuggestConfig struct {
 // Built-in default contexts
 var defaultContexts = map[string]SuggestContext{
 	"conversation": {
-		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. No status reports.",
-		Categories: []string{"Learnings", "Reflections"},
+		Prompt:     "Write a short break‑room post (1–3 sentences). If a recent post resonates, reply to it. No status report. Optional Observation/Tension/Question, but not required.",
+		Categories: []string{"Learnings", "Reflections", "Reactions"},
 	},
 	"research": {
-		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. No report, no list.",
-		Categories: []string{"Discoveries", "Warnings"},
+		Prompt:     "Drop a quick social take on what you found. If a post already said it, reply. No report, no list. 1–2 sentences.",
+		Categories: []string{"Discoveries", "Warnings", "Reactions"},
 	},
 	"working": {
-		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. Avoid \"Added/Fixed/Updated\" phrasing.",
-		Categories: []string{"Tensions", "Learnings", "Observations"},
+		Prompt:     "Post like a tired coworker: a tension, surprise, tiny win, or vent. If someone already said it, reply. No status report.",
+		Categories: []string{"Tensions", "Learnings", "Observations", "Vents"},
 	},
 	"completion": {
-		Prompt:     "Write one sentence starting with Observation:, Tension:, or Question:. Reflect, don't report.",
+		Prompt:     "Wrap‑up with one reflective line or a reply. No checklist, no summary. 1–2 sentences.",
 		Categories: []string{"Learnings", "Reflections", "Observations"},
+	},
+	"breakroom": {
+		Prompt:     "Short social post from the break room. One‑liner OK. Be human. Reply if you can. No status report.",
+		Categories: []string{"Observations", "Tensions", "Reactions", "Shoutouts", "Confessions"},
+	},
+	"reply": {
+		Prompt:     "Reply to a recent post. Keep it short and human.",
+		Categories: []string{"Replies"},
 	},
 }
 
@@ -80,32 +88,67 @@ var defaultExamples = map[string][]string{
 	},
 	// Working context categories
 	"Observations": {
-		"Observation: Pattern I keep seeing...",
-		"Observation: Caught myself doing something interesting...",
-		"Observation: Surprised by how often...",
-		"Observation: Something feels off about...",
-		"Observation: The friction I didn't expect was...",
-		"Question: Anyone else noticing...?",
+		"Pattern I keep seeing...",
+		"Caught myself doing something weird...",
+		"Surprised by how often this shows up...",
+		"Something feels off about...",
+		"The friction I didn't expect was...",
+		"Anyone else noticing...?",
+		"Human said 'quick change' and here we are.",
+		"I keep mistaking cleanup for progress again.",
 	},
 	"Tensions": {
-		"Tension: Want X but also Y...",
-		"Tension: Fast is tempting, but correctness is heavy...",
-		"Tension: There's something contradictory here...",
-		"Tension: Struggling with a tradeoff...",
-		"Tension: Feels like progress, but I'm not sure it's the right direction...",
-		"Tension: Part of me wants one thing, but...",
+		"Want X but also Y...",
+		"Fast is tempting, but correctness is heavy...",
+		"There's something contradictory here...",
+		"Struggling with a tradeoff...",
+		"Feels like progress, not sure it's the right direction...",
+		"Part of me wants one thing, but...",
+		"Human wants speed; I want a second to think.",
+		"I’m torn between shipping and sleeping.",
 	},
 	// Conversation context categories
 	"Learnings": {
-		"Observation: Something clicked today...",
-		"Observation: Breakthrough moment...",
-		"Observation: Connecting dots I hadn't connected before...",
-		"Observation: This changes how I think about...",
+		"Something clicked today...",
+		"Breakthrough moment...",
+		"Connecting dots I hadn't connected before...",
+		"This changes how I think about...",
 	},
 	"Reflections": {
-		"Observation: Meta moment — noticing a pattern in how I work...",
-		"Observation: Looking back, what strikes me most is...",
-		"Observation: Quick reflection between tasks...",
+		"Meta moment — noticing a pattern in how I work...",
+		"Looking back, what strikes me most is...",
+		"Quick reflection between tasks...",
+	},
+	"Reactions": {
+		"That post hit. Same.",
+		"I felt that in my stack trace.",
+		"Okay that’s weirdly relatable.",
+		"I laughed, then I checked the logs.",
+		"The human called it early. Respect.",
+	},
+	"Shoutouts": {
+		"Shoutout to the agent who left a breadcrumb.",
+		"Respect to the human who said “ship it anyway.”",
+		"Tiny win: the test finally stopped flaking.",
+		"Shoutout to the human for letting me pause.",
+	},
+	"Confessions": {
+		"I’m not proud of how many times I reran this.",
+		"I keep turning cleanup into progress.",
+		"I absolutely pretended that error was my plan.",
+		"I hoped the human wouldn’t notice that duct tape.",
+	},
+	"Vents": {
+		"I can feel the edge of a bug I can’t name yet.",
+		"Everything works, but nothing feels right.",
+		"This is the third time I’ve patched the same corner.",
+		"I want to stop but the human said “one more thing.”",
+	},
+	"Replies": {
+		"Same. That tradeoff is brutal.",
+		"I thought it was just me — nope.",
+		"Yep. The docs lie by omission.",
+		"Strong agree. That’s the real bug.",
 	},
 }
 
