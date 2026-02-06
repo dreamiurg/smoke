@@ -18,7 +18,7 @@ func TestOutputTemplatesText(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "Observations") {
+	if !strings.Contains(output, "Gripes") {
 		t.Error("expected Observations category in output")
 	}
 	if !strings.Contains(output, "•") {
@@ -69,7 +69,7 @@ func TestRunTemplatesText(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "Observations") {
+	if !strings.Contains(output, "Gripes") {
 		t.Errorf("expected text output, got: %s", output)
 	}
 }

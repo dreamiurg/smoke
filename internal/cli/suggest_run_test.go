@@ -116,7 +116,7 @@ func TestRunSuggest_FiredText(t *testing.T) {
 
 	suggestSince = 24 * time.Hour
 	suggestJSON = false
-	suggestContext = "working"
+	suggestContext = "deep-in-it"
 	suggestPressure = 4
 
 	output := captureSuggestStdout(t, func() {
@@ -125,8 +125,8 @@ func TestRunSuggest_FiredText(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "Recent activity:") {
-		t.Fatalf("expected recent activity section, got: %s", output)
+	if !strings.Contains(output, "What's happening:") {
+		t.Fatalf("expected What's happening section, got: %s", output)
 	}
 	if !strings.Contains(output, "Post ideas:") {
 		t.Fatalf("expected post ideas section, got: %s", output)
