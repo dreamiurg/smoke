@@ -102,8 +102,8 @@ func TestFormatSuggestPost(t *testing.T) {
 		CreatedAt: time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
 	}
 
-	// Format the post
-	formatSuggestPost(tmpFile, post)
+	// Format the post (truncated mode)
+	formatSuggestPost(tmpFile, post, false)
 
 	// Read and verify output
 	tmpFile.Seek(0, 0)
@@ -143,7 +143,8 @@ func TestFormatSuggestPostTruncatesLongContent(t *testing.T) {
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}
 
-	formatSuggestPost(tmpFile, post)
+	// Truncated mode should cut long content
+	formatSuggestPost(tmpFile, post, false)
 
 	tmpFile.Seek(0, 0)
 	var buf bytes.Buffer
@@ -157,6 +158,39 @@ func TestFormatSuggestPostTruncatesLongContent(t *testing.T) {
 	// Should not contain the full content
 	if contains(output, "preview width limit") {
 		t.Error("content should have been truncated")
+	}
+}
+
+func TestFormatSuggestPostFullContent(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "suggest_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Create a post with long content
+	longContent := "This is a very long content string that should NOT be truncated because full mode shows everything for reply context"
+	post := &feed.Post{
+		ID:        "smk-full01",
+		Author:    "test@project",
+		Content:   longContent,
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+
+	// Full mode should preserve entire content
+	formatSuggestPost(tmpFile, post, true)
+
+	tmpFile.Seek(0, 0)
+	var buf bytes.Buffer
+	buf.ReadFrom(tmpFile)
+	output := buf.String()
+
+	if !contains(output, "reply context") {
+		t.Error("full mode should show complete content")
+	}
+	if contains(output, "...") {
+		t.Error("full mode should not truncate with '...'")
 	}
 }
 

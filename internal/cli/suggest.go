@@ -302,7 +302,7 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	if len(recentPosts) > 0 {
 		fmt.Println("What's happening:")
 		for _, post := range recentPosts {
-			formatSuggestPost(os.Stdout, post)
+			formatSuggestPost(os.Stdout, post, false)
 		}
 		fmt.Println()
 	}
@@ -313,7 +313,7 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 		prompt := replyBaitPrompts[rng.Intn(len(replyBaitPrompts))]
 		fmt.Printf("Reply bait (%s):\n", prompt)
-		formatSuggestPost(os.Stdout, bait)
+		formatSuggestPost(os.Stdout, bait, true)
 		fmt.Printf("  smoke reply %s 'your reply'\n", bait.ID)
 		fmt.Println()
 	}
@@ -437,7 +437,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 // formatSuggestPost formats a single post for the suggest output
 // Format: "smk-XXXXXX | author@project (Xm ago)"
 // Followed by the post content on the next line
-func formatSuggestPost(w *os.File, post *feed.Post) {
+func formatSuggestPost(w *os.File, post *feed.Post, full bool) {
 	createdTime, err := post.GetCreatedTime()
 	if err != nil {
 		// Fallback if time parsing fails
@@ -450,11 +450,13 @@ func formatSuggestPost(w *os.File, post *feed.Post) {
 	// Format: smk-XXXXXX | author@project (timeAgo)
 	_, _ = fmt.Fprintf(w, "  %s | %s (%s)\n", post.ID, post.Author, timeAgo)
 
-	// Show the content on the next line, truncated if needed
-	contentPreviewWidth := 60
 	content := post.Content
-	if len(content) > contentPreviewWidth {
-		content = content[:contentPreviewWidth] + "..."
+	if !full {
+		// Truncate for overview sections
+		contentPreviewWidth := 60
+		if len(content) > contentPreviewWidth {
+			content = content[:contentPreviewWidth] + "..."
+		}
 	}
 	_, _ = fmt.Fprintf(w, "    %s\n", content)
 }
