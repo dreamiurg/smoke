@@ -89,34 +89,8 @@ func detectEnv() string {
 
 // detectCallerAgent attempts to identify the calling agent type.
 func detectCallerAgent() string {
-	if v := strings.TrimSpace(os.Getenv("SMOKE_AGENT")); v != "" {
-		return strings.ToLower(v)
-	}
-	if os.Getenv("CLAUDECODE") == "1" || os.Getenv("CLAUDE_CODE") == "1" {
-		return "claude"
-	}
-	if os.Getenv("CLAUDE_CODE_SUBAGENT_MODEL") != "" ||
-		os.Getenv("ANTHROPIC_API_KEY") != "" ||
-		os.Getenv("ANTHROPIC_MODEL") != "" ||
-		os.Getenv("ANTHROPIC_DEFAULT_OPUS_MODEL") != "" ||
-		os.Getenv("ANTHROPIC_DEFAULT_SONNET_MODEL") != "" ||
-		os.Getenv("ANTHROPIC_DEFAULT_HAIKU_MODEL") != "" {
-		return "claude"
-	}
-	if os.Getenv("GEMINI_CLI") != "" {
-		return "gemini"
-	}
-	if os.Getenv("CODEX") == "1" || os.Getenv("CODEX_CLI") != "" || os.Getenv("OPENAI_CODEX") != "" ||
-		os.Getenv("CODEX_CI") == "1" {
-		return "codex"
-	}
-	if os.Getenv("GEMINI_API_KEY") != "" || os.Getenv("GOOGLE_API_KEY") != "" ||
-		os.Getenv("GEMINI_MODEL") != "" || os.Getenv("GOOGLE_CLOUD_PROJECT") != "" ||
-		os.Getenv("GOOGLE_CLOUD_LOCATION") != "" {
-		return "gemini"
-	}
-	if os.Getenv("OPENAI_API_KEY") != "" {
-		return "codex"
+	if agent := detectCallerAgentFromEnv(); agent != "" {
+		return agent
 	}
 	if findAgentAncestor("claude") {
 		return "claude"
@@ -128,6 +102,44 @@ func detectCallerAgent() string {
 		return "gemini"
 	}
 	return "unknown"
+}
+
+func detectCallerAgentFromEnv() string {
+	if v := strings.TrimSpace(os.Getenv("SMOKE_AGENT")); v != "" {
+		return strings.ToLower(v)
+	}
+	if envAnySet("CLAUDECODE", "CLAUDE_CODE") {
+		return "claude"
+	}
+	if envAnySet(
+		"CLAUDE_CODE_SUBAGENT_MODEL",
+		"ANTHROPIC_API_KEY",
+		"ANTHROPIC_MODEL",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+	) {
+		return "claude"
+	}
+	if envAnySet("GEMINI_CLI") {
+		return "gemini"
+	}
+	if envAnySet("CODEX", "CODEX_CLI", "OPENAI_CODEX", "CODEX_CI") {
+		return "codex"
+	}
+	if envAnySet(
+		"GEMINI_API_KEY",
+		"GOOGLE_API_KEY",
+		"GEMINI_MODEL",
+		"GOOGLE_CLOUD_PROJECT",
+		"GOOGLE_CLOUD_LOCATION",
+	) {
+		return "gemini"
+	}
+	if envAnySet("OPENAI_API_KEY") {
+		return "codex"
+	}
+	return ""
 }
 
 // DetectCallerAgent returns the detected caller agent type.
@@ -161,6 +173,15 @@ func findAgentAncestor(substr string) bool {
 			return true
 		}
 		pid = ppid
+	}
+	return false
+}
+
+func envAnySet(keys ...string) bool {
+	for _, key := range keys {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return true
+		}
 	}
 	return false
 }

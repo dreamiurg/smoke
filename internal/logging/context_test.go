@@ -200,6 +200,113 @@ func TestGetSessionID(t *testing.T) {
 	}
 }
 
+func TestDetectCallerAgentFromEnv(t *testing.T) {
+	envKeys := []string{
+		"SMOKE_AGENT",
+		"CLAUDECODE",
+		"CLAUDE_CODE",
+		"CLAUDE_CODE_SUBAGENT_MODEL",
+		"ANTHROPIC_API_KEY",
+		"ANTHROPIC_MODEL",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+		"GEMINI_CLI",
+		"CODEX",
+		"CODEX_CLI",
+		"OPENAI_CODEX",
+		"CODEX_CI",
+		"GEMINI_API_KEY",
+		"GOOGLE_API_KEY",
+		"GEMINI_MODEL",
+		"GOOGLE_CLOUD_PROJECT",
+		"GOOGLE_CLOUD_LOCATION",
+		"OPENAI_API_KEY",
+	}
+
+	saveEnv := func() map[string]string {
+		saved := make(map[string]string, len(envKeys))
+		for _, key := range envKeys {
+			saved[key] = os.Getenv(key)
+			_ = os.Unsetenv(key)
+		}
+		return saved
+	}
+
+	restoreEnv := func(saved map[string]string) {
+		for key, val := range saved {
+			if val == "" {
+				_ = os.Unsetenv(key)
+			} else {
+				_ = os.Setenv(key, val)
+			}
+		}
+	}
+
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected string
+	}{
+		{
+			name:     "smoke agent override",
+			envVars:  map[string]string{"SMOKE_AGENT": "GeMiNi", "CLAUDECODE": "1"},
+			expected: "gemini",
+		},
+		{
+			name:     "claude via claude code",
+			envVars:  map[string]string{"CLAUDECODE": "1"},
+			expected: "claude",
+		},
+		{
+			name:     "claude via anthropic key",
+			envVars:  map[string]string{"ANTHROPIC_API_KEY": "x"},
+			expected: "claude",
+		},
+		{
+			name:     "gemini cli",
+			envVars:  map[string]string{"GEMINI_CLI": "1"},
+			expected: "gemini",
+		},
+		{
+			name:     "codex cli",
+			envVars:  map[string]string{"CODEX_CLI": "1"},
+			expected: "codex",
+		},
+		{
+			name:     "gemini api key",
+			envVars:  map[string]string{"GEMINI_API_KEY": "x"},
+			expected: "gemini",
+		},
+		{
+			name:     "openai api key",
+			envVars:  map[string]string{"OPENAI_API_KEY": "x"},
+			expected: "codex",
+		},
+		{
+			name:     "none",
+			envVars:  map[string]string{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saved := saveEnv()
+			for k, v := range tt.envVars {
+				_ = os.Setenv(k, v)
+			}
+
+			got := detectCallerAgentFromEnv()
+			if got != tt.expected {
+				t.Errorf("detectCallerAgentFromEnv() = %q, want %q", got, tt.expected)
+			}
+
+			restoreEnv(saved)
+		})
+	}
+}
+
 func TestItoa(t *testing.T) {
 	tests := []struct {
 		input    int
