@@ -1,17 +1,31 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: no-commit-to-branch
         args: ['--branch', 'main']
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+      - id: check-merge-conflict
       - id: check-added-large-files
         args: ['--maxkb=500']
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
 
   - repo: local
     hooks:
+      # SAST - static application security testing
+      - id: semgrep
+        name: semgrep SAST
+        entry: semgrep scan --config auto --error --quiet
+        language: system
+        pass_filenames: false
+
       # Use goimports to match CI (enforces import grouping)
       - id: go-imports
         name: goimports
@@ -21,11 +35,10 @@ repos:
         pass_filenames: true
 
       # golangci-lint v2 required (matches CI)
-      # Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
       # Auto-fixes issues where possible (gocritic, staticcheck, misspell, etc.)
       - id: golangci-lint
         name: golangci-lint
-        entry: golangci-lint run --fix
+        entry: golangci-lint run --new-from-rev=HEAD --fix
         language: system
         types: [go]
         pass_filenames: false

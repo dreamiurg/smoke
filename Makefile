@@ -48,15 +48,16 @@ coverage-check: ## Check coverage meets 70% threshold (MUST), aim for 80% (SHOUL
 	@COVERAGE=$$($(GOCMD) tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
 	echo "Total coverage: $$COVERAGE%"; \
 	if [ $$(echo "$$COVERAGE < 70" | bc -l) -eq 1 ]; then \
-		echo "Coverage below 70% threshold"; \
+		echo "FAIL: Coverage below 70% threshold"; \
 		exit 1; \
 	fi
 
 lint: ## Run golangci-lint (includes vet, imports check, etc.)
 	golangci-lint run ./...
 
-complexity-check: ## Check cyclomatic complexity thresholds
-	./scripts/complexity-check.sh
+complexity-check: ## Check cyclomatic complexity thresholds (CCN<=15, length<=60, params<=5)
+	@command -v lizard >/dev/null 2>&1 || { echo "Error: lizard not found. Install with: pipx install lizard"; exit 1; }
+	lizard -l go -C 15 -L 60 -a 5 -w .
 
 fmt: ## Format code with goimports (matches CI)
 	$(GOIMPORTS) -l -w .
@@ -89,7 +90,8 @@ vulncheck: ## Run govulncheck for dependency vulnerabilities
 	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
 	govulncheck ./...
 
-setup-hooks: ## Install git hooks for pre-commit and pre-push checks
-	@echo "Installing git hooks..."
-	@git config core.hooksPath .githooks
-	@echo "Git hooks installed. Pre-commit and pre-push checks are now enforced."
+setup-hooks: ## Install pre-commit hooks (pre-commit and pre-push stages)
+	@command -v pre-commit >/dev/null 2>&1 || { echo "Error: pre-commit not found. Install with: pipx install pre-commit"; exit 1; }
+	pre-commit install
+	pre-commit install --hook-type pre-push
+	@echo "Pre-commit hooks installed (pre-commit + pre-push stages)."

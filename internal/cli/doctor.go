@@ -757,7 +757,7 @@ func performConfigFileCheck() Check {
 	}
 
 	// Validate YAML syntax
-	var parsed interface{}
+	var parsed map[string]any
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		return failCheck(name, "invalid YAML", err.Error(), false, nil)
 	}
