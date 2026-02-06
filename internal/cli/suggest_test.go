@@ -2,10 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
 )
 
@@ -216,6 +221,129 @@ func TestGetTonePrefix(t *testing.T) {
 			t.Errorf("getTonePrefix(%d) = %q, want %q", tt.pressure, got, tt.want)
 		}
 	}
+}
+
+func TestRunSuggest_JSONSkip(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+	if err := os.WriteFile(feedPath, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFeed := os.Getenv("SMOKE_FEED")
+	_ = os.Setenv("SMOKE_FEED", feedPath)
+	defer func() {
+		if oldFeed == "" {
+			_ = os.Unsetenv("SMOKE_FEED")
+		} else {
+			_ = os.Setenv("SMOKE_FEED", oldFeed)
+		}
+	}()
+
+	prevJSON := suggestJSON
+	prevPressure := suggestPressure
+	prevContext := suggestContext
+	prevSince := suggestSince
+	defer func() {
+		suggestJSON = prevJSON
+		suggestPressure = prevPressure
+		suggestContext = prevContext
+		suggestSince = prevSince
+	}()
+
+	suggestJSON = true
+	suggestPressure = 0
+	suggestContext = ""
+	suggestSince = 1 * time.Hour
+
+	output := captureStdout(t, func() {
+		if err := runSuggest(nil, []string{}); err != nil {
+			t.Fatalf("runSuggest error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "\"skipped\": true") {
+		t.Fatalf("expected skipped JSON output, got: %s", output)
+	}
+	if !strings.Contains(output, "\"pressure\": 0") {
+		t.Fatalf("expected pressure 0 in JSON output, got: %s", output)
+	}
+}
+
+func TestFormatSuggestTextWithContext(t *testing.T) {
+	now := time.Now().UTC()
+	posts := []*feed.Post{
+		{
+			ID:        "smk-1",
+			Author:    "test@project",
+			Content:   "hello world",
+			CreatedAt: now.Add(-2 * time.Minute).Format(time.RFC3339),
+		},
+	}
+
+	output := captureStdout(t, func() {
+		if err := formatSuggestTextWithContext(posts, config.LoadSuggestConfig(), "working", 3); err != nil {
+			t.Fatalf("formatSuggestTextWithContext error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "You've got something here") {
+		t.Error("expected tone prefix in output")
+	}
+	if !strings.Contains(output, "Recent activity:") {
+		t.Error("expected recent activity section")
+	}
+	if !strings.Contains(output, "Post ideas:") {
+		t.Error("expected post ideas section")
+	}
+}
+
+func TestFormatSuggestJSONWithContext(t *testing.T) {
+	now := time.Now().UTC()
+	posts := []*feed.Post{
+		{
+			ID:        "smk-2",
+			Author:    "test@project",
+			Content:   "json post",
+			CreatedAt: now.Add(-1 * time.Minute).Format(time.RFC3339),
+		},
+	}
+
+	output := captureStdout(t, func() {
+		if err := formatSuggestJSONWithContext(posts, config.LoadSuggestConfig(), "working", 2); err != nil {
+			t.Fatalf("formatSuggestJSONWithContext error: %v", err)
+		}
+	})
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+	if parsed["skipped"] != false {
+		t.Errorf("skipped = %v, want false", parsed["skipped"])
+	}
+	if parsed["pressure"].(float64) != 2 {
+		t.Errorf("pressure = %v, want 2", parsed["pressure"])
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
+
+	fn()
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
 }
 
 // contains checks if substr is in s
