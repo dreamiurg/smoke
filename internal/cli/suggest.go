@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2" // nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"os"
 	"sort"
 	"strings"
@@ -120,8 +120,7 @@ func shouldFireNudge(pressure int) nudgeDecision {
 	}
 
 	// For pressures 1-3, roll 0-99 and compare to threshold (pressure * 25)
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	roll := rng.Intn(100)
+	roll := rand.IntN(100)
 	threshold := pressure * 25
 	return nudgeDecision{fire: roll < threshold, roll: roll, threshold: threshold}
 }
@@ -498,13 +497,10 @@ func getRandomExamples(examples []string, minCount, maxCount int) []string {
 		return []string{}
 	}
 
-	// Create a properly seeded local random source
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	// Randomly decide count between minCount and maxCount
 	count := minCount
 	if maxCount > minCount {
-		count = minCount + rng.Intn(maxCount-minCount+1)
+		count = minCount + rand.IntN(maxCount-minCount+1)
 	}
 
 	// Ensure we don't ask for more examples than exist
@@ -512,12 +508,12 @@ func getRandomExamples(examples []string, minCount, maxCount int) []string {
 		count = len(examples)
 	}
 
-	// Shuffle indices and pick first count
-	indices := rng.Perm(len(examples))
-	result := make([]string, count)
-	for i := 0; i < count; i++ {
-		result[i] = examples[indices[i]]
-	}
+	// Copy and shuffle, then pick first count
+	shuffled := make([]string, len(examples))
+	copy(shuffled, examples)
+	rand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
 
-	return result
+	return shuffled[:count]
 }

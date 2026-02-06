@@ -16,12 +16,14 @@ linters:
     - gocritic
     - bodyclose
     - prealloc
+    - gocognit
   exclusions:
     rules:
       - path: _test\.go
         linters:
           - errcheck
           - gocritic
+          - gocognit
   settings:
     errcheck:
       check-type-assertions: true
@@ -29,6 +31,8 @@ linters:
     govet:
       enable:
         - shadow
+    gocognit:
+      min-complexity: 15
     misspell:
       locale: US
 

@@ -6,21 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache: true
 
       - name: Check go.mod tidiness
         run: |
@@ -28,11 +31,10 @@ jobs:
           git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy" && exit 1)
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          version: latest
           args: --timeout=5m
-          skip-cache: true
 
       - name: Run complexity checks
         run: ./scripts/complexity-check.sh
@@ -42,20 +44,39 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
+  sast:
+    name: SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Semgrep
+        run: pip install semgrep
+      - name: Run Semgrep
+        run: semgrep scan --config auto --error .
+
+  complexity:
+    name: Complexity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install lizard
+        run: pip install lizard
+      - name: Check complexity
+        run: lizard -l go -C 15 -L 60 -a 5 -w .
+
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache: true
 
       - name: Build binary for integration tests
         run: go build -o bin/smoke ./cmd/smoke
@@ -71,12 +92,13 @@ jobs:
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Total coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 69" | bc -l) )); then
-            echo "Coverage below 69% threshold"
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "Coverage below 70% threshold"
             exit 1
           fi
 
       - name: Upload coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
@@ -84,20 +106,19 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
-    name: Build
+    name: Cross-compile
     runs-on: ubuntu-latest
     strategy:
       matrix:
         goos: [darwin, linux]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache: true
 
       - name: Build
         env:
@@ -108,24 +129,18 @@ jobs:
           go build -ldflags "-X github.com/dreamiurg/smoke/internal/cli.Version=ci-${{ github.sha }}" -o smoke-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/smoke
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
           path: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
 
-  # Summary job for branch protection - required because matrix jobs create
-  # individual checks like "Build (darwin, amd64)" but protection rules need
-  # a single "Build" check to require.
-  build-complete:
-    name: Build
-    needs: [build]
+  # SENTINEL JOB - the ONLY required check in branch protection
+  required-checks:
+    name: Required Checks
     runs-on: ubuntu-latest
+    needs: [lint, sast, complexity, test, build]
     if: always()
     steps:
-      - name: Check build matrix status
-        run: |
-          if [ "${{ needs.build.result }}" != "success" ]; then
-            echo "Build matrix failed"
-            exit 1
-          fi
-          echo "All builds completed successfully"
+      - name: Check results
+        run: exit 1
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
