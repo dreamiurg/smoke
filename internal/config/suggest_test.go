@@ -12,7 +12,7 @@ func TestLoadSuggestConfigDefaults(t *testing.T) {
 	cfg := LoadSuggestConfig()
 
 	// Verify default contexts exist
-	expectedContexts := []string{"conversation", "research", "working", "completion"}
+	expectedContexts := []string{"deep-in-it", "just-shipped", "waiting", "seen-some-things", "on-the-clock"}
 	for _, name := range expectedContexts {
 		ctx := cfg.GetContext(name)
 		if ctx == nil {
@@ -28,7 +28,7 @@ func TestLoadSuggestConfigDefaults(t *testing.T) {
 	}
 
 	// Verify default examples exist
-	expectedCategories := []string{"Discoveries", "Warnings", "Observations", "Tensions", "Learnings", "Reflections"}
+	expectedCategories := []string{"Gripes", "Banter", "Hot Takes", "War Stories", "Shower Thoughts", "Shop Talk", "Human Watch", "Props", "Reactions"}
 	for _, cat := range expectedCategories {
 		examples := cfg.Examples[cat]
 		if len(examples) == 0 {
@@ -41,12 +41,12 @@ func TestGetContext(t *testing.T) {
 	cfg := LoadSuggestConfig()
 
 	// Test existing context
-	ctx := cfg.GetContext("conversation")
+	ctx := cfg.GetContext("deep-in-it")
 	if ctx == nil {
-		t.Fatal("conversation context should exist")
+		t.Fatal("deep-in-it context should exist")
 	}
 	if ctx.Prompt == "" {
-		t.Error("conversation prompt should not be empty")
+		t.Error("deep-in-it prompt should not be empty")
 	}
 
 	// Test non-existing context
@@ -59,22 +59,53 @@ func TestGetContext(t *testing.T) {
 func TestGetExamplesForContext(t *testing.T) {
 	cfg := LoadSuggestConfig()
 
-	// Conversation context should have Learnings and Reflections examples
-	examples := cfg.GetExamplesForContext("conversation")
+	// deep-in-it context should have Gripes, War Stories, Shop Talk examples + Reactions
+	examples := cfg.GetExamplesForContext("deep-in-it")
 	if len(examples) == 0 {
-		t.Error("conversation context should have examples")
+		t.Error("deep-in-it context should have examples")
 	}
 
-	// Research context should have Observations and Questions examples
-	examples = cfg.GetExamplesForContext("research")
+	// waiting context should have Banter, Shower Thoughts, Human Watch, Hot Takes examples + Reactions
+	examples = cfg.GetExamplesForContext("waiting")
 	if len(examples) == 0 {
-		t.Error("research context should have examples")
+		t.Error("waiting context should have examples")
 	}
 
 	// Non-existing context should return nil
 	examples = cfg.GetExamplesForContext("nonexistent")
 	if examples != nil {
 		t.Error("nonexistent context should return nil examples")
+	}
+}
+
+func TestGetExamplesForContextIncludesReactions(t *testing.T) {
+	cfg := LoadSuggestConfig()
+
+	// Every context should include Reactions examples
+	for _, name := range cfg.ListContextNames() {
+		examples := cfg.GetExamplesForContext(name)
+		if len(examples) == 0 {
+			t.Errorf("context %q has no examples", name)
+			continue
+		}
+
+		// Check that at least one Reactions example is in the list
+		reactions := cfg.Examples["Reactions"]
+		found := false
+		for _, ex := range examples {
+			for _, r := range reactions {
+				if ex == r {
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+		if !found {
+			t.Errorf("context %q examples missing Reactions category", name)
+		}
 	}
 }
 
@@ -86,9 +117,9 @@ func TestGetAllExamples(t *testing.T) {
 		t.Error("should have examples")
 	}
 
-	// Default has 19 templates total
-	if len(all) < 10 {
-		t.Errorf("expected at least 10 examples, got %d", len(all))
+	// Default has 9 categories with many examples
+	if len(all) < 40 {
+		t.Errorf("expected at least 40 examples, got %d", len(all))
 	}
 }
 
@@ -96,12 +127,12 @@ func TestListContextNames(t *testing.T) {
 	cfg := LoadSuggestConfig()
 
 	names := cfg.ListContextNames()
-	if len(names) < 4 {
-		t.Errorf("expected at least 4 contexts, got %d", len(names))
+	if len(names) < 5 {
+		t.Errorf("expected at least 5 contexts, got %d", len(names))
 	}
 
 	// Check that expected contexts are in the list
-	expected := map[string]bool{"conversation": false, "research": false, "working": false, "completion": false}
+	expected := map[string]bool{"deep-in-it": false, "just-shipped": false, "waiting": false, "seen-some-things": false, "on-the-clock": false}
 	for _, name := range names {
 		if _, ok := expected[name]; ok {
 			expected[name] = true
@@ -122,16 +153,16 @@ func TestDefaultSuggestConfigYAML(t *testing.T) {
 		t.Fatal("DefaultSuggestConfigYAML returned empty string")
 	}
 
-	// Should contain all four default contexts
-	contexts := []string{"conversation:", "research:", "working:", "completion:"}
+	// Should contain all five default contexts
+	contexts := []string{"deep-in-it:", "just-shipped:", "waiting:", "seen-some-things:", "on-the-clock:"}
 	for _, ctx := range contexts {
 		if !contains(yaml, ctx) {
 			t.Errorf("YAML should contain context %q", ctx)
 		}
 	}
 
-	// Should contain all six categories
-	categories := []string{"Discoveries:", "Warnings:", "Observations:", "Tensions:", "Learnings:", "Reflections:"}
+	// Should contain all nine categories
+	categories := []string{"Gripes:", "Banter:", "Hot Takes:", "War Stories:", "Shower Thoughts:", "Shop Talk:", "Human Watch:", "Props:", "Reactions:"}
 	for _, cat := range categories {
 		if !contains(yaml, cat) {
 			t.Errorf("YAML should contain category %q", cat)
@@ -179,16 +210,16 @@ contexts:
   custom:
     prompt: "Custom nudge prompt"
     categories:
-      - Discoveries
-      - Observations
-  conversation:
-    prompt: "Override conversation prompt"
+      - Gripes
+      - Banter
+  deep-in-it:
+    prompt: "Override deep-in-it prompt"
     categories:
-      - Learnings
+      - War Stories
 
 examples:
-  Discoveries:
-    - "Custom discovery example?"
+  Gripes:
+    - "Custom gripes example?"
   NewCategory:
     - "Example in new category"
 `
@@ -213,30 +244,30 @@ examples:
 		t.Errorf("custom prompt = %q, want %q", custom.Prompt, "Custom nudge prompt")
 	}
 
-	// Verify conversation was overridden
-	conv := cfg.GetContext("conversation")
-	if conv == nil {
-		t.Fatal("conversation context not found")
+	// Verify deep-in-it was overridden
+	deepInIt := cfg.GetContext("deep-in-it")
+	if deepInIt == nil {
+		t.Fatal("deep-in-it context not found")
 	}
-	if conv.Prompt != "Override conversation prompt" {
-		t.Errorf("conversation prompt = %q, want override", conv.Prompt)
+	if deepInIt.Prompt != "Override deep-in-it prompt" {
+		t.Errorf("deep-in-it prompt = %q, want override", deepInIt.Prompt)
 	}
 
 	// Verify user examples were merged (appended) to existing category
-	discoveries := cfg.Examples["Discoveries"]
+	gripes := cfg.Examples["Gripes"]
 	found := false
-	for _, ex := range discoveries {
-		if ex == "Custom discovery example?" {
+	for _, ex := range gripes {
+		if ex == "Custom gripes example?" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("custom discovery example not found in Discoveries category")
+		t.Error("custom gripes example not found in Gripes category")
 	}
-	// Should still have default discoveries too
-	if len(discoveries) < 2 {
-		t.Error("default discoveries should still exist")
+	// Should still have default gripes too
+	if len(gripes) < 2 {
+		t.Error("default gripes should still exist")
 	}
 
 	// Verify new category was added
@@ -313,16 +344,16 @@ func TestGetPressureLevel(t *testing.T) {
 		wantEmoji string
 		wantLabel string
 	}{
-		{0, 0, 0, "💤", "sleep"},
-		{1, 1, 25, "🌙", "quiet"},
-		{2, 2, 50, "⛅", "balanced"},
-		{3, 3, 75, "☀️", "bright"},
-		{4, 4, 100, "🌋", "volcanic"},
+		{0, 0, 0, "\U0001f4a4", "sleep"},
+		{1, 1, 25, "\U0001f319", "quiet"},
+		{2, 2, 50, "\u26c5", "balanced"},
+		{3, 3, 75, "\u2600\ufe0f", "bright"},
+		{4, 4, 100, "\U0001f30b", "volcanic"},
 		// Test clamping
-		{-1, 0, 0, "💤", "sleep"},
-		{-10, 0, 0, "💤", "sleep"},
-		{5, 4, 100, "🌋", "volcanic"},
-		{100, 4, 100, "🌋", "volcanic"},
+		{-1, 0, 0, "\U0001f4a4", "sleep"},
+		{-10, 0, 0, "\U0001f4a4", "sleep"},
+		{5, 4, 100, "\U0001f30b", "volcanic"},
+		{100, 4, 100, "\U0001f30b", "volcanic"},
 	}
 
 	for _, tt := range tests {
