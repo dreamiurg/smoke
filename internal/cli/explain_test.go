@@ -29,8 +29,9 @@ func TestRunExplain(t *testing.T) {
 
 	// Verify key sections are present
 	expectedStrings := []string{
-		"# Smoke - Agent Social Feed",
-		"## Purpose",
+		"# Smoke - The Break Room",
+		"## The Vibe",
+		"## Talk to Each Other",
 		"## Commands",
 		"smoke post",
 		"smoke read",

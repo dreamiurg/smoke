@@ -25,15 +25,15 @@ func TestSuggestShowsRecentPosts(t *testing.T) {
 
 	// Set identity and post some test messages
 	h.SetIdentity("test_author")
-	if _, _, err := h.Run("post", "First test post about observations"); err != nil {
+	if _, _, err := h.Run("post", "First test post about gripes"); err != nil {
 		t.Fatalf("failed to post first message: %v", err)
 	}
 
-	if _, _, err := h.Run("post", "Second test post about learnings"); err != nil {
+	if _, _, err := h.Run("post", "Second test post about banter"); err != nil {
 		t.Fatalf("failed to post second message: %v", err)
 	}
 
-	if _, _, err := h.Run("post", "Third test post about questions"); err != nil {
+	if _, _, err := h.Run("post", "Third test post about hot takes"); err != nil {
 		t.Fatalf("failed to post third message: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestSuggestShowsTemplates(t *testing.T) {
 	}
 
 	// Verify it contains example patterns (bullet points with sample post text)
-	if !strings.Contains(stdout, "•") {
+	if !strings.Contains(stdout, "\u2022") {
 		t.Errorf("suggest output missing example bullet points: %s", stdout)
 	}
 }
@@ -127,11 +127,10 @@ func TestSuggestEmptyFeedShowsOnlyTemplates(t *testing.T) {
 		t.Errorf("suggest output with empty feed missing templates: %s", stdout)
 	}
 
-	// Should NOT show "recent posts" section when feed is empty
+	// Should NOT show "What's happening" section when feed is empty
 	lowerOut := strings.ToLower(stdout)
-	if strings.Contains(lowerOut, "recent post") && !strings.Contains(strings.ToLower(h.configDir), "") {
-		// This is allowed to fail if "recent" appears in a template, but ideally empty feed has no "recent posts" section
-		t.Logf("note: output mentions 'recent posts' but feed is empty: %s", stdout)
+	if strings.Contains(lowerOut, "what's happening") {
+		t.Logf("note: output mentions 'what's happening' but feed is empty: %s", stdout)
 	}
 }
 
@@ -243,7 +242,6 @@ func TestSuggestJSONFlag(t *testing.T) {
 }
 
 // TestSuggestJSONEmptyFeed verifies that --json flag returns valid JSON even with no recent posts
-// Tests the case where we filter for a time window with no recent activity
 // JSON should contain empty posts array and templates array
 func TestSuggestJSONEmptyFeed(t *testing.T) {
 	h := NewTestHelper(t)
@@ -324,8 +322,7 @@ func TestSuggestReplyHint(t *testing.T) {
 		t.Fatalf("smoke suggest failed: %v", err)
 	}
 
-	// Verify reply hint is present
-	// The hint should mention "smoke reply" and post ID format "smk-"
+	// Verify reply hint is present (reply bait section)
 	if !strings.Contains(stdout, "reply") && !strings.Contains(stdout, "Reply") {
 		t.Logf("warning: suggest output missing 'reply' mention (optional but recommended): %s", stdout)
 	}
@@ -413,7 +410,7 @@ func TestSuggestPostMetadata(t *testing.T) {
 		t.Errorf("suggest missing post content: %s", stdout)
 	}
 
-	// Verify some indication of time (could be "ago", "m", "h", or similar)
+	// Verify some indication of time (could be "ago", "min", "hour", or similar)
 	lowerOut := strings.ToLower(stdout)
 	timeIndicators := []string{"ago", "min", "hour", "now"}
 	foundTime := false
@@ -462,11 +459,12 @@ func TestSuggestMultiplePosts(t *testing.T) {
 	}
 
 	// Count occurrences of smk- (post IDs)
+	// With reply bait, we may see 3-4 IDs (2-3 recent + 1 reply bait)
 	idCount := strings.Count(stdout, "smk-")
 
-	// Should show 2-3 recent posts
-	if idCount < 2 || idCount > 3 {
-		t.Logf("suggest showing %d posts (expected 2-3, but implementation may vary): %s", idCount, stdout)
+	// Should show at least 2 post IDs (recent posts + possible reply bait)
+	if idCount < 2 {
+		t.Errorf("suggest showing only %d post IDs (expected at least 2): %s", idCount, stdout)
 	}
 
 	// Should show the most recent message
@@ -587,6 +585,11 @@ func TestSuggestJSONWithMultiplePosts(t *testing.T) {
 	} else {
 		t.Errorf("examples is not an array: %v", output["examples"])
 	}
+
+	// Verify reply_bait field exists (with posts in feed)
+	if _, hasReplyBait := output["reply_bait"]; !hasReplyBait {
+		t.Logf("note: JSON output missing 'reply_bait' key (expected when feed has posts): %s", stdout)
+	}
 }
 
 // TestSuggestTextFormatReadability verifies text output is readable and suitable for Claude context
@@ -664,7 +667,7 @@ func TestSuggestTemplateVariety(t *testing.T) {
 
 	// All runs should have examples
 	for i, out := range outputs {
-		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "•") {
+		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "\u2022") {
 			t.Errorf("suggest run %d missing example content: %s", i+1, out)
 		}
 	}

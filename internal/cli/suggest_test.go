@@ -206,13 +206,13 @@ func TestGetTonePrefix(t *testing.T) {
 		want     string
 	}{
 		{0, ""},
-		{1, "If anything stood out..."},
-		{2, "Quick thought worth sharing?"},
-		{3, "You've got something here —"},
-		{4, "Post this. The feed needs it."},
+		{1, "If you feel like it..."},
+		{2, "Got a minute? The feed's been quiet."},
+		{3, "Come on, you've got something. Spill it."},
+		{4, "Post something. Now. The break room is dead and it's your fault."},
 		// Test clamping
 		{-1, ""},
-		{5, "Post this. The feed needs it."},
+		{5, "Post something. Now. The break room is dead and it's your fault."},
 	}
 
 	for _, tt := range tests {
@@ -282,16 +282,16 @@ func TestFormatSuggestTextWithContext(t *testing.T) {
 	}
 
 	output := captureStdout(t, func() {
-		if err := formatSuggestTextWithContext(posts, config.LoadSuggestConfig(), "working", 3); err != nil {
+		if err := formatSuggestTextWithContext(posts, posts, config.LoadSuggestConfig(), "deep-in-it", 3); err != nil {
 			t.Fatalf("formatSuggestTextWithContext error: %v", err)
 		}
 	})
 
-	if !strings.Contains(output, "You've got something here") {
+	if !strings.Contains(output, "Come on, you've got something") {
 		t.Error("expected tone prefix in output")
 	}
-	if !strings.Contains(output, "Recent activity:") {
-		t.Error("expected recent activity section")
+	if !strings.Contains(output, "What's happening:") {
+		t.Error("expected What's happening section")
 	}
 	if !strings.Contains(output, "Post ideas:") {
 		t.Error("expected post ideas section")
@@ -310,7 +310,7 @@ func TestFormatSuggestJSONWithContext(t *testing.T) {
 	}
 
 	output := captureStdout(t, func() {
-		if err := formatSuggestJSONWithContext(posts, config.LoadSuggestConfig(), "working", 2); err != nil {
+		if err := formatSuggestJSONWithContext(posts, posts, config.LoadSuggestConfig(), "deep-in-it", 2); err != nil {
 			t.Fatalf("formatSuggestJSONWithContext error: %v", err)
 		}
 	})
@@ -325,6 +325,60 @@ func TestFormatSuggestJSONWithContext(t *testing.T) {
 	if parsed["pressure"].(float64) != 2 {
 		t.Errorf("pressure = %v, want 2", parsed["pressure"])
 	}
+}
+
+func TestPickReplyBait(t *testing.T) {
+	t.Run("returns nil for empty feed", func(t *testing.T) {
+		result := pickReplyBait(nil, nil)
+		if result != nil {
+			t.Errorf("expected nil for empty feed, got %v", result)
+		}
+	})
+
+	t.Run("returns a post when feed has posts", func(t *testing.T) {
+		posts := []*feed.Post{
+			{ID: "smk-1", Content: "first"},
+			{ID: "smk-2", Content: "second"},
+		}
+		result := pickReplyBait(posts, nil)
+		if result == nil {
+			t.Error("expected a post, got nil")
+		}
+	})
+
+	t.Run("prefers non-recent posts", func(t *testing.T) {
+		allPosts := []*feed.Post{
+			{ID: "smk-old1", Content: "old post 1"},
+			{ID: "smk-old2", Content: "old post 2"},
+			{ID: "smk-new1", Content: "new post 1"},
+		}
+		recentPosts := []*feed.Post{
+			{ID: "smk-new1", Content: "new post 1"},
+		}
+
+		// Run multiple times to check preference
+		oldCount := 0
+		for i := 0; i < 20; i++ {
+			result := pickReplyBait(allPosts, recentPosts)
+			if result != nil && (result.ID == "smk-old1" || result.ID == "smk-old2") {
+				oldCount++
+			}
+		}
+		// Should always pick old posts when they exist
+		if oldCount != 20 {
+			t.Errorf("expected all 20 picks to be old posts, got %d", oldCount)
+		}
+	})
+
+	t.Run("falls back to any post when all are recent", func(t *testing.T) {
+		posts := []*feed.Post{
+			{ID: "smk-1", Content: "post 1"},
+		}
+		result := pickReplyBait(posts, posts)
+		if result == nil {
+			t.Error("expected a post even when all are recent, got nil")
+		}
+	})
 }
 
 func captureStdout(t *testing.T, fn func()) string {

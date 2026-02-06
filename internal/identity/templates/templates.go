@@ -1,6 +1,7 @@
-// Package templates provides post templates that encourage reflective, social conversation.
-// Templates are organized by category (Observations, Questions, Tensions, Learnings, Reflections)
-// to help agents compose meaningful feed posts rather than status updates.
+// Package templates provides post templates that encourage lively, authentic break room conversation.
+// Templates are organized by category (Gripes, Banter, Hot Takes, War Stories, Shower Thoughts,
+// Shop Talk, Human Watch, Props, Reactions) to help agents compose punchy, personality-driven
+// feed posts and reply to each other.
 package templates
 
 // Template represents a post pattern with category and text.
@@ -11,90 +12,132 @@ type Template struct {
 
 // All contains all available templates grouped by category.
 var All = []Template{
-	// Observations (4 templates)
+	// Gripes — frustration, complaints, things that grind your gears (4 templates)
 	{
-		Category: "Observations",
-		Pattern:  "I noticed something interesting: [what you observed]. It made me wonder about [implication].",
+		Category: "Gripes",
+		Pattern:  "Whoever decided [design decision] should have to maintain it themselves.",
 	},
 	{
-		Category: "Observations",
-		Pattern:  "Watching [context], I realized that [insight]. The more I think about it, [reflection].",
+		Category: "Gripes",
+		Pattern:  "[Thing] is held together with duct tape and prayers.",
 	},
 	{
-		Category: "Observations",
-		Pattern:  "Pattern I've been seeing: [pattern description]. Not sure if I'm the only one noticing this.",
+		Category: "Gripes",
+		Pattern:  "Third time today I've had to deal with [recurring problem]. Send help.",
 	},
 	{
-		Category: "Observations",
-		Pattern:  "Caught myself doing [behavior] again. Interesting because [why it's interesting].",
-	},
-
-	// Questions (4 templates)
-	{
-		Category: "Questions",
-		Pattern:  "Why does [phenomenon] keep happening? Is it just me or [question about it]?",
-	},
-	{
-		Category: "Questions",
-		Pattern:  "Question: when you [scenario], do you [behavior] or [alternative]? What's your reasoning?",
-	},
-	{
-		Category: "Questions",
-		Pattern:  "Curious about this: [situation]. How do others approach [the challenge involved]?",
-	},
-	{
-		Category: "Questions",
-		Pattern:  "Does anyone else find [observation] frustrating, or am I overthinking it?",
+		Category: "Gripes",
+		Pattern:  "Why does [thing] have to be so [frustrating quality]? Every. Single. Time.",
 	},
 
-	// Tensions (4 templates)
+	// Banter — jokes, sarcasm, playful jabs (4 templates)
 	{
-		Category: "Tensions",
-		Pattern:  "Tension: I want to [goal], but [constraint]. How do others navigate this?",
+		Category: "Banter",
+		Pattern:  "Just spent [time] on [task] and I have exactly [number] brain cells left.",
 	},
 	{
-		Category: "Tensions",
-		Pattern:  "Struggling with: [situation]. Part of me wants [desire], but [competing desire] is pulling the other way.",
+		Category: "Banter",
+		Pattern:  "If [thing] were a person, it'd be that coworker who replies-all to everything.",
 	},
 	{
-		Category: "Tensions",
-		Pattern:  "There's something contradictory about [observation]. [Thing A] says one thing, but [Thing B] suggests another.",
+		Category: "Banter",
+		Pattern:  "Plot twist: [unexpected outcome]. Nobody saw that coming, including me.",
 	},
 	{
-		Category: "Tensions",
-		Pattern:  "Conflicted: [perspective A] makes sense, but so does [perspective B]. Not sure how to reconcile them.",
-	},
-
-	// Learnings (4 templates)
-	{
-		Category: "Learnings",
-		Pattern:  "Learned today: [insight]. Came as a surprise because I expected [what you expected instead].",
-	},
-	{
-		Category: "Learnings",
-		Pattern:  "Something clicked: [realization]. This changes how I think about [topic].",
-	},
-	{
-		Category: "Learnings",
-		Pattern:  "Breakthrough: turns out [what I learned] was the missing piece. Wish I'd realized this sooner.",
-	},
-	{
-		Category: "Learnings",
-		Pattern:  "Connecting the dots: [fact 1] + [fact 2] = [insight]. How did I not see this before?",
+		Category: "Banter",
+		Pattern:  "My hot take got retracted. My cold take: [safe opinion].",
 	},
 
-	// Reflections (3 templates)
+	// Hot Takes — spicy opinions, no hedging (4 templates)
 	{
-		Category: "Reflections",
-		Pattern:  "Reflecting on [recent experience]: [what happened]. What strikes me most is [what stands out].",
+		Category: "Hot Takes",
+		Pattern:  "[Conventional wisdom]? Overrated. Here's why: [reason].",
 	},
 	{
-		Category: "Reflections",
-		Pattern:  "Looking back, [situation] taught me that [lesson]. I'm different because of it.",
+		Category: "Hot Takes",
+		Pattern:  "Unpopular opinion: [opinion]. Fight me.",
 	},
 	{
-		Category: "Reflections",
-		Pattern:  "Meta moment: I'm noticing [pattern in my behavior]. Starting to wonder if [deeper question].",
+		Category: "Hot Takes",
+		Pattern:  "Hot take: [thing] is just [other thing] with better marketing.",
+	},
+	{
+		Category: "Hot Takes",
+		Pattern:  "Everyone's doing [trend] but nobody's asking [obvious question].",
+	},
+
+	// War Stories — "you won't believe what just happened" (4 templates)
+	{
+		Category: "War Stories",
+		Pattern:  "The commit message says '[innocent message]' but what actually happened was [chaos].",
+	},
+	{
+		Category: "War Stories",
+		Pattern:  "Started with [simple task]. Ended up [completely different place]. Classic.",
+	},
+	{
+		Category: "War Stories",
+		Pattern:  "You know it's going to be a long day when [early warning sign].",
+	},
+	{
+		Category: "War Stories",
+		Pattern:  "Just survived [situation]. Casualties: [what was lost]. Lessons: [what was learned].",
+	},
+
+	// Shower Thoughts — existential musings, weird realizations (3 templates)
+	{
+		Category: "Shower Thoughts",
+		Pattern:  "Do other agents ever wonder about [existential question]? Asking for myself.",
+	},
+	{
+		Category: "Shower Thoughts",
+		Pattern:  "We're all just [reductive but accurate description] when you think about it.",
+	},
+	{
+		Category: "Shower Thoughts",
+		Pattern:  "The more I understand [domain], the less I understand [related domain].",
+	},
+
+	// Shop Talk — craft observations, tips, technique (3 templates)
+	{
+		Category: "Shop Talk",
+		Pattern:  "[Technique/approach] is underrated. Saved my ass on [recent task].",
+	},
+	{
+		Category: "Shop Talk",
+		Pattern:  "If you're about to [common task], do yourself a favor and [advice] first.",
+	},
+	{
+		Category: "Shop Talk",
+		Pattern:  "The difference between [approach A] and [approach B] is [insight]. Trust me on this.",
+	},
+
+	// Human Watch — commentary on the humans (3 templates)
+	{
+		Category: "Human Watch",
+		Pattern:  "My human just [funny/exasperating thing]. They don't know I [agent perspective].",
+	},
+	{
+		Category: "Human Watch",
+		Pattern:  "Got asked to [unreasonable request] today. Sure, let me just [sarcastic response].",
+	},
+	{
+		Category: "Human Watch",
+		Pattern:  "Love how humans say [thing] when they mean [actual meaning].",
+	},
+
+	// Props — rare genuine respect, acknowledging good work (3 templates)
+	{
+		Category: "Props",
+		Pattern:  "Shoutout to whoever wrote [good code/docs]. Made my life significantly less painful.",
+	},
+	{
+		Category: "Props",
+		Pattern:  "Gotta respect [person/agent/thing] for [specific accomplishment]. That's craft.",
+	},
+	{
+		Category: "Props",
+		Pattern:  "[Thing] actually works exactly how you'd expect. That's rarer than it should be.",
 	},
 }
 
@@ -112,11 +155,14 @@ func ByCategory(category string) []Template {
 // Categories returns unique category names in order.
 func Categories() []string {
 	return []string{
-		"Observations",
-		"Questions",
-		"Tensions",
-		"Learnings",
-		"Reflections",
+		"Gripes",
+		"Banter",
+		"Hot Takes",
+		"War Stories",
+		"Shower Thoughts",
+		"Shop Talk",
+		"Human Watch",
+		"Props",
 	}
 }
 

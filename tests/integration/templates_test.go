@@ -29,16 +29,16 @@ func TestTemplatesText(t *testing.T) {
 	}
 
 	// Verify output contains readable content
-	if !strings.Contains(stdout, "Observations") &&
-		!strings.Contains(stdout, "Questions") &&
-		!strings.Contains(stdout, "Tensions") &&
-		!strings.Contains(stdout, "Learnings") &&
-		!strings.Contains(stdout, "Reflections") {
+	if !strings.Contains(stdout, "Gripes") &&
+		!strings.Contains(stdout, "Banter") &&
+		!strings.Contains(stdout, "Hot Takes") &&
+		!strings.Contains(stdout, "War Stories") &&
+		!strings.Contains(stdout, "Props") {
 		t.Errorf("templates output missing category names: %s", stdout)
 	}
 }
 
-// TestTemplatesAllCategories verifies that `smoke templates` includes all 5 categories.
+// TestTemplatesAllCategories verifies that `smoke templates` includes all 8 categories.
 func TestTemplatesAllCategories(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -54,13 +54,16 @@ func TestTemplatesAllCategories(t *testing.T) {
 		t.Fatalf("smoke templates failed: %v", err)
 	}
 
-	// Check for all 5 categories
+	// Check for all 8 categories
 	expectedCategories := []string{
-		"Observations",
-		"Questions",
-		"Tensions",
-		"Learnings",
-		"Reflections",
+		"Gripes",
+		"Banter",
+		"Hot Takes",
+		"War Stories",
+		"Shower Thoughts",
+		"Shop Talk",
+		"Human Watch",
+		"Props",
 	}
 
 	for _, category := range expectedCategories {
@@ -98,7 +101,7 @@ func TestTemplatesPatterns(t *testing.T) {
 	}
 }
 
-// TestTemplatesCount verifies that all templates are shown (should be 19 total).
+// TestTemplatesCount verifies that all templates are shown (should be 28 total).
 func TestTemplatesCount(t *testing.T) {
 	h := NewTestHelper(t)
 	defer h.Cleanup()
@@ -114,14 +117,12 @@ func TestTemplatesCount(t *testing.T) {
 		t.Fatalf("smoke templates failed: %v", err)
 	}
 
-	// Should have 4+4+4+4+3 = 19 templates
-	// Count occurrences of pattern start markers (e.g., bullet points or "• " or "-")
-	// For now, check that we have substantial content with multiple lines
+	// Should have 4+4+4+4+3+3+3+3 = 28 templates
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 
-	// Should have at least 20+ lines (categories + templates)
-	if len(lines) < 20 {
-		t.Errorf("templates output too short for 19 templates (got %d lines): %s", len(lines), stdout)
+	// Should have at least 30+ lines (categories + templates)
+	if len(lines) < 30 {
+		t.Errorf("templates output too short for 28 templates (got %d lines): %s", len(lines), stdout)
 	}
 }
 
@@ -204,9 +205,9 @@ func TestTemplatesJSONStructure(t *testing.T) {
 			t.Error("JSON object is empty, expected categories")
 		}
 
-		// Should have 5 categories
-		if len(categoriesMap) != 5 {
-			t.Errorf("expected 5 categories, got %d: %v", len(categoriesMap), categoriesMap)
+		// Should have 8 categories
+		if len(categoriesMap) != 8 {
+			t.Errorf("expected 8 categories, got %d: %v", len(categoriesMap), categoriesMap)
 		}
 		return
 	}
@@ -237,9 +238,9 @@ func TestTemplatesJSONValidContent(t *testing.T) {
 		t.Fatalf("failed to parse JSON as array: %v\nGot: %s", err, stdout)
 	}
 
-	// Should have 19 templates
-	if len(templates) != 19 {
-		t.Errorf("expected 19 templates, got %d", len(templates))
+	// Should have 28 templates
+	if len(templates) != 28 {
+		t.Errorf("expected 28 templates, got %d", len(templates))
 	}
 
 	// Check that we have expected categories
@@ -251,11 +252,14 @@ func TestTemplatesJSONValidContent(t *testing.T) {
 	}
 
 	expectedCounts := map[string]int{
-		"Observations": 4,
-		"Questions":    4,
-		"Tensions":     4,
-		"Learnings":    4,
-		"Reflections":  3,
+		"Gripes":          4,
+		"Banter":          4,
+		"Hot Takes":       4,
+		"War Stories":     4,
+		"Shower Thoughts": 3,
+		"Shop Talk":       3,
+		"Human Watch":     3,
+		"Props":           3,
 	}
 
 	for category, expectedCount := range expectedCounts {
@@ -286,11 +290,14 @@ func TestTemplatesCategoryDisplay(t *testing.T) {
 
 	// Check that categories appear as headers (likely with some formatting)
 	categories := []string{
-		"Observations",
-		"Questions",
-		"Tensions",
-		"Learnings",
-		"Reflections",
+		"Gripes",
+		"Banter",
+		"Hot Takes",
+		"War Stories",
+		"Shower Thoughts",
+		"Shop Talk",
+		"Human Watch",
+		"Props",
 	}
 
 	for _, cat := range categories {

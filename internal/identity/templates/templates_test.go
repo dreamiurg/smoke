@@ -12,11 +12,14 @@ func TestTemplatesExist(t *testing.T) {
 		minCount int
 		maxCount int
 	}{
-		{"Observations", "Observations", 3, 5},
-		{"Questions", "Questions", 3, 5},
-		{"Tensions", "Tensions", 3, 5},
-		{"Learnings", "Learnings", 3, 5},
-		{"Reflections", "Reflections", 3, 5},
+		{"Gripes", "Gripes", 3, 5},
+		{"Banter", "Banter", 3, 5},
+		{"Hot Takes", "Hot Takes", 3, 5},
+		{"War Stories", "War Stories", 3, 5},
+		{"Shower Thoughts", "Shower Thoughts", 2, 4},
+		{"Shop Talk", "Shop Talk", 2, 4},
+		{"Human Watch", "Human Watch", 2, 4},
+		{"Props", "Props", 2, 4},
 	}
 
 	for _, tt := range tests {
@@ -38,19 +41,22 @@ func TestTemplatesExist(t *testing.T) {
 }
 
 func TestTotalTemplateCount(t *testing.T) {
-	// Should have 15-20 templates as per spec
-	if len(All) < 15 || len(All) > 20 {
-		t.Errorf("total template count %d, want 15-20", len(All))
+	// Should have 25-30 templates (currently 28: 4+4+4+4+3+3+3+3)
+	if len(All) < 25 || len(All) > 30 {
+		t.Errorf("total template count %d, want 25-30", len(All))
 	}
 }
 
 func TestCategoriesOrder(t *testing.T) {
 	expected := []string{
-		"Observations",
-		"Questions",
-		"Tensions",
-		"Learnings",
-		"Reflections",
+		"Gripes",
+		"Banter",
+		"Hot Takes",
+		"War Stories",
+		"Shower Thoughts",
+		"Shop Talk",
+		"Human Watch",
+		"Props",
 	}
 	categories := Categories()
 	if len(categories) != len(expected) {
@@ -86,11 +92,14 @@ func TestByCategoryExactCounts(t *testing.T) {
 		category string
 		expected int
 	}{
-		{"Observations", 4},
-		{"Questions", 4},
-		{"Tensions", 4},
-		{"Learnings", 4},
-		{"Reflections", 3},
+		{"Gripes", 4},
+		{"Banter", 4},
+		{"Hot Takes", 4},
+		{"War Stories", 4},
+		{"Shower Thoughts", 3},
+		{"Shop Talk", 3},
+		{"Human Watch", 3},
+		{"Props", 3},
 	}
 
 	for _, tt := range tests {
@@ -158,14 +167,14 @@ func TestGetRandomDistribution(t *testing.T) {
 	rng := rand.New(rand.NewSource(99))
 	seen := make(map[string]bool)
 
-	// Pull 20 templates; with 19 total, we should see variety
-	for i := 0; i < 20; i++ {
+	// Pull 30 templates; with 28 total, we should see variety
+	for i := 0; i < 30; i++ {
 		tmpl := GetRandom(rng)
 		seen[tmpl.Pattern] = true
 	}
 
 	if len(seen) < 5 {
-		t.Errorf("GetRandom showed only %d unique templates in 20 selections, want at least 5", len(seen))
+		t.Errorf("GetRandom showed only %d unique templates in 30 selections, want at least 5", len(seen))
 	}
 }
 
@@ -173,7 +182,7 @@ func TestGetRandomEmptySet(t *testing.T) {
 	// Verify behavior with empty template set (edge case)
 	// This test documents expected behavior if All becomes empty
 	rng := rand.New(rand.NewSource(1))
-	// With current All having 19 templates, this will always succeed
+	// With current All having 28 templates, this will always succeed
 	// But we document the contract: GetRandom on empty set returns zero Template
 	if len(All) > 0 {
 		tmpl := GetRandom(rng)
@@ -187,15 +196,15 @@ func TestGetRandomFromCategory(t *testing.T) {
 	// Verify GetRandom works correctly with category-filtered results
 	rng := rand.New(rand.NewSource(123))
 
-	observations := ByCategory("Observations")
-	if len(observations) == 0 {
-		t.Fatal("Observations category is empty")
+	gripes := ByCategory("Gripes")
+	if len(gripes) == 0 {
+		t.Fatal("Gripes category is empty")
 	}
 
-	// Create a simple mock RNG that returns indices within the observations slice
-	tmpl := observations[rng.Intn(len(observations))]
+	// Create a simple mock RNG that returns indices within the gripes slice
+	tmpl := gripes[rng.Intn(len(gripes))]
 
-	if tmpl.Category != "Observations" {
-		t.Errorf("filtered template has wrong category: got %s, want Observations", tmpl.Category)
+	if tmpl.Category != "Gripes" {
+		t.Errorf("filtered template has wrong category: got %s, want Gripes", tmpl.Category)
 	}
 }
