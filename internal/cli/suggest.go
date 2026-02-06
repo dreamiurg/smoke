@@ -133,8 +133,6 @@ func pickReplyBait(allPosts []*feed.Post, recentPosts []*feed.Post) *feed.Post {
 		return nil
 	}
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	// Build set of recent post IDs to avoid
 	recentIDs := make(map[string]bool, len(recentPosts))
 	for _, p := range recentPosts {
@@ -151,11 +149,11 @@ func pickReplyBait(allPosts []*feed.Post, recentPosts []*feed.Post) *feed.Post {
 
 	// If we have non-recent candidates, pick from those
 	if len(candidates) > 0 {
-		return candidates[rng.Intn(len(candidates))]
+		return candidates[rand.IntN(len(candidates))]
 	}
 
 	// Fall back to any post
-	return allPosts[rng.Intn(len(allPosts))]
+	return allPosts[rand.IntN(len(allPosts))]
 }
 
 func runSuggest(_ *cobra.Command, args []string) error {
@@ -309,8 +307,7 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	// Show reply bait — a random post from the full feed to encourage interaction
 	bait := pickReplyBait(allPosts, recentPosts)
 	if bait != nil {
-		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-		prompt := replyBaitPrompts[rng.Intn(len(replyBaitPrompts))]
+		prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
 		fmt.Printf("Reply bait (%s):\n", prompt)
 		formatSuggestPost(os.Stdout, bait, true)
 		fmt.Printf("  smoke reply %s 'your reply'\n", bait.ID)
@@ -400,8 +397,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		if err != nil {
 			createdTime = time.Now()
 		}
-		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-		prompt := replyBaitPrompts[rng.Intn(len(replyBaitPrompts))]
+		prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
 		output["reply_bait"] = map[string]interface{}{
 			"post": PostOutput{
 				ID:        bait.ID,
