@@ -1428,6 +1428,119 @@ func TestHandleCopyMenuKey(t *testing.T) {
 	})
 }
 
+func TestCountUnreadBetween(t *testing.T) {
+	lines := []contentLine{
+		{text: "a", postIndex: 0},
+		{text: "b", postIndex: 0},
+		{text: "c", postIndex: 1},
+		{text: "d", postIndex: -1},
+		{text: "e", postIndex: 1},
+		{text: "f", postIndex: 2},
+		{text: "g", postIndex: 2},
+	}
+
+	if got := countUnreadBetween(lines, 0, len(lines)); got != 3 {
+		t.Errorf("countUnreadBetween() = %d, want 3", got)
+	}
+	if got := countUnreadBetween(lines, 2, 5); got != 1 {
+		t.Errorf("countUnreadBetween() range [2,5) = %d, want 1", got)
+	}
+	if got := countUnreadBetween(lines, 5, 5); got != 0 {
+		t.Errorf("countUnreadBetween() empty range = %d, want 0", got)
+	}
+}
+
+func TestFindUnreadMarkerLine(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.unreadCount = 1
+
+	t.Run("uses explicit separator", func(t *testing.T) {
+		lines := []contentLine{
+			{text: "a", postIndex: 0},
+			{text: "sep", postIndex: unreadSeparatorIndex},
+			{text: "b", postIndex: 1},
+		}
+		if got := model.findUnreadMarkerLine(lines); got != 1 {
+			t.Errorf("marker line = %d, want 1", got)
+		}
+	})
+
+	t.Run("falls back to last read post", func(t *testing.T) {
+		model.displayedPosts = []*Post{
+			{ID: "a"},
+			{ID: "b"},
+			{ID: "c"},
+		}
+		model.lastReadPostID = "b"
+		lines := []contentLine{
+			{text: "a1", postIndex: 0},
+			{text: "a2", postIndex: 0},
+			{text: "b1", postIndex: 1},
+			{text: "b2", postIndex: 1},
+			{text: "c1", postIndex: 2},
+		}
+		if got := model.findUnreadMarkerLine(lines); got != 4 {
+			t.Errorf("marker line = %d, want 4", got)
+		}
+	})
+
+	t.Run("no unread count", func(t *testing.T) {
+		model.unreadCount = 0
+		if got := model.findUnreadMarkerLine([]contentLine{{text: "x", postIndex: 0}}); got != -1 {
+			t.Errorf("marker line = %d, want -1", got)
+		}
+	})
+}
+
+func TestComputeUnreadBelowWindow(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+
+	lines := []contentLine{
+		{text: "a", postIndex: 0},
+		{text: "b", postIndex: 1},
+		{text: "c", postIndex: 2},
+		{text: "d", postIndex: 3},
+		{text: "e", postIndex: 4},
+		{text: "f", postIndex: 5},
+	}
+
+	endIdx, belowCount, height := model.computeUnreadBelowWindow(lines, 0, 4, 1, len(lines))
+	if height != 3 {
+		t.Errorf("contentHeight = %d, want 3", height)
+	}
+	if endIdx != 3 {
+		t.Errorf("endIdx = %d, want 3", endIdx)
+	}
+	if belowCount == 0 {
+		t.Errorf("belowCount = %d, want > 0", belowCount)
+	}
+}
+
+func TestBuildVisibleLinesIndicators(t *testing.T) {
+	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
+	model := testModel(store)
+	model.width = 80
+
+	allLines := []string{"a", "b", "c", "d"}
+	visible := model.buildVisibleLines(allLines, 0, 3, 3, 2, 1)
+
+	if len(visible) != 4 {
+		t.Fatalf("visible lines = %d, want 4", len(visible))
+	}
+
+	wantAbove := model.formatUnreadAboveIndicator(2)
+	if visible[0] != wantAbove {
+		t.Errorf("first line mismatch; got %q want %q", visible[0], wantAbove)
+	}
+
+	wantBelow := model.formatUnreadBelowIndicator(1)
+	if visible[len(visible)-1] != wantBelow {
+		t.Errorf("last line mismatch; got %q want %q", visible[len(visible)-1], wantBelow)
+	}
+}
+
 // TestRenderCopyMenuOverlay tests copy menu rendering
 func TestRenderCopyMenuOverlay(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")

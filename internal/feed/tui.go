@@ -941,13 +941,34 @@ func (m Model) maxScrollOffset() int {
 // renderContent renders the feed content area with scroll support
 func (m Model) renderContent(availableHeight, availableWidth int) string {
 	contentLines := m.buildAllContentLinesWithPosts()
+	allLines := flattenContentLines(contentLines)
+
+	offset := m.clampScrollOffset(len(allLines), availableHeight)
+	markerLine := m.findUnreadMarkerLine(contentLines)
+	unreadAboveCount := countUnreadAbove(contentLines, markerLine, offset)
+
+	contentHeight := availableHeight
+	if contentHeight <= 0 {
+		contentHeight = 1
+	}
+
+	endIdx, unreadBelowCount, contentHeight := m.computeUnreadBelowWindow(contentLines, offset, contentHeight, markerLine, len(allLines))
+	visibleLines := m.buildVisibleLines(allLines, offset, endIdx, contentHeight, unreadAboveCount, unreadBelowCount)
+	styledLines := m.applyContentBackground(visibleLines, availableHeight, availableWidth)
+
+	return lipgloss.JoinVertical(lipgloss.Left, styledLines...)
+}
+
+func flattenContentLines(contentLines []contentLine) []string {
 	allLines := make([]string, len(contentLines))
 	for i, cl := range contentLines {
 		allLines[i] = cl.text
 	}
+	return allLines
+}
 
-	// Clamp scroll offset
-	maxOffset := len(allLines) - availableHeight
+func (m Model) clampScrollOffset(totalLines, availableHeight int) int {
+	maxOffset := totalLines - availableHeight
 	if maxOffset < 0 {
 		maxOffset = 0
 	}
@@ -958,94 +979,100 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 	if offset < 0 {
 		offset = 0
 	}
+	return offset
+}
 
-	markerLine := -1
-	if m.unreadCount > 0 {
-		for i, cl := range contentLines {
-			if cl.postIndex == unreadSeparatorIndex {
-				markerLine = i
-				break
-			}
-		}
-		if markerLine == -1 && m.lastReadPostID != "" {
-			lastReadIndex := -1
-			for i, post := range m.displayedPosts {
-				if post.ID == m.lastReadPostID {
-					lastReadIndex = i
-					break
-				}
-			}
-			if lastReadIndex >= 0 {
-				lastLine := -1
-				for i, cl := range contentLines {
-					if cl.postIndex == lastReadIndex {
-						lastLine = i
-					}
-				}
-				if lastLine >= 0 {
-					markerLine = lastLine + 1
-				}
-			}
+func (m Model) findUnreadMarkerLine(contentLines []contentLine) int {
+	if m.unreadCount <= 0 {
+		return -1
+	}
+	for i, cl := range contentLines {
+		if cl.postIndex == unreadSeparatorIndex {
+			return i
 		}
 	}
-
-	unreadAboveCount := 0
-	if markerLine >= 0 && markerLine < offset {
-		seen := make(map[int]bool)
-		start := markerLine + 1
-		if start < 0 {
-			start = 0
-		}
-		for i := start; i < offset && i < len(contentLines); i++ {
-			if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
-				seen[idx] = true
-				unreadAboveCount++
-			}
+	if m.lastReadPostID == "" {
+		return -1
+	}
+	lastReadIndex := -1
+	for i, post := range m.displayedPosts {
+		if post.ID == m.lastReadPostID {
+			lastReadIndex = i
+			break
 		}
 	}
-
-	contentHeight := availableHeight
-	if contentHeight <= 0 {
-		contentHeight = 1
+	if lastReadIndex < 0 {
+		return -1
 	}
-
-	computeUnreadBelow := func(endIdx int) int {
-		if markerLine < 0 || endIdx >= len(contentLines) {
-			return 0
+	lastLine := -1
+	for i, cl := range contentLines {
+		if cl.postIndex == lastReadIndex {
+			lastLine = i
 		}
-		seen := make(map[int]bool)
-		start := markerLine + 1
-		if start < 0 {
-			start = 0
-		}
-		if start < endIdx {
-			start = endIdx
-		}
-		count := 0
-		for i := start; i < len(contentLines); i++ {
-			if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
-				seen[idx] = true
-				count++
-			}
-		}
-		return count
 	}
+	if lastLine >= 0 {
+		return lastLine + 1
+	}
+	return -1
+}
 
+func countUnreadAbove(contentLines []contentLine, markerLine, offset int) int {
+	if markerLine < 0 || markerLine >= offset {
+		return 0
+	}
+	return countUnreadBetween(contentLines, markerLine+1, offset)
+}
+
+func countUnreadBetween(contentLines []contentLine, start, end int) int {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(contentLines) {
+		end = len(contentLines)
+	}
+	if start >= end {
+		return 0
+	}
+	seen := make(map[int]bool)
+	count := 0
+	for i := start; i < end; i++ {
+		if idx := contentLines[i].postIndex; idx >= 0 && !seen[idx] {
+			seen[idx] = true
+			count++
+		}
+	}
+	return count
+}
+
+func (m Model) countUnreadBelow(contentLines []contentLine, markerLine, startIdx int) int {
+	if markerLine < 0 || startIdx >= len(contentLines) {
+		return 0
+	}
+	start := markerLine + 1
+	if start < startIdx {
+		start = startIdx
+	}
+	return countUnreadBetween(contentLines, start, len(contentLines))
+}
+
+func (m Model) computeUnreadBelowWindow(contentLines []contentLine, offset, contentHeight, markerLine, totalLines int) (int, int, int) {
 	endIdx := offset + contentHeight
-	if endIdx > len(allLines) {
-		endIdx = len(allLines)
+	if endIdx > totalLines {
+		endIdx = totalLines
 	}
-	unreadBelowCount := computeUnreadBelow(endIdx)
+	unreadBelowCount := m.countUnreadBelow(contentLines, markerLine, endIdx)
 	if unreadBelowCount > 0 && contentHeight > 1 {
 		contentHeight--
 		endIdx = offset + contentHeight
-		if endIdx > len(allLines) {
-			endIdx = len(allLines)
+		if endIdx > totalLines {
+			endIdx = totalLines
 		}
-		unreadBelowCount = computeUnreadBelow(endIdx)
+		unreadBelowCount = m.countUnreadBelow(contentLines, markerLine, endIdx)
 	}
+	return endIdx, unreadBelowCount, contentHeight
+}
 
-	// Extract visible lines
+func (m Model) buildVisibleLines(allLines []string, offset, endIdx, contentHeight, unreadAboveCount, unreadBelowCount int) []string {
 	visibleLines := allLines[offset:endIdx]
 	if unreadAboveCount > 0 {
 		indicator := m.formatUnreadAboveIndicator(unreadAboveCount)
@@ -1064,31 +1091,25 @@ func (m Model) renderContent(availableHeight, availableWidth int) string {
 		indicator := m.formatUnreadBelowIndicator(unreadBelowCount)
 		visibleLines = append(visibleLines, indicator)
 	}
+	return visibleLines
+}
 
-	// Style for background padding
+func (m Model) applyContentBackground(visibleLines []string, availableHeight, availableWidth int) []string {
 	bgStyle := lipgloss.NewStyle().Background(m.theme.Background)
-
-	// Build styled lines - each line gets background applied separately
-	// to avoid gaps from newline characters
 	styledLines := make([]string, availableHeight)
 	for i := 0; i < availableHeight; i++ {
 		var line string
 		if i < len(visibleLines) {
 			line = visibleLines[i]
 		}
-		// Pad to full width with STYLED spaces (not plain spaces)
-		// This ensures background is maintained after any inner ANSI resets
 		visibleLen := lipgloss.Width(line)
 		if visibleLen < availableWidth {
-			// Style the padding separately so it has its own background
 			padding := bgStyle.Render(strings.Repeat(" ", availableWidth-visibleLen))
 			line += padding
 		}
 		styledLines[i] = line
 	}
-
-	// Use JoinVertical which handles line joining without extra newlines
-	return lipgloss.JoinVertical(lipgloss.Left, styledLines...)
+	return styledLines
 }
 
 func (m Model) formatUnreadAboveIndicator(count int) string {
