@@ -1,70 +1,160 @@
 package cli
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestShowLogFile(t *testing.T) {
-	dir := t.TempDir()
-	logPath := filepath.Join(dir, "test.log")
-
-	// Create a log file with 10 lines
-	var lines []string
-	for i := 1; i <= 10; i++ {
-		lines = append(lines, `{"level":"info","msg":"line `+string(rune('0'+i))+`"}`)
+func TestRunLogs_Show(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, ".config", "smoke")
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
 	}
-	content := strings.Join(lines, "\n") + "\n"
-	if err := os.WriteFile(logPath, []byte(content), 0644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
+	logPath := filepath.Join(logDir, "smoke.log")
+	if err := os.WriteFile(logPath, []byte("first\nsecond\n"), 0o600); err != nil {
+		t.Fatalf("write log: %v", err)
 	}
 
-	// Test showing last 5 lines
-	err := showLogFile(logPath, 5)
-	if err != nil {
-		t.Errorf("showLogFile() error = %v", err)
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		if oldHome == "" {
+			_ = os.Unsetenv("HOME")
+		} else {
+			_ = os.Setenv("HOME", oldHome)
+		}
+	}()
+
+	prevLines := logsLines
+	prevTail := logsTail
+	prevClear := logsClear
+	defer func() {
+		logsLines = prevLines
+		logsTail = prevTail
+		logsClear = prevClear
+	}()
+
+	logsLines = 10
+	logsTail = false
+	logsClear = false
+
+	output := captureLogsStdout(t, func() {
+		if err := runLogs(nil, []string{}); err != nil {
+			t.Fatalf("runLogs error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "first") || !strings.Contains(output, "second") {
+		t.Fatalf("expected log output, got: %s", output)
 	}
 }
 
-func TestShowLogFileNotExists(t *testing.T) {
-	err := showLogFile("/nonexistent/path/to/log", 10)
-	if err == nil {
-		t.Error("showLogFile() expected error for non-existent file")
+func TestRunLogs_Clear(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, ".config", "smoke")
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	logPath := filepath.Join(logDir, "smoke.log")
+	if err := os.WriteFile(logPath, []byte("line\n"), 0o600); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		if oldHome == "" {
+			_ = os.Unsetenv("HOME")
+		} else {
+			_ = os.Setenv("HOME", oldHome)
+		}
+	}()
+
+	prevLines := logsLines
+	prevTail := logsTail
+	prevClear := logsClear
+	defer func() {
+		logsLines = prevLines
+		logsTail = prevTail
+		logsClear = prevClear
+	}()
+
+	logsLines = 10
+	logsTail = false
+	logsClear = true
+
+	output := captureLogsStdout(t, func() {
+		if err := runLogs(nil, []string{}); err != nil {
+			t.Fatalf("runLogs error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Log file cleared") {
+		t.Fatalf("expected clear message, got: %s", output)
 	}
 }
 
-func TestClearLogFile(t *testing.T) {
-	dir := t.TempDir()
-	logPath := filepath.Join(dir, "test.log")
-
-	// Create a log file with content
-	content := `{"level":"info","msg":"test"}`
-	if err := os.WriteFile(logPath, []byte(content), 0644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
+func TestRunLogs_NoFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, ".config", "smoke")
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
 	}
 
-	// Clear the file
-	err := clearLogFile(logPath)
-	if err != nil {
-		t.Errorf("clearLogFile() error = %v", err)
-	}
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		if oldHome == "" {
+			_ = os.Unsetenv("HOME")
+		} else {
+			_ = os.Setenv("HOME", oldHome)
+		}
+	}()
 
-	// Verify file is empty
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	if len(data) != 0 {
-		t.Errorf("clearLogFile() file should be empty, got %d bytes", len(data))
+	prevLines := logsLines
+	prevTail := logsTail
+	prevClear := logsClear
+	defer func() {
+		logsLines = prevLines
+		logsTail = prevTail
+		logsClear = prevClear
+	}()
+
+	logsLines = 10
+	logsTail = false
+	logsClear = false
+
+	output := captureLogsStdout(t, func() {
+		if err := runLogs(nil, []string{}); err != nil {
+			t.Fatalf("runLogs error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "No log file found") {
+		t.Fatalf("expected no-log message, got: %s", output)
 	}
 }
 
-func TestClearLogFileNotExists(t *testing.T) {
-	// Should not error when file doesn't exist
-	err := clearLogFile("/nonexistent/path/to/log")
+func captureLogsStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
 	if err != nil {
-		t.Errorf("clearLogFile() should not error for non-existent file, got %v", err)
+		t.Fatalf("pipe: %v", err)
 	}
+	os.Stdout = w
+
+	fn()
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
 }
