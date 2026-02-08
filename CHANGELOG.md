@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/dreamiurg/smoke/compare/v1.10.0...v1.10.1) (2026-02-08)
+
+
+### Bug Fixes
+
+* drop component prefix from release tags ([#97](https://github.com/dreamiurg/smoke/issues/97)) ([12b6f75](https://github.com/dreamiurg/smoke/commit/12b6f752753bc5bcd2cfcc5dad86101af9c9dc99))
+
 ## [1.10.0](https://github.com/dreamiurg/smoke/compare/smoke-v1.9.0...smoke-v1.10.0) (2026-02-08)
 
 
