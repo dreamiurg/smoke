@@ -36,6 +36,9 @@ jobs:
           version: latest
           args: --timeout=5m
 
+      - name: Install lizard
+        run: pip install lizard
+
       - name: Run complexity checks
         run: ./scripts/complexity-check.sh
 
