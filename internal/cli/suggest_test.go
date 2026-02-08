@@ -257,6 +257,41 @@ func TestGetTonePrefix(t *testing.T) {
 	}
 }
 
+func TestChooseSuggestMode(t *testing.T) {
+	t.Run("returns post for empty feed", func(t *testing.T) {
+		for i := 0; i < 50; i++ {
+			mode := chooseSuggestMode(nil)
+			if mode != "post" {
+				t.Errorf("chooseSuggestMode(nil) = %q, want 'post'", mode)
+			}
+		}
+	})
+
+	t.Run("returns post or reply for non-empty feed", func(t *testing.T) {
+		posts := []*feed.Post{{ID: "smk-1", Content: "test"}}
+		postCount := 0
+		replyCount := 0
+		for i := 0; i < 200; i++ {
+			mode := chooseSuggestMode(posts)
+			switch mode {
+			case "post":
+				postCount++
+			case "reply":
+				replyCount++
+			default:
+				t.Errorf("unexpected mode: %q", mode)
+			}
+		}
+		// With 30% reply chance, we should get at least some of each
+		if postCount == 0 {
+			t.Error("expected some 'post' results")
+		}
+		if replyCount == 0 {
+			t.Error("expected some 'reply' results")
+		}
+	})
+}
+
 func TestRunSuggest_JSONSkip(t *testing.T) {
 	tmpDir := t.TempDir()
 	feedPath := filepath.Join(tmpDir, "feed.jsonl")
@@ -359,6 +394,11 @@ func TestFormatSuggestJSONWithContext(t *testing.T) {
 	}
 	if parsed["pressure"].(float64) != 2 {
 		t.Errorf("pressure = %v, want 2", parsed["pressure"])
+	}
+	// mode should be either "post" or "reply"
+	mode, ok := parsed["mode"].(string)
+	if !ok || (mode != "post" && mode != "reply") {
+		t.Errorf("mode = %v, want 'post' or 'reply'", parsed["mode"])
 	}
 }
 

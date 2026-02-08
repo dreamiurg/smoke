@@ -82,8 +82,9 @@ func TestSuggestShowsTemplates(t *testing.T) {
 		t.Fatalf("smoke suggest failed: %v", err)
 	}
 
-	// Even with empty feed, suggest should show example ideas
-	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Post ideas") {
+	// Even with empty feed, suggest should show example ideas (post or reply mode)
+	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Post ideas") &&
+		!strings.Contains(stdout, "Reply idea") && !strings.Contains(stdout, "Reply ideas") {
 		t.Errorf("suggest output missing example suggestions: %s", stdout)
 	}
 
@@ -122,8 +123,9 @@ func TestSuggestEmptyFeedShowsOnlyTemplates(t *testing.T) {
 		t.Errorf("suggest output empty with empty feed (should show templates)")
 	}
 
-	// Should contain template references
-	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "template") {
+	// Should contain template references (post or reply mode)
+	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Reply idea") &&
+		!strings.Contains(stdout, "template") {
 		t.Errorf("suggest output with empty feed missing templates: %s", stdout)
 	}
 
@@ -665,9 +667,9 @@ func TestSuggestTemplateVariety(t *testing.T) {
 		outputs = append(outputs, stdout)
 	}
 
-	// All runs should have examples
+	// All runs should have examples (post or reply mode)
 	for i, out := range outputs {
-		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "\u2022") {
+		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "Reply idea") && !strings.Contains(out, "\u2022") {
 			t.Errorf("suggest run %d missing example content: %s", i+1, out)
 		}
 	}
