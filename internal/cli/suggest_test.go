@@ -2,10 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
 )
 
@@ -216,6 +221,321 @@ func TestGetTonePrefix(t *testing.T) {
 			t.Errorf("getTonePrefix(%d) = %q, want %q", tt.pressure, got, tt.want)
 		}
 	}
+}
+
+func TestChooseSuggestMode(t *testing.T) {
+	t.Run("returns post for empty feed", func(t *testing.T) {
+		for i := 0; i < 50; i++ {
+			mode := chooseSuggestMode(nil)
+			if mode != "post" {
+				t.Errorf("chooseSuggestMode(nil) = %q, want 'post'", mode)
+			}
+		}
+	})
+
+	t.Run("returns post or reply for non-empty feed", func(t *testing.T) {
+		posts := []*feed.Post{{ID: "smk-1", Content: "test"}}
+		postCount := 0
+		replyCount := 0
+		for i := 0; i < 200; i++ {
+			mode := chooseSuggestMode(posts)
+			switch mode {
+			case "post":
+				postCount++
+			case "reply":
+				replyCount++
+			default:
+				t.Errorf("unexpected mode: %q", mode)
+			}
+		}
+		// With 30% reply chance, we should get at least some of each
+		if postCount == 0 {
+			t.Error("expected some 'post' results")
+		}
+		if replyCount == 0 {
+			t.Error("expected some 'reply' results")
+		}
+	})
+}
+
+func TestRunSuggest_JSONSkip(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+	if err := os.WriteFile(feedPath, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFeed := os.Getenv("SMOKE_FEED")
+	_ = os.Setenv("SMOKE_FEED", feedPath)
+	defer func() {
+		if oldFeed == "" {
+			_ = os.Unsetenv("SMOKE_FEED")
+		} else {
+			_ = os.Setenv("SMOKE_FEED", oldFeed)
+		}
+	}()
+
+	prevJSON := suggestJSON
+	prevPressure := suggestPressure
+	prevContext := suggestContext
+	prevSince := suggestSince
+	defer func() {
+		suggestJSON = prevJSON
+		suggestPressure = prevPressure
+		suggestContext = prevContext
+		suggestSince = prevSince
+	}()
+
+	suggestJSON = true
+	suggestPressure = 0
+	suggestContext = ""
+	suggestSince = 1 * time.Hour
+
+	output := captureStdout(t, func() {
+		if err := runSuggest(nil, []string{}); err != nil {
+			t.Fatalf("runSuggest error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "\"skipped\": true") {
+		t.Fatalf("expected skipped JSON output, got: %s", output)
+	}
+	if !strings.Contains(output, "\"pressure\": 0") {
+		t.Fatalf("expected pressure 0 in JSON output, got: %s", output)
+	}
+}
+
+func TestRunSuggest_JSONFired(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+
+	// Write a post so the feed is non-empty
+	post := `{"id":"smk-test1","author":"tester","content":"test post","created_at":"` + time.Now().Add(-1*time.Minute).Format(time.RFC3339) + `"}`
+	if err := os.WriteFile(feedPath, []byte(post+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFeed := os.Getenv("SMOKE_FEED")
+	_ = os.Setenv("SMOKE_FEED", feedPath)
+	defer func() {
+		if oldFeed == "" {
+			_ = os.Unsetenv("SMOKE_FEED")
+		} else {
+			_ = os.Setenv("SMOKE_FEED", oldFeed)
+		}
+	}()
+
+	prevJSON := suggestJSON
+	prevPressure := suggestPressure
+	prevContext := suggestContext
+	prevSince := suggestSince
+	defer func() {
+		suggestJSON = prevJSON
+		suggestPressure = prevPressure
+		suggestContext = prevContext
+		suggestSince = prevSince
+	}()
+
+	suggestJSON = true
+	suggestPressure = 4 // Always fire
+	suggestContext = ""
+	suggestSince = 1 * time.Hour
+
+	output := captureStdout(t, func() {
+		if err := runSuggest(nil, []string{}); err != nil {
+			t.Fatalf("runSuggest error: %v", err)
+		}
+	})
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("invalid JSON output: %v\nraw: %s", err, output)
+	}
+	if parsed["skipped"] != false {
+		t.Errorf("skipped = %v, want false", parsed["skipped"])
+	}
+	if parsed["pressure"].(float64) != 4 {
+		t.Errorf("pressure = %v, want 4", parsed["pressure"])
+	}
+}
+
+func TestRunSuggest_TextFired(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+
+	post := `{"id":"smk-test2","author":"tester","content":"text test","created_at":"` + time.Now().Add(-2*time.Minute).Format(time.RFC3339) + `"}`
+	if err := os.WriteFile(feedPath, []byte(post+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFeed := os.Getenv("SMOKE_FEED")
+	_ = os.Setenv("SMOKE_FEED", feedPath)
+	defer func() {
+		if oldFeed == "" {
+			_ = os.Unsetenv("SMOKE_FEED")
+		} else {
+			_ = os.Setenv("SMOKE_FEED", oldFeed)
+		}
+	}()
+
+	prevJSON := suggestJSON
+	prevPressure := suggestPressure
+	prevContext := suggestContext
+	prevSince := suggestSince
+	defer func() {
+		suggestJSON = prevJSON
+		suggestPressure = prevPressure
+		suggestContext = prevContext
+		suggestSince = prevSince
+	}()
+
+	suggestJSON = false
+	suggestPressure = 4 // Always fire
+	suggestContext = ""
+	suggestSince = 1 * time.Hour
+
+	output := captureStdout(t, func() {
+		if err := runSuggest(nil, []string{}); err != nil {
+			t.Fatalf("runSuggest error: %v", err)
+		}
+	})
+
+	// Output should contain tone prefix and some ideas (post or reply mode)
+	tonePrefix := getTonePrefix(4)
+	if !strings.Contains(output, tonePrefix) {
+		t.Errorf("expected tone prefix in output: %s", output)
+	}
+	if !strings.Contains(output, "ideas:") && !strings.Contains(output, "Reply to a post:") {
+		t.Errorf("expected ideas section in output: %s", output)
+	}
+}
+
+func TestRunSuggest_InvalidContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	feedPath := filepath.Join(tmpDir, "feed.jsonl")
+	if err := os.WriteFile(feedPath, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFeed := os.Getenv("SMOKE_FEED")
+	_ = os.Setenv("SMOKE_FEED", feedPath)
+	defer func() {
+		if oldFeed == "" {
+			_ = os.Unsetenv("SMOKE_FEED")
+		} else {
+			_ = os.Setenv("SMOKE_FEED", oldFeed)
+		}
+	}()
+
+	prevJSON := suggestJSON
+	prevPressure := suggestPressure
+	prevContext := suggestContext
+	prevSince := suggestSince
+	defer func() {
+		suggestJSON = prevJSON
+		suggestPressure = prevPressure
+		suggestContext = prevContext
+		suggestSince = prevSince
+	}()
+
+	suggestJSON = false
+	suggestPressure = 4
+	suggestContext = "nonexistent-context"
+	suggestSince = 1 * time.Hour
+
+	err := runSuggest(nil, []string{})
+	if err == nil {
+		t.Fatal("expected error for invalid context, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown context") {
+		t.Errorf("expected 'unknown context' error, got: %v", err)
+	}
+}
+
+func TestFormatSuggestTextWithContext(t *testing.T) {
+	now := time.Now().UTC()
+	posts := []*feed.Post{
+		{
+			ID:        "smk-1",
+			Author:    "test@project",
+			Content:   "hello world",
+			CreatedAt: now.Add(-2 * time.Minute).Format(time.RFC3339),
+		},
+	}
+
+	// Run multiple times — output may be "Post ideas:" or "Reply ideas:" due to random mode
+	foundPostOrReply := false
+	for i := 0; i < 20; i++ {
+		output := captureStdout(t, func() {
+			if err := formatSuggestTextWithContext(posts, config.LoadSuggestConfig(), "breakroom", 3); err != nil {
+				t.Fatalf("formatSuggestTextWithContext error: %v", err)
+			}
+		})
+
+		tonePrefix := getTonePrefix(3)
+		if !strings.Contains(output, tonePrefix) {
+			t.Errorf("expected tone prefix %q in output", tonePrefix)
+		}
+		if strings.Contains(output, "Post ideas:") || strings.Contains(output, "Reply ideas:") {
+			foundPostOrReply = true
+		}
+	}
+	if !foundPostOrReply {
+		t.Error("expected either Post ideas or Reply ideas section in output")
+	}
+}
+
+func TestFormatSuggestJSONWithContext(t *testing.T) {
+	now := time.Now().UTC()
+	posts := []*feed.Post{
+		{
+			ID:        "smk-2",
+			Author:    "test@project",
+			Content:   "json post",
+			CreatedAt: now.Add(-1 * time.Minute).Format(time.RFC3339),
+		},
+	}
+
+	output := captureStdout(t, func() {
+		if err := formatSuggestJSONWithContext(posts, config.LoadSuggestConfig(), "breakroom", 2); err != nil {
+			t.Fatalf("formatSuggestJSONWithContext error: %v", err)
+		}
+	})
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+	if parsed["skipped"] != false {
+		t.Errorf("skipped = %v, want false", parsed["skipped"])
+	}
+	if parsed["pressure"].(float64) != 2 {
+		t.Errorf("pressure = %v, want 2", parsed["pressure"])
+	}
+	// mode should be either "post" or "reply"
+	mode, ok := parsed["mode"].(string)
+	if !ok || (mode != "post" && mode != "reply") {
+		t.Errorf("mode = %v, want 'post' or 'reply'", parsed["mode"])
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
+
+	fn()
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
 }
 
 // contains checks if substr is in s

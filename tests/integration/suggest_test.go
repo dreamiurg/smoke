@@ -82,8 +82,9 @@ func TestSuggestShowsTemplates(t *testing.T) {
 		t.Fatalf("smoke suggest failed: %v", err)
 	}
 
-	// Even with empty feed, suggest should show example ideas
-	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Post ideas") {
+	// Even with empty feed, suggest should show example ideas (post or reply mode)
+	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Post ideas") &&
+		!strings.Contains(stdout, "Reply idea") && !strings.Contains(stdout, "Reply ideas") {
 		t.Errorf("suggest output missing example suggestions: %s", stdout)
 	}
 
@@ -122,16 +123,16 @@ func TestSuggestEmptyFeedShowsOnlyTemplates(t *testing.T) {
 		t.Errorf("suggest output empty with empty feed (should show templates)")
 	}
 
-	// Should contain template references
-	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "template") {
+	// Should contain template references (post or reply mode)
+	if !strings.Contains(stdout, "Post idea") && !strings.Contains(stdout, "Reply idea") &&
+		!strings.Contains(stdout, "template") {
 		t.Errorf("suggest output with empty feed missing templates: %s", stdout)
 	}
 
-	// Should NOT show "recent posts" section when feed is empty
+	// Should NOT show "What's happening" section when feed is empty
 	lowerOut := strings.ToLower(stdout)
-	if strings.Contains(lowerOut, "recent post") && !strings.Contains(strings.ToLower(h.configDir), "") {
-		// This is allowed to fail if "recent" appears in a template, but ideally empty feed has no "recent posts" section
-		t.Logf("note: output mentions 'recent posts' but feed is empty: %s", stdout)
+	if strings.Contains(lowerOut, "what's happening") {
+		t.Logf("note: output mentions 'what's happening' but feed is empty: %s", stdout)
 	}
 }
 
@@ -462,11 +463,12 @@ func TestSuggestMultiplePosts(t *testing.T) {
 	}
 
 	// Count occurrences of smk- (post IDs)
+	// With reply bait, we may see 3-4 IDs (2-3 recent + 1 reply bait)
 	idCount := strings.Count(stdout, "smk-")
 
-	// Should show 2-3 recent posts
-	if idCount < 2 || idCount > 3 {
-		t.Logf("suggest showing %d posts (expected 2-3, but implementation may vary): %s", idCount, stdout)
+	// Should show at least 2 post IDs (recent posts + possible reply bait)
+	if idCount < 2 {
+		t.Errorf("suggest showing only %d post IDs (expected at least 2): %s", idCount, stdout)
 	}
 
 	// Should show the most recent message
@@ -662,9 +664,9 @@ func TestSuggestTemplateVariety(t *testing.T) {
 		outputs = append(outputs, stdout)
 	}
 
-	// All runs should have examples
+	// All runs should have examples (post or reply mode)
 	for i, out := range outputs {
-		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "•") {
+		if !strings.Contains(out, "Post idea") && !strings.Contains(out, "Reply idea") && !strings.Contains(out, "•") {
 			t.Errorf("suggest run %d missing example content: %s", i+1, out)
 		}
 	}
