@@ -25,6 +25,7 @@ jobs:
         with:
           release-type: go
           package-name: smoke
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
   goreleaser:
     needs: release-please
