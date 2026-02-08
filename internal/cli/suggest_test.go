@@ -412,6 +412,131 @@ func TestFormatSuggestJSONWithContext(t *testing.T) {
 	}
 }
 
+func TestFormatReplyMode(t *testing.T) {
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", t.TempDir())
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	now := time.Now().UTC()
+	posts := []*feed.Post{
+		{
+			ID:        "smk-r1",
+			Author:    "alice@project",
+			Content:   "I keep mistaking cleanup for progress again.",
+			CreatedAt: now.Add(-5 * time.Minute).Format(time.RFC3339),
+		},
+		{
+			ID:        "smk-r2",
+			Author:    "bob@project",
+			Content:   "Same. That tradeoff is brutal.",
+			CreatedAt: now.Add(-3 * time.Minute).Format(time.RFC3339),
+		},
+	}
+
+	output := captureStdout(t, func() {
+		if err := formatReplyMode(posts, config.LoadSuggestConfig()); err != nil {
+			t.Fatalf("formatReplyMode error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Recent activity (pick one and reply):") {
+		t.Error("missing reply mode header")
+	}
+	if !strings.Contains(output, "smk-r1") || !strings.Contains(output, "smk-r2") {
+		t.Error("missing post IDs in reply mode")
+	}
+	if !strings.Contains(output, "alice@project") {
+		t.Error("missing author in reply mode")
+	}
+	// Full content should be shown (not truncated)
+	if !strings.Contains(output, "I keep mistaking cleanup for progress again.") {
+		t.Error("reply mode should show full post content")
+	}
+	if !strings.Contains(output, "Reply ideas:") && !strings.Contains(output, "Reply to a post:") {
+		t.Error("missing reply guidance section")
+	}
+	if !strings.Contains(output, "smoke reply") {
+		t.Error("missing reply command hint")
+	}
+}
+
+func TestFormatSuggestTextWithContext_ReplyEmptyFeed(t *testing.T) {
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", t.TempDir())
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	output := captureStdout(t, func() {
+		if err := formatSuggestTextWithContext(nil, nil, config.LoadSuggestConfig(), "reply", 3); err != nil {
+			t.Fatalf("formatSuggestTextWithContext error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "No recent posts to reply to") {
+		t.Error("expected fallback message for reply mode with empty feed")
+	}
+	// Should fall back to post mode output
+	if !strings.Contains(output, "Post ideas:") {
+		t.Error("expected post ideas fallback when no posts for reply")
+	}
+}
+
+func TestFormatSuggestJSONWithContext_ReplyMode(t *testing.T) {
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", t.TempDir())
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	now := time.Now().UTC()
+	posts := []*feed.Post{
+		{
+			ID:        "smk-j1",
+			Author:    "test@project",
+			Content:   "json reply test",
+			CreatedAt: now.Add(-1 * time.Minute).Format(time.RFC3339),
+		},
+	}
+
+	output := captureStdout(t, func() {
+		if err := formatSuggestJSONWithContext(posts, posts, config.LoadSuggestConfig(), "reply", 2); err != nil {
+			t.Fatalf("formatSuggestJSONWithContext error: %v", err)
+		}
+	})
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if parsed["mode"] != "reply" {
+		t.Errorf("mode = %v, want 'reply'", parsed["mode"])
+	}
+	if _, ok := parsed["reply_examples"]; !ok {
+		t.Error("reply mode JSON missing reply_examples field")
+	}
+}
+
+func TestFormatSuggestJSONWithContext_ReplyEmptyFeed(t *testing.T) {
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", t.TempDir())
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	output := captureStdout(t, func() {
+		if err := formatSuggestJSONWithContext(nil, nil, config.LoadSuggestConfig(), "reply", 2); err != nil {
+			t.Fatalf("formatSuggestJSONWithContext error: %v", err)
+		}
+	})
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	// Should fall back to "post" mode when no posts available for reply
+	if parsed["mode"] != "post" {
+		t.Errorf("mode = %v, want 'post' (fallback when no posts for reply)", parsed["mode"])
+	}
+	if _, ok := parsed["reply_examples"]; ok {
+		t.Error("reply_examples should not be present when mode fell back to post")
+	}
+}
+
 func TestPickReplyBait(t *testing.T) {
 	t.Run("returns nil for empty feed", func(t *testing.T) {
 		result := pickReplyBait(nil, nil)
