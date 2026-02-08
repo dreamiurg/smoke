@@ -11,58 +11,57 @@ type InstallResult struct {
 	BackupPath string // Path to settings backup, empty if no backup created
 }
 
-// Install installs smoke hooks to Claude Code
-func Install(opts InstallOptions) (*InstallResult, error) {
-	result := &InstallResult{}
-	hooksDir := GetHooksDir()
-
-	// Check for modified scripts first (unless --force)
-	if !opts.Force {
-		for _, script := range ListScripts() {
-			content, err := GetScriptContent(script.Name)
-			if err != nil {
-				return nil, fmt.Errorf("get embedded script %s: %w", script.Name, err)
-			}
-
-			installedPath := filepath.Join(hooksDir, script.Name)
-			if scriptExists(installedPath) && isScriptModified(installedPath, content) {
-				return nil, ErrScriptsModified
-			}
-		}
-	}
-
-	// Create hooks directory
-	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		return nil, fmt.Errorf("%w: cannot create hooks directory", ErrPermissionDenied)
-	}
-
-	// Install each script
+// checkForModifiedScripts checks if any installed scripts have been modified
+// from their embedded versions. Returns ErrScriptsModified if any differ.
+func checkForModifiedScripts(hooksDir string) error {
 	for _, script := range ListScripts() {
 		content, err := GetScriptContent(script.Name)
 		if err != nil {
-			return nil, fmt.Errorf("get embedded script %s: %w", script.Name, err)
+			return fmt.Errorf("get embedded script %s: %w", script.Name, err)
+		}
+
+		installedPath := filepath.Join(hooksDir, script.Name)
+		if scriptExists(installedPath) && isScriptModified(installedPath, content) {
+			return ErrScriptsModified
+		}
+	}
+	return nil
+}
+
+// installScriptFiles creates the hooks directory and writes all embedded scripts.
+func installScriptFiles(hooksDir string) error {
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		return fmt.Errorf("%w: cannot create hooks directory", ErrPermissionDenied)
+	}
+
+	for _, script := range ListScripts() {
+		content, err := GetScriptContent(script.Name)
+		if err != nil {
+			return fmt.Errorf("get embedded script %s: %w", script.Name, err)
 		}
 
 		installedPath := filepath.Join(hooksDir, script.Name)
 		if err := writeScript(installedPath, content); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	return nil
+}
 
-	// Update settings.json
+// loadOrResetSettings reads settings, handling invalid JSON by creating a backup
+// and returning fresh settings. It also creates a backup before any modification.
+func loadOrResetSettings(result *InstallResult) (map[string]interface{}, error) {
 	settings, err := readSettings()
 	if err != nil {
-		// If settings are invalid, backup and create fresh
 		if err == ErrInvalidSettings {
 			backupPath, backupErr := BackupSettings()
 			if backupErr != nil {
 				return nil, fmt.Errorf("backup invalid settings: %w", backupErr)
 			}
 			result.BackupPath = backupPath
-			settings = make(map[string]interface{})
-		} else {
-			return nil, err
+			return make(map[string]interface{}), nil
 		}
+		return nil, err
 	}
 
 	// Create backup before modifying settings
@@ -72,6 +71,31 @@ func Install(opts InstallOptions) (*InstallResult, error) {
 			return nil, fmt.Errorf("backup settings: %w", backupErr)
 		}
 		result.BackupPath = backupPath
+	}
+
+	return settings, nil
+}
+
+// Install installs smoke hooks to Claude Code
+func Install(opts InstallOptions) (*InstallResult, error) {
+	result := &InstallResult{}
+	hooksDir := GetHooksDir()
+
+	// Check for modified scripts first (unless --force)
+	if !opts.Force {
+		if err := checkForModifiedScripts(hooksDir); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := installScriptFiles(hooksDir); err != nil {
+		return nil, err
+	}
+
+	// Load settings (with backup and reset if invalid)
+	settings, err := loadOrResetSettings(result)
+	if err != nil {
+		return nil, err
 	}
 
 	// Add hook entries to settings
@@ -95,45 +119,44 @@ type UninstallResult struct {
 	BackupPath string // Path to settings backup, empty if no backup created
 }
 
-// Uninstall removes smoke hooks from Claude Code
-func Uninstall() (*UninstallResult, error) {
-	result := &UninstallResult{}
-
-	// Update settings.json first
+// removeSettingsHooks removes smoke hook entries from settings.json.
+// If settings are invalid, it skips settings modification silently.
+func removeSettingsHooks(result *UninstallResult) error {
 	settings, err := readSettings()
 	if err != nil && err != ErrInvalidSettings {
-		return nil, err
+		return err
+	}
+	if err != nil {
+		// Settings are invalid; skip settings modification
+		return nil
 	}
 
-	// Remove hook entries from settings
-	if err == nil { // Only if settings are valid
-		// Create backup before modifying settings
-		backupPath, backupErr := BackupSettings()
-		if backupErr != nil {
-			return nil, fmt.Errorf("backup settings: %w", backupErr)
-		}
-		result.BackupPath = backupPath
+	// Create backup before modifying settings
+	backupPath, backupErr := BackupSettings()
+	if backupErr != nil {
+		return fmt.Errorf("backup settings: %w", backupErr)
+	}
+	result.BackupPath = backupPath
 
-		for _, script := range ListScripts() {
-			if err := removeHookFromSettings(settings, script.Event); err != nil {
-				return nil, err
-			}
-		}
-
-		// Write updated settings
-		if err := writeSettings(settings); err != nil {
-			return nil, err
+	for _, script := range ListScripts() {
+		if err := removeHookFromSettings(settings, script.Event); err != nil {
+			return err
 		}
 	}
 
-	// Remove script files
+	return writeSettings(settings)
+}
+
+// removeScriptFiles deletes installed hook scripts and the state directory.
+func removeScriptFiles() error {
 	hooksDir := GetHooksDir()
 	for _, script := range ListScripts() {
 		scriptPath := filepath.Join(hooksDir, script.Name)
-		if scriptExists(scriptPath) {
-			if err := os.Remove(scriptPath); err != nil && !os.IsNotExist(err) {
-				return nil, fmt.Errorf("%w: cannot remove script", ErrPermissionDenied)
-			}
+		if !scriptExists(scriptPath) {
+			continue
+		}
+		if err := os.Remove(scriptPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("%w: cannot remove script", ErrPermissionDenied)
 		}
 	}
 
@@ -143,38 +166,45 @@ func Uninstall() (*UninstallResult, error) {
 		_ = os.RemoveAll(stateDir) // Best effort, ignore errors
 	}
 
+	return nil
+}
+
+// Uninstall removes smoke hooks from Claude Code
+func Uninstall() (*UninstallResult, error) {
+	result := &UninstallResult{}
+
+	if err := removeSettingsHooks(result); err != nil {
+		return nil, err
+	}
+
+	if err := removeScriptFiles(); err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 
-// GetStatus returns the current hook installation status
-func GetStatus() (*Status, error) {
-	hooksDir := GetHooksDir()
+// getScriptStatuses checks each hook script and returns the script info map
+// along with flags indicating whether any are installed, missing, or modified.
+func getScriptStatuses(hooksDir string) (map[string]ScriptInfo, bool, bool, bool, error) {
 	scripts := make(map[string]ScriptInfo)
-
-	// Check each script
-	anyInstalled := false
-	anyMissing := false
-	anyModified := false
+	anyInstalled, anyMissing, anyModified := false, false, false
 
 	for _, script := range ListScripts() {
 		content, err := GetScriptContent(script.Name)
 		if err != nil {
-			return nil, fmt.Errorf("get embedded script %s: %w", script.Name, err)
+			return nil, false, false, false, fmt.Errorf("get embedded script %s: %w", script.Name, err)
 		}
 
 		installedPath := filepath.Join(hooksDir, script.Name)
 		status := getScriptStatus(installedPath, content)
-
-		info := ScriptInfo{
+		scripts[script.Name] = ScriptInfo{
 			Path:     installedPath,
 			Exists:   scriptExists(installedPath),
 			Modified: isScriptModified(installedPath, content),
 			Status:   status,
 		}
 
-		scripts[script.Name] = info
-
-		// Track overall state
 		switch status {
 		case StatusOK:
 			anyInstalled = true
@@ -184,31 +214,38 @@ func GetStatus() (*Status, error) {
 			anyModified = true
 		}
 	}
+	return scripts, anyInstalled, anyMissing, anyModified, nil
+}
 
-	// Read settings
-	settings, err := readSettings()
+// determineInstallState maps per-script flags to an overall InstallState.
+func determineInstallState(anyInstalled, anyMissing, anyModified bool) InstallState {
+	switch {
+	case !anyInstalled && !anyModified:
+		return StateNotInstalled
+	case anyModified:
+		return StateModified
+	case anyMissing:
+		return StatePartiallyInstalled
+	default:
+		return StateInstalled
+	}
+}
+
+// GetStatus returns the current hook installation status
+func GetStatus() (*Status, error) {
+	scripts, anyInstalled, anyMissing, anyModified, err := getScriptStatuses(GetHooksDir())
+	if err != nil {
+		return nil, err
+	}
+
 	settingsInfo := SettingsInfo{}
-
-	if err == nil {
+	if settings, sErr := readSettings(); sErr == nil {
 		settingsInfo.Stop = checkHookInSettings(settings, EventStop)
 		settingsInfo.PostToolUse = checkHookInSettings(settings, EventPostToolUse)
 	}
 
-	// Determine overall state
-	var state InstallState
-	switch {
-	case !anyInstalled && !anyModified:
-		state = StateNotInstalled
-	case anyModified:
-		state = StateModified
-	case anyMissing:
-		state = StatePartiallyInstalled
-	default:
-		state = StateInstalled
-	}
-
 	return &Status{
-		State:    state,
+		State:    determineInstallState(anyInstalled, anyMissing, anyModified),
 		Scripts:  scripts,
 		Settings: settingsInfo,
 	}, nil

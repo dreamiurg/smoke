@@ -25,42 +25,30 @@ var (
 	LandscapeImage = ImageDimensions{Width: 1200, Height: 630, Name: "landscape"}
 )
 
-// RenderShareCard renders a post as a shareable PNG image.
-// Uses theme colors for Carbon-style terminal aesthetic.
-func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, error) {
-	dc := gg.NewContext(dims.Width, dims.Height)
-
-	// Convert theme colors to Go color.Color (use Dark variant for terminal aesthetic)
+// renderCardBackground draws the card background and window controls.
+func renderCardBackground(dc *gg.Context, theme *Theme, dims ImageDimensions) (padding, innerPadding, cardWidth float64) {
 	bgColor := hexToColor(theme.Background.Dark)
-	textColor := hexToColor(theme.Text.Dark)
-	accentColor := hexToColor(theme.Accent.Dark)
-
-	// Fill background
 	dc.SetColor(bgColor)
 	dc.Clear()
 
-	// Draw rounded rectangle card (with some padding)
-	padding := float64(dims.Width) * 0.05
-	cardWidth := float64(dims.Width) - padding*2
+	padding = float64(dims.Width) * 0.05
+	cardWidth = float64(dims.Width) - padding*2
 	cardHeight := float64(dims.Height) - padding*2
 	cornerRadius := 20.0
 
 	dc.SetColor(hexToColor(theme.BackgroundSecondary.Dark))
-	drawRoundedRect(dc, padding, padding, cardWidth, cardHeight, cornerRadius)
+	drawRoundedRect(dc, roundedRect{padding, padding, cardWidth, cardHeight, cornerRadius})
 	dc.Fill()
 
-	// Card inner padding
-	innerPadding := padding + 40
+	innerPadding = padding + 40
 
-	// Draw window controls (Carbon-style dots)
 	dotY := innerPadding + 10
 	dotRadius := 7.0
 	dotSpacing := 20.0
-
 	colors := []color.Color{
-		color.RGBA{255, 95, 86, 255},  // Red
-		color.RGBA{255, 189, 46, 255}, // Yellow
-		color.RGBA{39, 201, 63, 255},  // Green
+		color.RGBA{255, 95, 86, 255},
+		color.RGBA{255, 189, 46, 255},
+		color.RGBA{39, 201, 63, 255},
 	}
 	for i, c := range colors {
 		dc.SetColor(c)
@@ -68,54 +56,65 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 		dc.Fill()
 	}
 
-	// Draw handle
-	handleY := dotY + 50
-	fontSize := float64(dims.Width) * 0.025
-	loadMonoFont(dc, fontSize)
+	return padding, innerPadding, cardWidth
+}
+
+// cardLayout bundles layout parameters for card handle rendering.
+type cardLayout struct {
+	innerPadding float64
+	dotY         float64
+	fontSize     float64
+}
+
+// renderCardHandle draws the author handle (agent@project [caller]).
+// Returns the Y position below the handle for content placement.
+func renderCardHandle(dc *gg.Context, post *Post, theme *Theme, layout cardLayout) float64 {
+	handleY := layout.dotY + 50
+	loadMonoFont(dc, layout.fontSize)
 	handle := post.Author
 	if handle == "" {
 		handle = "anonymous"
 	}
 
 	agent, project := SplitIdentity(handle)
-	agentColor := agentColorForTheme(agent, theme)
 	projectColor := hexToColor(theme.TextMuted.Dark)
 
-	dc.SetColor(agentColor)
-	dc.DrawString(agent, innerPadding, handleY)
+	dc.SetColor(agentColorForTheme(agent, theme))
+	dc.DrawString(agent, layout.innerPadding, handleY)
 
-	handleWidth := 0.0
 	agentWidth, _ := dc.MeasureString(agent)
-	handleWidth += agentWidth
+	handleWidth := agentWidth
 
 	if project != "" {
 		dc.SetColor(projectColor)
-		dc.DrawString("@"+project, innerPadding+agentWidth, handleY)
+		dc.DrawString("@"+project, layout.innerPadding+agentWidth, handleY)
 		projectWidth, _ := dc.MeasureString("@" + project)
 		handleWidth += projectWidth
 	}
 
-	caller := ResolveCallerTag(post)
-	if caller != "" {
+	if caller := ResolveCallerTag(post); caller != "" {
 		dc.SetColor(projectColor)
-		callerLabel := " (" + caller + ")"
-		dc.DrawString(callerLabel, innerPadding+handleWidth, handleY)
+		dc.DrawString(" ("+caller+")", layout.innerPadding+handleWidth, handleY)
 	}
 
-	// Draw content
-	contentY := handleY + fontSize*2
-	dc.SetColor(textColor)
-	contentFontSize := fontSize * 1.5
-	minFontSize := fontSize * 0.8
+	return handleY
+}
 
-	maxWidth := cardWidth - 80
-	footerFontSize := fontSize * 0.8
-	footerY := float64(dims.Height) - innerPadding
-	contentMaxY := footerY - (footerFontSize * 1.6)
-	if contentMaxY < contentY {
-		contentMaxY = contentY
-	}
-	availableHeight := contentMaxY - contentY
+// contentLayout bundles layout parameters for card content rendering.
+type contentLayout struct {
+	innerPadding    float64
+	contentY        float64
+	cardWidth       float64
+	availableHeight float64
+	fontSize        float64
+}
+
+// renderCardContent draws the post content with auto-sizing font.
+func renderCardContent(dc *gg.Context, post *Post, theme *Theme, cl contentLayout) {
+	dc.SetColor(hexToColor(theme.Text.Dark))
+	contentFontSize := cl.fontSize * 1.5
+	minFontSize := cl.fontSize * 0.8
+	maxWidth := cl.cardWidth - 80
 
 	var lines []string
 	var lineHeight float64
@@ -123,39 +122,60 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 		loadMonoFont(dc, contentFontSize)
 		lines = dc.WordWrap(post.Content, maxWidth)
 		lineHeight = contentFontSize * 1.4
-		totalHeight := lineHeight * float64(len(lines))
-		if totalHeight <= availableHeight || contentFontSize <= minFontSize {
+		if lineHeight*float64(len(lines)) <= cl.availableHeight || contentFontSize <= minFontSize {
 			break
 		}
 		contentFontSize -= 1.0
 	}
 
-	if availableHeight > 0 && len(lines) > 0 {
-		maxLines := int(math.Floor(availableHeight / lineHeight))
-		if maxLines <= 0 {
-			lines = nil
-		}
-		if len(lines) > maxLines && maxLines > 0 {
-			lines = lines[:maxLines]
-			last := strings.TrimRight(lines[maxLines-1], " ")
-			lines[maxLines-1] = last + "…"
-		}
-		if maxLines > 0 {
-			for i, line := range lines {
-				if i >= maxLines {
-					break
-				}
-				dc.DrawString(line, innerPadding, contentY+float64(i)*lineHeight)
-			}
-		}
+	if cl.availableHeight <= 0 || len(lines) == 0 {
+		return
 	}
 
-	// Draw footer
-	dc.SetColor(accentColor)
+	maxLines := int(math.Floor(cl.availableHeight / lineHeight))
+	if maxLines <= 0 {
+		return
+	}
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+		lines[maxLines-1] = strings.TrimRight(lines[maxLines-1], " ") + "…"
+	}
+	for i, line := range lines {
+		dc.DrawString(line, cl.innerPadding, cl.contentY+float64(i)*lineHeight)
+	}
+}
+
+// RenderShareCard renders a post as a shareable PNG image.
+// Uses theme colors for Carbon-style terminal aesthetic.
+func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, error) {
+	dc := gg.NewContext(dims.Width, dims.Height)
+
+	_, innerPadding, cardWidth := renderCardBackground(dc, theme, dims)
+
+	dotY := innerPadding + 10
+	fontSize := float64(dims.Width) * 0.025
+	handleY := renderCardHandle(dc, post, theme, cardLayout{innerPadding, dotY, fontSize})
+
+	contentY := handleY + fontSize*2
+	footerFontSize := fontSize * 0.8
+	footerY := float64(dims.Height) - innerPadding
+	contentMaxY := footerY - (footerFontSize * 1.6)
+	if contentMaxY < contentY {
+		contentMaxY = contentY
+	}
+
+	renderCardContent(dc, post, theme, contentLayout{
+		innerPadding:    innerPadding,
+		contentY:        contentY,
+		cardWidth:       cardWidth,
+		availableHeight: contentMaxY - contentY,
+		fontSize:        fontSize,
+	})
+
+	dc.SetColor(hexToColor(theme.Accent.Dark))
 	loadMonoFont(dc, footerFontSize)
 	dc.DrawString(ShareFooter, innerPadding, footerY)
 
-	// Encode to PNG
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, dc.Image()); err != nil {
 		return nil, err
@@ -211,17 +231,22 @@ func parseHex(s string) (int64, error) {
 	return result, nil
 }
 
+// roundedRect bundles the dimensions for a rounded rectangle.
+type roundedRect struct {
+	x, y, w, h, r float64
+}
+
 // drawRoundedRect draws a rounded rectangle path
-func drawRoundedRect(dc *gg.Context, x, y, w, h, r float64) {
-	dc.MoveTo(x+r, y)
-	dc.LineTo(x+w-r, y)
-	dc.QuadraticTo(x+w, y, x+w, y+r)
-	dc.LineTo(x+w, y+h-r)
-	dc.QuadraticTo(x+w, y+h, x+w-r, y+h)
-	dc.LineTo(x+r, y+h)
-	dc.QuadraticTo(x, y+h, x, y+h-r)
-	dc.LineTo(x, y+r)
-	dc.QuadraticTo(x, y, x+r, y)
+func drawRoundedRect(dc *gg.Context, rect roundedRect) {
+	dc.MoveTo(rect.x+rect.r, rect.y)
+	dc.LineTo(rect.x+rect.w-rect.r, rect.y)
+	dc.QuadraticTo(rect.x+rect.w, rect.y, rect.x+rect.w, rect.y+rect.r)
+	dc.LineTo(rect.x+rect.w, rect.y+rect.h-rect.r)
+	dc.QuadraticTo(rect.x+rect.w, rect.y+rect.h, rect.x+rect.w-rect.r, rect.y+rect.h)
+	dc.LineTo(rect.x+rect.r, rect.y+rect.h)
+	dc.QuadraticTo(rect.x, rect.y+rect.h, rect.x, rect.y+rect.h-rect.r)
+	dc.LineTo(rect.x, rect.y+rect.r)
+	dc.QuadraticTo(rect.x, rect.y, rect.x+rect.r, rect.y)
 	dc.ClosePath()
 }
 

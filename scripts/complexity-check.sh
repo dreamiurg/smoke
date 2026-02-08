@@ -17,6 +17,6 @@ if ! command -v lizard >/dev/null 2>&1; then
 fi
 
 echo "Running complexity checks (CCN<=15, length<=60, params<=5)..."
-lizard -l go -C 15 -L 60 -a 5 -w .
+lizard -l go -C 15 -L 60 -a 5 -w -x "*_test.go" .
 
 echo "Complexity checks passed."

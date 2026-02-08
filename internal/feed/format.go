@@ -39,6 +39,32 @@ func FormatPost(w io.Writer, post *Post, opts FormatOptions) {
 	}
 }
 
+// formatThreadOneline formats a thread in oneline mode.
+func formatThreadOneline(w io.Writer, thread thread, cw *ColorWriter) {
+	formatOneline(w, thread.post, cw)
+	for _, reply := range thread.replies {
+		formatOneline(w, reply, cw)
+	}
+}
+
+// threadFormatContext bundles formatting dependencies for thread rendering.
+type threadFormatContext struct {
+	formatter *Formatter
+	cw        *ColorWriter
+	termWidth int
+}
+
+// formatThreadCompact formats a thread in compact mode with an optional trailing blank line.
+func formatThreadCompact(w io.Writer, t thread, ctx *threadFormatContext, trailingBlank bool) {
+	ctx.formatter.formatCompact(w, t.post, ctx.cw, ctx.termWidth)
+	for _, reply := range t.replies {
+		formatReply(w, t.post, reply, ctx.cw, ctx.termWidth)
+	}
+	if trailingBlank {
+		_, _ = fmt.Fprintln(w)
+	}
+}
+
 // FormatFeed formats a list of posts with threading
 func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 	if len(posts) == 0 {
@@ -48,35 +74,23 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 		return
 	}
 
-	// Create a new formatter for this feed display to avoid global state issues
 	formatter := NewFormatter()
-
 	cw := NewColorWriter(w, opts.ColorMode)
-
-	// Build thread structure
 	threads := buildThreads(posts)
+	ctx := &threadFormatContext{
+		formatter: formatter,
+		cw:        cw,
+		termWidth: opts.getTerminalWidth(),
+	}
 
-	// Display threads
-	termWidth := opts.getTerminalWidth()
 	for i, thread := range threads {
 		if opts.Oneline {
-			formatOneline(w, thread.post, cw)
-			for _, reply := range thread.replies {
-				formatOneline(w, reply, cw)
-			}
+			formatThreadOneline(w, thread, cw)
 		} else {
-			formatter.formatCompact(w, thread.post, cw, termWidth)
-			for _, reply := range thread.replies {
-				formatReply(w, thread.post, reply, cw, termWidth)
-			}
-			// Add blank line between threads (not after last one)
-			if i < len(threads)-1 {
-				_, _ = fmt.Fprintln(w)
-			}
+			formatThreadCompact(w, thread, ctx, i < len(threads)-1)
 		}
 	}
 
-	// Footer
 	if !opts.Quiet && total > len(posts) {
 		_, _ = fmt.Fprintf(w, "\nShowing %d of %d posts. Use -n to see more.\n", len(posts), total)
 	}
@@ -271,6 +285,25 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 	}
 }
 
+// findBreakPoint finds the best position to break a line at the given width.
+// Prefers breaking at a space; falls back to a hard break at width.
+func findBreakPoint(text string, width int) int {
+	breakPoint := width
+	if breakPoint > len(text) {
+		breakPoint = len(text)
+	}
+	for breakPoint > 0 && text[breakPoint] != ' ' {
+		breakPoint--
+	}
+	if breakPoint == 0 {
+		breakPoint = width
+		if breakPoint > len(text) {
+			breakPoint = len(text)
+		}
+	}
+	return breakPoint
+}
+
 // wrapTextWithWidths wraps text with different widths for first and subsequent lines.
 // This is the core wrapping function that handles both uniform and variable-width wrapping.
 func wrapTextWithWidths(text string, firstLineWidth, subsequentWidth int) []string {
@@ -283,29 +316,9 @@ func wrapTextWithWidths(text string, firstLineWidth, subsequentWidth int) []stri
 	currentWidth := firstLineWidth
 
 	for len(remaining) > currentWidth {
-		// Find last space within currentWidth
-		breakPoint := currentWidth
-		if breakPoint > len(remaining) {
-			breakPoint = len(remaining)
-		}
-		for breakPoint > 0 && remaining[breakPoint] != ' ' {
-			breakPoint--
-		}
-		if breakPoint == 0 {
-			// No space found, force break at currentWidth
-			breakPoint = currentWidth
-			if breakPoint > len(remaining) {
-				breakPoint = len(remaining)
-			}
-		}
-
+		breakPoint := findBreakPoint(remaining, currentWidth)
 		lines = append(lines, remaining[:breakPoint])
-		remaining = remaining[breakPoint:]
-		// Skip leading space on next line
-		for len(remaining) > 0 && remaining[0] == ' ' {
-			remaining = remaining[1:]
-		}
-		// After first line, use subsequent width
+		remaining = strings.TrimLeft(remaining[breakPoint:], " ")
 		currentWidth = subsequentWidth
 	}
 
@@ -398,43 +411,41 @@ type FilterCriteria struct {
 	Today  bool
 }
 
+// matchesCriteria returns true if a post matches the given filter criteria.
+func matchesCriteria(post *Post, criteria FilterCriteria) bool {
+	if criteria.Author != "" && !strings.Contains(post.Author, criteria.Author) {
+		return false
+	}
+	if criteria.Suffix != "" && post.Suffix != criteria.Suffix {
+		return false
+	}
+	if !criteria.Since.IsZero() {
+		postTime, err := post.GetCreatedTime()
+		if err != nil || postTime.Before(criteria.Since) {
+			return false
+		}
+	}
+	if criteria.Today {
+		postTime, err := post.GetCreatedTime()
+		if err != nil {
+			return false
+		}
+		now := time.Now()
+		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		if postTime.Before(startOfDay) {
+			return false
+		}
+	}
+	return true
+}
+
 // FilterPosts returns posts matching the given criteria
 func FilterPosts(posts []*Post, criteria FilterCriteria) []*Post {
 	result := make([]*Post, 0, len(posts))
-
 	for _, post := range posts {
-		// Author filter (supports substring matching for easier filtering)
-		if criteria.Author != "" && !strings.Contains(post.Author, criteria.Author) {
-			continue
+		if matchesCriteria(post, criteria) {
+			result = append(result, post)
 		}
-
-		// Suffix filter
-		if criteria.Suffix != "" && post.Suffix != criteria.Suffix {
-			continue
-		}
-
-		// Time filters
-		if !criteria.Since.IsZero() {
-			postTime, err := post.GetCreatedTime()
-			if err != nil || postTime.Before(criteria.Since) {
-				continue
-			}
-		}
-
-		if criteria.Today {
-			postTime, err := post.GetCreatedTime()
-			if err != nil {
-				continue
-			}
-			now := time.Now()
-			startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-			if postTime.Before(startOfDay) {
-				continue
-			}
-		}
-
-		result = append(result, post)
 	}
-
 	return result
 }

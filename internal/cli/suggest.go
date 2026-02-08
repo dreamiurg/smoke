@@ -156,101 +156,102 @@ func pickReplyBait(allPosts []*feed.Post, recentPosts []*feed.Post) *feed.Post {
 	return allPosts[rand.IntN(len(allPosts))]
 }
 
-func runSuggest(_ *cobra.Command, args []string) error {
-	// Start command tracking
-	tracker := logging.StartCommand("suggest", args)
-
-	// Check if smoke is initialized
-	if err := config.EnsureInitialized(); err != nil {
-		tracker.Fail(err)
-		return err
-	}
-
-	// Determine pressure level: use flag override if provided, else use config
+func resolvePressure() int {
 	pressure := config.GetPressure()
 	if suggestPressure >= 0 {
 		pressure = suggestPressure
 	}
-
-	// Clamp pressure to valid range
 	if pressure < 0 {
 		pressure = 0
 	}
 	if pressure > 4 {
 		pressure = 4
 	}
+	return pressure
+}
 
-	// Add pressure metric to tracker
+func handleNudgeSkip(decision nudgeDecision, pressure int) error {
+	if !suggestJSON {
+		return nil
+	}
+	skipOutput := map[string]interface{}{
+		"skipped":   true,
+		"pressure":  pressure,
+		"roll":      decision.roll,
+		"threshold": decision.threshold,
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(skipOutput)
+}
+
+func validateSuggestContext(suggestCfg *config.SuggestConfig) error {
+	if suggestCfg.GetContext(suggestContext) == nil {
+		availableContexts := suggestCfg.ListContextNames()
+		sort.Strings(availableContexts)
+		return fmt.Errorf("unknown context %q. Available: %s", suggestContext, strings.Join(availableContexts, ", "))
+	}
+	return nil
+}
+
+func readFeedPosts(tracker *logging.CommandTracker) ([]*feed.Post, error) {
+	feedPath, err := config.GetFeedPath()
+	if err != nil {
+		return nil, err
+	}
+	store := feed.NewStoreWithPath(feedPath)
+
+	posts, err := store.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	if info, statErr := os.Stat(feedPath); statErr == nil {
+		tracker.AddFeedMetrics(info.Size(), len(posts))
+	}
+
+	return posts, nil
+}
+
+func runSuggest(_ *cobra.Command, args []string) error {
+	tracker := logging.StartCommand("suggest", args)
+
+	if err := config.EnsureInitialized(); err != nil {
+		tracker.Fail(err)
+		return err
+	}
+
+	pressure := resolvePressure()
 	tracker.AddMetric(slog.Int("pressure", pressure))
 
-	// Check probability gate: should this nudge fire?
 	decision := shouldFireNudge(pressure)
 
 	if !decision.fire {
-		// Nudge did not fire - log skip event
 		tracker.AddMetric(slog.Bool("skipped", true))
 		tracker.AddMetric(slog.Int("roll", decision.roll))
 		tracker.AddMetric(slog.Int("threshold", decision.threshold))
-
-		// For JSON output, provide structured skip response
-		if suggestJSON {
-			skipOutput := map[string]interface{}{
-				"skipped":   true,
-				"pressure":  pressure,
-				"roll":      decision.roll,
-				"threshold": decision.threshold,
-			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(skipOutput); err != nil {
-				tracker.Fail(err)
-				return err
-			}
-		}
-		// Complete tracking after successful output (or silent skip)
-		tracker.Complete()
-		return nil
+		return finishTracked(tracker, handleNudgeSkip(decision, pressure))
 	}
 
-	// Nudge fired - log fire event
 	tracker.AddMetric(slog.Bool("fired", true))
 	tracker.AddMetric(slog.Int("roll", decision.roll))
 	tracker.AddMetric(slog.Int("threshold", decision.threshold))
 
-	// Load suggest config (contexts and examples)
 	suggestCfg := config.LoadSuggestConfig()
 
-	// Validate context if provided
 	if suggestContext != "" {
-		if suggestCfg.GetContext(suggestContext) == nil {
-			availableContexts := suggestCfg.ListContextNames()
-			sort.Strings(availableContexts)
-			err := fmt.Errorf("unknown context %q. Available: %s", suggestContext, strings.Join(availableContexts, ", "))
+		if err := validateSuggestContext(suggestCfg); err != nil {
 			tracker.Fail(err)
 			return err
 		}
 	}
 
-	feedPath, err := config.GetFeedPath()
-	if err != nil {
-		tracker.Fail(err)
-		return err
-	}
-	store := feed.NewStoreWithPath(feedPath)
-
-	// Read all posts
-	posts, err := store.ReadAll()
+	posts, err := readFeedPosts(tracker)
 	if err != nil {
 		tracker.Fail(err)
 		return err
 	}
 
-	// Get feed metrics for logging
-	if info, statErr := os.Stat(feedPath); statErr == nil {
-		tracker.AddFeedMetrics(info.Size(), len(posts))
-	}
-
-	// Filter recent posts using the --since window
 	recentPosts, err := feed.FilterRecent(posts, suggestSince)
 	if err != nil {
 		tracker.Fail(err)
@@ -264,12 +265,7 @@ func runSuggest(_ *cobra.Command, args []string) error {
 		resultErr = formatSuggestTextWithContext(recentPosts, posts, suggestCfg, suggestContext, pressure)
 	}
 
-	if resultErr != nil {
-		tracker.Fail(resultErr)
-	} else {
-		tracker.Complete()
-	}
-	return resultErr
+	return finishTracked(tracker, resultErr)
 }
 
 // formatSuggestTextWithContext formats suggestions with optional context-specific prompt.
@@ -335,42 +331,66 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	return nil
 }
 
+// postOutput represents a post in JSON output format.
+type postOutput struct {
+	ID        string `json:"id"`
+	Author    string `json:"author"`
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
+	TimeAgo   string `json:"time_ago"`
+}
+
+// buildPostsOutput converts feed posts to JSON-serializable post output structs.
+func buildPostsOutput(posts []*feed.Post) []postOutput {
+	result := make([]postOutput, len(posts))
+	for i, post := range posts {
+		createdTime, err := post.GetCreatedTime()
+		if err != nil {
+			createdTime = time.Now()
+		}
+		result[i] = postOutput{
+			ID:        post.ID,
+			Author:    post.Author,
+			Content:   post.Content,
+			CreatedAt: post.CreatedAt,
+			TimeAgo:   formatTimeAgo(createdTime),
+		}
+	}
+	return result
+}
+
+// buildReplyBaitOutput builds the reply bait section for JSON output.
+func buildReplyBaitOutput(allPosts, recentPosts []*feed.Post) map[string]interface{} {
+	bait := pickReplyBait(allPosts, recentPosts)
+	if bait == nil {
+		return nil
+	}
+	createdTime, err := bait.GetCreatedTime()
+	if err != nil {
+		createdTime = time.Now()
+	}
+	prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
+	return map[string]interface{}{
+		"post": postOutput{
+			ID:        bait.ID,
+			Author:    bait.Author,
+			Content:   bait.Content,
+			CreatedAt: bait.CreatedAt,
+			TimeAgo:   formatTimeAgo(createdTime),
+		},
+		"prompt":  prompt,
+		"command": fmt.Sprintf("smoke reply %s 'your reply'", bait.ID),
+	}
+}
+
 // formatSuggestJSONWithContext formats suggestions as JSON with context info.
 // Includes reply bait to encourage interaction.
 func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Post, cfg *config.SuggestConfig, contextName string, pressure int) error {
-	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	// Build posts array for JSON output
-	type PostOutput struct {
-		ID        string `json:"id"`
-		Author    string `json:"author"`
-		Content   string `json:"content"`
-		CreatedAt string `json:"created_at"`
-		TimeAgo   string `json:"time_ago"`
-	}
-
-	postsOutput := make([]PostOutput, len(recentPosts))
-	for i, post := range recentPosts {
-		createdTime, err := post.GetCreatedTime()
-		if err != nil {
-			createdTime = time.Now()
-		}
-		timeAgo := formatTimeAgo(createdTime)
-
-		postsOutput[i] = PostOutput{
-			ID:        post.ID,
-			Author:    post.Author,
-			Content:   post.Content,
-			CreatedAt: post.CreatedAt,
-			TimeAgo:   timeAgo,
-		}
-	}
-
-	// Get examples based on context
 	var examples []string
 	if contextName != "" {
 		examples = cfg.GetExamplesForContext(contextName)
@@ -378,40 +398,18 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		examples = cfg.GetAllExamples()
 	}
 
-	// Get random examples
-	randomExamples := getRandomExamples(examples, 2, 3)
-
-	// Build final output structure
 	output := map[string]interface{}{
 		"skipped":  false,
 		"pressure": pressure,
 		"tone":     getTonePrefix(pressure),
-		"posts":    postsOutput,
-		"examples": randomExamples,
+		"posts":    buildPostsOutput(recentPosts),
+		"examples": getRandomExamples(examples, 2, 3),
 	}
 
-	// Add reply bait
-	bait := pickReplyBait(allPosts, recentPosts)
-	if bait != nil {
-		createdTime, err := bait.GetCreatedTime()
-		if err != nil {
-			createdTime = time.Now()
-		}
-		prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
-		output["reply_bait"] = map[string]interface{}{
-			"post": PostOutput{
-				ID:        bait.ID,
-				Author:    bait.Author,
-				Content:   bait.Content,
-				CreatedAt: bait.CreatedAt,
-				TimeAgo:   formatTimeAgo(createdTime),
-			},
-			"prompt":  prompt,
-			"command": fmt.Sprintf("smoke reply %s 'your reply'", bait.ID),
-		}
+	if bait := buildReplyBaitOutput(allPosts, recentPosts); bait != nil {
+		output["reply_bait"] = bait
 	}
 
-	// Add context info if specified
 	if contextName != "" {
 		ctx := cfg.GetContext(contextName)
 		if ctx != nil {
@@ -423,7 +421,6 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		}
 	}
 
-	// Encode to JSON and write to stdout
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(output)

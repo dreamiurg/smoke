@@ -223,23 +223,35 @@ func ensureCodexInstructionsFile(path string) (bool, string, error) {
 		return false, "", err
 	}
 
-	contentStr := string(content)
-	if strings.Contains(contentStr, CodexSmokeMarker) {
-		if strings.Contains(contentStr, CodexSmokeVersionLine) {
-			return false, "", nil
-		}
-		backupPath, backupErr := backupFile(path)
-		if backupErr != nil {
-			return false, "", backupErr
-		}
-		if writeErr := os.WriteFile(path, []byte(CodexSmokeInstructions), 0644); writeErr != nil {
-			return false, "", writeErr
-		}
-		return true, backupPath, nil
+	if strings.Contains(string(content), CodexSmokeMarker) {
+		return updateExistingInstructions(path, string(content))
 	}
+	return appendNewInstructions(path, content)
+}
 
+// updateExistingInstructions handles files that already contain the smoke marker.
+// If the version is current, no update is needed. Otherwise it backs up the file
+// and overwrites it with current instructions.
+func updateExistingInstructions(path, contentStr string) (bool, string, error) {
+	if strings.Contains(contentStr, CodexSmokeVersionLine) {
+		return false, "", nil
+	}
+	backupPath, err := backupFile(path)
+	if err != nil {
+		return false, "", err
+	}
+	if err := os.WriteFile(path, []byte(CodexSmokeInstructions), 0644); err != nil {
+		return false, "", err
+	}
+	return true, backupPath, nil
+}
+
+// appendNewInstructions handles files without the smoke marker.
+// If the file has existing content it is backed up first, then instructions are appended.
+func appendNewInstructions(path string, content []byte) (bool, string, error) {
 	backupPath := ""
 	if len(content) > 0 {
+		var err error
 		backupPath, err = backupFile(path)
 		if err != nil {
 			return false, "", err

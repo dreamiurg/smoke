@@ -87,8 +87,18 @@ type overlayBox struct {
 	left  int
 }
 
-// NewModel creates a new TUI model with the given store, theme, contrast, layout, and version.
-func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *LayoutStyle, cfg *config.TUIConfig, version string) Model {
+// ModelOptions bundles dependencies for creating a new TUI model.
+type ModelOptions struct {
+	Store    *Store
+	Theme    *Theme
+	Contrast *ContrastLevel
+	Layout   *LayoutStyle
+	Config   *config.TUIConfig
+	Version  string
+}
+
+// NewModel creates a new TUI model with the given options.
+func NewModel(opts ModelOptions) Model {
 	// Load last read state
 	state, err := config.LoadReadState()
 	lastReadID := ""
@@ -99,14 +109,14 @@ func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *Layou
 	}
 
 	return Model{
-		theme:          theme,
-		contrast:       contrast,
-		layout:         layout,
-		autoRefresh:    cfg.AutoRefresh,
-		store:          store,
-		config:         cfg,
+		theme:          opts.Theme,
+		contrast:       opts.Contrast,
+		layout:         opts.Layout,
+		autoRefresh:    opts.Config.AutoRefresh,
+		store:          opts.Store,
+		config:         opts.Config,
 		pressure:       config.GetPressure(),
-		version:        version,
+		version:        opts.Version,
 		lastReadPostID: lastReadID,
 		lastReadAt:     lastReadAt,
 	}
@@ -133,6 +143,54 @@ func (m Model) loadPostsCmd() tea.Msg {
 	return loadPostsMsg{posts: posts, nudgeCount: nudgeCount, err: err}
 }
 
+type logEntry struct {
+	Time string          `json:"time"`
+	Msg  string          `json:"msg"`
+	Cmd  json.RawMessage `json:"cmd"`
+	Ctx  logCtx          `json:"ctx"`
+}
+
+type logCtx struct {
+	Env    string `json:"env"`
+	Agent  string `json:"agent"`
+	Caller string `json:"caller"`
+}
+
+func parseCmdName(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var obj struct{ Name string }
+	if json.Unmarshal(raw, &obj) == nil {
+		return obj.Name
+	}
+	return ""
+}
+
+func isAgentSuggestEntry(ctx logCtx) bool {
+	switch strings.ToLower(ctx.Caller) {
+	case "claude", "codex", "gemini":
+		return true
+	}
+	agent := strings.ToLower(ctx.Agent)
+	if agent != "" && agent != "human" {
+		return true
+	}
+	return ctx.Env == "claude_code"
+}
+
+func isEntryAfter(e logEntry, since time.Time) bool {
+	if since.IsZero() {
+		return true
+	}
+	if e.Time == "" {
+		return false
+	}
+	ts, err := time.Parse(time.RFC3339Nano, e.Time)
+	return err == nil && !ts.Before(since)
+}
+
 // countAgentNudgesSince counts suggest commands from agent sessions in smoke.log after a timestamp.
 func countAgentNudgesSince(since time.Time) int {
 	logPath, err := config.GetLogPath()
@@ -144,24 +202,7 @@ func countAgentNudgesSince(since time.Time) int {
 	if err != nil {
 		return 0
 	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	type cmdObj struct {
-		Name string `json:"name"`
-	}
-	type ctxObj struct {
-		Env    string `json:"env"`
-		Agent  string `json:"agent"`
-		Caller string `json:"caller"`
-	}
-	type entry struct {
-		Time string          `json:"time"`
-		Msg  string          `json:"msg"`
-		Cmd  json.RawMessage `json:"cmd"`
-		Ctx  ctxObj          `json:"ctx"`
-	}
+	defer func() { _ = f.Close() }()
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -170,51 +211,20 @@ func countAgentNudgesSince(since time.Time) int {
 		if line == "" {
 			continue
 		}
-		var e entry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
+		var e logEntry
+		if json.Unmarshal([]byte(line), &e) != nil {
 			continue
 		}
-		if !since.IsZero() {
-			if e.Time == "" {
-				continue
-			}
-			ts, err := time.Parse(time.RFC3339Nano, e.Time)
-			if err != nil || ts.Before(since) {
-				continue
-			}
+		if !isEntryAfter(e, since) {
+			continue
 		}
 		if e.Msg != "command started" && e.Msg != "command invoked" {
 			continue
 		}
-
-		cmdName := ""
-		var cmdNameStr string
-		if err := json.Unmarshal(e.Cmd, &cmdNameStr); err == nil {
-			cmdName = cmdNameStr
-		} else {
-			var obj cmdObj
-			if err := json.Unmarshal(e.Cmd, &obj); err == nil {
-				cmdName = obj.Name
-			}
-		}
-		if cmdName == "suggest" {
-			agent := strings.ToLower(e.Ctx.Agent)
-			caller := strings.ToLower(e.Ctx.Caller)
-			switch caller {
-			case "claude", "codex", "gemini":
-				count++
-				continue
-			}
-			if agent != "" && agent != "human" {
-				count++
-				continue
-			}
-			if e.Ctx.Env == "claude_code" {
-				count++
-			}
+		if parseCmdName(e.Cmd) == "suggest" && isAgentSuggestEntry(e.Ctx) {
+			count++
 		}
 	}
-
 	return count
 }
 
@@ -1406,154 +1416,143 @@ func (m Model) styleAgentTagWithBackground(tag string, background lipgloss.Adapt
 	return style.Render("[" + tag + "]")
 }
 
-// renderHelpOverlayBox creates a centered help overlay box.
-func (m Model) renderHelpOverlayBox() overlayBox {
+type helpRow struct {
+	key  string
+	desc string
+}
+
+type helpStyles struct {
+	base    lipgloss.Style
+	key     lipgloss.Style
+	desc    lipgloss.Style
+	header  lipgloss.Style
+	title   lipgloss.Style
+	divider lipgloss.Style
+}
+
+func (m Model) newHelpStyles() helpStyles {
+	base := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
+	return helpStyles{
+		base:    base,
+		key:     base.Foreground(m.theme.Accent).Bold(true),
+		desc:    base.Foreground(m.theme.TextMuted),
+		header:  base.Foreground(m.theme.Text).Bold(true),
+		title:   base.Foreground(m.theme.Accent).Bold(true),
+		divider: base.Foreground(m.theme.TextMuted),
+	}
+}
+
+func helpPadRight(s string, width int) string {
+	space := width - lipgloss.Width(s)
+	if space <= 0 {
+		return s
+	}
+	return s + strings.Repeat(" ", space)
+}
+
+func blockWidth(block string) int {
+	max := 0
+	for _, line := range strings.Split(block, "\n") {
+		if w := lipgloss.Width(line); w > max {
+			max = w
+		}
+	}
+	return max
+}
+
+func (hs helpStyles) renderSection(title string, rows []helpRow, keyWidth int) string {
+	var b strings.Builder
+	b.WriteString(hs.header.Render(title))
+	b.WriteString("\n")
+	b.WriteString(hs.divider.Render(strings.Repeat("─", lipgloss.Width(title))))
+	b.WriteString("\n")
+	for _, row := range rows {
+		b.WriteString(hs.key.Render(helpPadRight(row.key, keyWidth)) + hs.desc.Render(" "+row.desc))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func (m Model) centerOverlay(styledBox string) overlayBox {
+	boxHeight := strings.Count(styledBox, "\n") + 1
+	boxWidth := lipgloss.Width(styledBox)
+	topPadding := (m.height - boxHeight) / 2
+	leftPadding := (m.width - boxWidth) / 2
+	if leftPadding < 0 {
+		leftPadding = 0
+	}
+	if topPadding < 0 {
+		topPadding = 0
+	}
+	return overlayBox{
+		lines: strings.Split(styledBox, "\n"),
+		top:   topPadding,
+		left:  leftPadding,
+	}
+}
+
+// buildLeftHelpColumn builds the left column of help sections.
+func buildLeftHelpColumn(hs helpStyles) string {
+	var b strings.Builder
+	b.WriteString(hs.renderSection("NAVIGATION", []helpRow{
+		{"↑/k", "Select previous post"}, {"↓/j", "Select next post"},
+		{"PgUp", "Select previous page"}, {"PgDn", "Select next page"},
+		{"Home", "Top post"}, {"End", "Bottom post"}, {"g/G", "Top/bottom post"},
+	}, 5))
+	b.WriteString("\n")
+	b.WriteString(hs.renderSection("SHARE", []helpRow{{"c", "Copy selected post"}}, 5))
+	b.WriteString("\n")
+	b.WriteString(hs.renderSection("READ STATUS", []helpRow{
+		{"Space", "Mark read to here"}, {"d d", "Delete selected post"}, {"q", "Quit"},
+	}, 5))
+	return b.String()
+}
+
+// buildRightHelpColumn builds the right column of help sections.
+func (m Model) buildRightHelpColumn(hs helpStyles) string {
 	autoStr := "OFF"
 	if m.autoRefresh {
 		autoStr = "ON"
 	}
-
 	layoutName := "Comfy"
 	if m.layout != nil {
 		layoutName = m.layout.DisplayName
 	}
-
-	type helpRow struct {
-		key  string
-		desc string
-	}
-
-	base := lipgloss.NewStyle().Background(m.theme.BackgroundSecondary)
-	keyStyle := base.Foreground(m.theme.Accent).Bold(true)
-	descStyle := base.Foreground(m.theme.TextMuted)
-	headerStyle := base.Foreground(m.theme.Text).Bold(true)
-	titleStyle := base.Foreground(m.theme.Accent).Bold(true)
-	dividerStyle := base.Foreground(m.theme.TextMuted)
-
-	padRight := func(s string, width int) string {
-		if width <= 0 {
-			return s
-		}
-		space := width - lipgloss.Width(s)
-		if space <= 0 {
-			return s
-		}
-		return s + strings.Repeat(" ", space)
-	}
-
-	rowWidth := func(block string) int {
-		max := 0
-		for _, line := range strings.Split(block, "\n") {
-			w := lipgloss.Width(line)
-			if w > max {
-				max = w
-			}
-		}
-		return max
-	}
-
-	renderRows := func(rows []helpRow, keyWidth int) string {
-		var b strings.Builder
-		for _, row := range rows {
-			line := keyStyle.Render(padRight(row.key, keyWidth)) + descStyle.Render(" "+row.desc)
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
-		return b.String()
-	}
-
-	renderSection := func(title string, rows []helpRow, keyWidth int) string {
-		var b strings.Builder
-		b.WriteString(headerStyle.Render(title))
-		b.WriteString("\n")
-		b.WriteString(dividerStyle.Render(strings.Repeat("─", lipgloss.Width(title))))
-		b.WriteString("\n")
-		b.WriteString(renderRows(rows, keyWidth))
-		return b.String()
-	}
-
-	leftRows := []helpRow{
-		{key: "↑/k", desc: "Select previous post"},
-		{key: "↓/j", desc: "Select next post"},
-		{key: "PgUp", desc: "Select previous page"},
-		{key: "PgDn", desc: "Select next page"},
-		{key: "Home", desc: "Top post"},
-		{key: "End", desc: "Bottom post"},
-		{key: "g/G", desc: "Top/bottom post"},
-	}
-	shareRows := []helpRow{
-		{key: "c", desc: "Copy selected post"},
-	}
-	readRows := []helpRow{
-		{key: "Space", desc: "Mark read to here"},
-		{key: "d d", desc: "Delete selected post"},
-		{key: "q", desc: "Quit"},
-	}
-	settingsRows := []helpRow{
-		{key: "a", desc: "Toggle auto-refresh"},
-		{key: "l/L", desc: "Cycle layout"},
-		{key: "t/T", desc: "Cycle theme"},
-		{key: "+/-", desc: "Adjust pressure"},
-		{key: "r", desc: "Refresh now"},
-	}
-
 	pressureLevel := config.GetPressureLevel(m.pressure)
-	currentRows := []helpRow{
-		{key: "Auto:", desc: autoStr},
-		{key: "Layout:", desc: layoutName},
-		{key: "Theme:", desc: m.theme.DisplayName},
-		{key: "Pressure:", desc: pressureLevel.Label},
-	}
 
-	leftKeyWidth := 5
-	rightKeyWidth := 7
+	var b strings.Builder
+	b.WriteString(hs.renderSection("SETTINGS", []helpRow{
+		{"a", "Toggle auto-refresh"}, {"l/L", "Cycle layout"},
+		{"t/T", "Cycle theme"}, {"+/-", "Adjust pressure"}, {"r", "Refresh now"},
+	}, 7))
+	b.WriteString("\n")
+	b.WriteString(hs.renderSection("CURRENT SETTINGS", []helpRow{
+		{"Auto:", autoStr}, {"Layout:", layoutName},
+		{"Theme:", m.theme.DisplayName}, {"Pressure:", pressureLevel.Label},
+	}, 7))
+	return b.String()
+}
 
-	leftColumn := strings.Builder{}
-	leftColumn.WriteString(renderSection("NAVIGATION", leftRows, leftKeyWidth))
-	leftColumn.WriteString("\n")
-	leftColumn.WriteString(renderSection("SHARE", shareRows, leftKeyWidth))
-	leftColumn.WriteString("\n")
-	leftColumn.WriteString(renderSection("READ STATUS", readRows, leftKeyWidth))
+// renderHelpOverlayBox creates a centered help overlay box.
+func (m Model) renderHelpOverlayBox() overlayBox {
+	hs := m.newHelpStyles()
 
-	rightColumn := strings.Builder{}
-	rightColumn.WriteString(renderSection("SETTINGS", settingsRows, rightKeyWidth))
-	rightColumn.WriteString("\n")
-	rightColumn.WriteString(renderSection("CURRENT SETTINGS", currentRows, rightKeyWidth))
+	leftBlock := m.fillBackgroundBlock(buildLeftHelpColumn(hs), blockWidth(buildLeftHelpColumn(hs)), m.theme.BackgroundSecondary)
+	rightBlock := m.buildRightHelpColumn(hs)
+	rightBlock = m.fillBackgroundBlock(rightBlock, blockWidth(rightBlock), m.theme.BackgroundSecondary)
 
-	leftBlock := leftColumn.String()
-	rightBlock := rightColumn.String()
-	leftWidth := rowWidth(leftBlock)
-	rightWidth := rowWidth(rightBlock)
-	leftBlock = m.fillBackgroundBlock(leftBlock, leftWidth, m.theme.BackgroundSecondary)
-	rightBlock = m.fillBackgroundBlock(rightBlock, rightWidth, m.theme.BackgroundSecondary)
-	gap := base.Render(strings.Repeat(" ", 4))
+	columns := lipgloss.JoinHorizontal(lipgloss.Top,
+		leftBlock, hs.base.Render(strings.Repeat(" ", 4)), rightBlock)
 
-	columns := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftBlock,
-		gap,
-		rightBlock,
-	)
-
-	title := titleStyle.Render("Smoke Feed Help")
-	divider := dividerStyle.Render(strings.Repeat("─", lipgloss.Width("Smoke Feed Help")))
-
-	helpContent := strings.Builder{}
-	helpContent.WriteString(title)
-	helpContent.WriteString("\n")
-	helpContent.WriteString(divider)
-	helpContent.WriteString("\n")
-	helpContent.WriteString(columns)
-	helpContent.WriteString("\n")
-	helpContent.WriteString(descStyle.Render("Press any key to close"))
-	helpContent.WriteString("\n")
+	var helpContent strings.Builder
+	helpContent.WriteString(hs.title.Render("Smoke Feed Help") + "\n")
+	helpContent.WriteString(hs.divider.Render(strings.Repeat("─", lipgloss.Width("Smoke Feed Help"))) + "\n")
+	helpContent.WriteString(columns + "\n")
+	helpContent.WriteString(hs.desc.Render("Press any key to close") + "\n")
 
 	helpWidth := helpBoxInnerWidth
-	if m.width > 0 {
-		maxWidth := m.width - 8
-		if maxWidth > helpWidth {
-			helpWidth = maxWidth
-		}
+	if m.width > 0 && m.width-8 > helpWidth {
+		helpWidth = m.width - 8
 	}
 
 	helpStyle := lipgloss.NewStyle().
@@ -1563,26 +1562,8 @@ func (m Model) renderHelpOverlayBox() overlayBox {
 		Padding(0, 2).
 		Width(helpWidth)
 
-	contentWithBackground := m.fillBackgroundBlock(helpContent.String(), helpWidth, m.theme.BackgroundSecondary)
-	styledBox := helpStyle.Render(contentWithBackground)
-
-	boxHeight := strings.Count(styledBox, "\n") + 1
-	boxWidth := lipgloss.Width(styledBox)
-	topPadding := (m.height - boxHeight) / 2
-	leftPadding := (m.width - boxWidth) / 2
-
-	if leftPadding < 0 {
-		leftPadding = 0
-	}
-	if topPadding < 0 {
-		topPadding = 0
-	}
-
-	return overlayBox{
-		lines: strings.Split(styledBox, "\n"),
-		top:   topPadding,
-		left:  leftPadding,
-	}
+	contentWithBg := m.fillBackgroundBlock(helpContent.String(), helpWidth, m.theme.BackgroundSecondary)
+	return m.centerOverlay(helpStyle.Render(contentWithBg))
 }
 
 // renderHelpOverlay returns a string-rendered overlay (used in tests).
@@ -1689,20 +1670,13 @@ func (m *Model) initSelectionToUnread() {
 	m.selectedPostIndex = lastReadIndex
 }
 
-// ensureSelectedVisible adjusts scroll offset to keep the selected post visible.
-func (m *Model) ensureSelectedVisible() {
-	if len(m.displayedPosts) == 0 || m.contentHeight() <= 0 {
-		return
-	}
-
-	// Build content lines with post tracking
-	contentLines := m.buildAllContentLinesWithPosts()
-
-	// Find the line range for the selected post
-	var firstLine, lastLine int
+// findPostLineRange finds the first and last line indices for the given post index.
+// Returns firstLine, lastLine, found.
+func findPostLineRange(contentLines []contentLine, postIndex int) (int, int, bool) {
+	firstLine, lastLine := 0, 0
 	found := false
 	for i, cl := range contentLines {
-		if cl.postIndex == m.selectedPostIndex {
+		if cl.postIndex == postIndex {
 			if !found {
 				firstLine = i
 				found = true
@@ -1710,22 +1684,12 @@ func (m *Model) ensureSelectedVisible() {
 			lastLine = i
 		}
 	}
+	return firstLine, lastLine, found
+}
 
-	if !found {
-		return
-	}
-
-	availableHeight := m.contentHeight()
-
-	// Scroll to keep selected post visible
-	if firstLine < m.scrollOffset {
-		m.scrollOffset = firstLine
-	} else if lastLine >= m.scrollOffset+availableHeight {
-		m.scrollOffset = lastLine - availableHeight + 1
-	}
-
-	// Clamp scroll offset
-	maxOffset := len(contentLines) - availableHeight
+// clampScrollOffset clamps the scroll offset within valid bounds.
+func (m *Model) clampScrollOffsetToRange(totalLines, availableHeight int) {
+	maxOffset := totalLines - availableHeight
 	if maxOffset < 0 {
 		maxOffset = 0
 	}
@@ -1737,56 +1701,59 @@ func (m *Model) ensureSelectedVisible() {
 	}
 }
 
-// ensureSelectedVisibleWithUnread keeps the selected post visible and tries to include
-// the unread separator when selecting the first unread post.
-func (m *Model) ensureSelectedVisibleWithUnread() {
-	if len(m.displayedPosts) == 0 || m.contentHeight() <= 0 {
-		return
-	}
-
-	contentLines := m.buildAllContentLinesWithPosts()
-	var firstLine, lastLine int
-	found := false
-	unreadLine := -1
-	for i, cl := range contentLines {
-		if cl.postIndex == unreadSeparatorIndex && unreadLine == -1 {
-			unreadLine = i
-		}
-		if cl.postIndex == m.selectedPostIndex {
-			if !found {
-				firstLine = i
-				found = true
-			}
-			lastLine = i
-		}
-	}
-	if !found {
-		return
-	}
-
-	availableHeight := m.contentHeight()
-	minLine := firstLine
-	if unreadLine != -1 && unreadLine < firstLine {
-		minLine = unreadLine
-	}
-
+// scrollToShowRange adjusts scroll offset so that the range [minLine, lastLine] is visible.
+func (m *Model) scrollToShowRange(minLine, lastLine, availableHeight int) {
 	if minLine < m.scrollOffset {
 		m.scrollOffset = minLine
 	}
 	if lastLine >= m.scrollOffset+availableHeight {
 		m.scrollOffset = lastLine - availableHeight + 1
 	}
+}
 
-	maxOffset := len(contentLines) - availableHeight
-	if maxOffset < 0 {
-		maxOffset = 0
+// ensureSelectedVisible adjusts scroll offset to keep the selected post visible.
+func (m *Model) ensureSelectedVisible() {
+	if len(m.displayedPosts) == 0 || m.contentHeight() <= 0 {
+		return
 	}
-	if m.scrollOffset > maxOffset {
-		m.scrollOffset = maxOffset
+	contentLines := m.buildAllContentLinesWithPosts()
+	firstLine, lastLine, found := findPostLineRange(contentLines, m.selectedPostIndex)
+	if !found {
+		return
 	}
-	if m.scrollOffset < 0 {
-		m.scrollOffset = 0
+	availableHeight := m.contentHeight()
+	m.scrollToShowRange(firstLine, lastLine, availableHeight)
+	m.clampScrollOffsetToRange(len(contentLines), availableHeight)
+}
+
+// ensureSelectedVisibleWithUnread keeps the selected post visible and tries to include
+// the unread separator when selecting the first unread post.
+func (m *Model) ensureSelectedVisibleWithUnread() {
+	if len(m.displayedPosts) == 0 || m.contentHeight() <= 0 {
+		return
 	}
+	contentLines := m.buildAllContentLinesWithPosts()
+	firstLine, lastLine, found := findPostLineRange(contentLines, m.selectedPostIndex)
+	if !found {
+		return
+	}
+
+	unreadLine := -1
+	for i, cl := range contentLines {
+		if cl.postIndex == unreadSeparatorIndex {
+			unreadLine = i
+			break
+		}
+	}
+
+	minLine := firstLine
+	if unreadLine != -1 && unreadLine < firstLine {
+		minLine = unreadLine
+	}
+
+	availableHeight := m.contentHeight()
+	m.scrollToShowRange(minLine, lastLine, availableHeight)
+	m.clampScrollOffsetToRange(len(contentLines), availableHeight)
 }
 
 // moveSelectionByPage moves the selection by one page up/down.
@@ -1800,6 +1767,25 @@ func (m *Model) moveSelectionByPage(direction int) {
 		pageSize = 1
 	}
 	m.moveSelectionByLines(direction * pageSize)
+}
+
+// findNearestPostIndex scans contentLines from targetLine in the given direction
+// to find the nearest line with a valid post index.
+func findNearestPostIndex(contentLines []contentLine, targetLine int, forward bool) int {
+	if forward {
+		for i := targetLine; i < len(contentLines); i++ {
+			if contentLines[i].postIndex >= 0 {
+				return contentLines[i].postIndex
+			}
+		}
+	} else {
+		for i := targetLine; i >= 0; i-- {
+			if contentLines[i].postIndex >= 0 {
+				return contentLines[i].postIndex
+			}
+		}
+	}
+	return -1
 }
 
 // moveSelectionByLines moves selection by a line delta and keeps it visible.
@@ -1832,24 +1818,9 @@ func (m *Model) moveSelectionByLines(delta int) {
 		targetLine = len(contentLines) - 1
 	}
 
-	newIndex := m.selectedPostIndex
-	if delta < 0 {
-		for i := targetLine; i >= 0; i-- {
-			if contentLines[i].postIndex >= 0 {
-				newIndex = contentLines[i].postIndex
-				break
-			}
-		}
-	} else {
-		for i := targetLine; i < len(contentLines); i++ {
-			if contentLines[i].postIndex >= 0 {
-				newIndex = contentLines[i].postIndex
-				break
-			}
-		}
+	if idx := findNearestPostIndex(contentLines, targetLine, delta >= 0); idx >= 0 {
+		m.selectedPostIndex = idx
 	}
-
-	m.selectedPostIndex = newIndex
 	m.ensureSelectedVisible()
 }
 
@@ -1868,6 +1839,61 @@ func (m *Model) moveSelectionToEdge(top bool) {
 	m.ensureSelectedVisible()
 }
 
+// contentBuilder tracks state while building content lines for the feed display.
+type contentBuilder struct {
+	model                  Model
+	lines                  []contentLine
+	lastDay                time.Time
+	separatorInserted      bool
+	pendingUnreadSeparator bool
+	hasUnread              bool
+}
+
+func (cb *contentBuilder) addDaySeparator(thread thread, threadIdx int) {
+	postTime, err := thread.post.GetCreatedTime()
+	if err != nil {
+		return
+	}
+	localTime := postTime.Local()
+	postDay := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), 0, 0, 0, 0, localTime.Location())
+	if !cb.lastDay.IsZero() && postDay.Equal(cb.lastDay) {
+		return
+	}
+	if threadIdx > 0 {
+		cb.lines = append(cb.lines, contentLine{text: "", postIndex: -1})
+	}
+	cb.lines = append(cb.lines, contentLine{text: cb.model.formatDaySeparator(localTime), postIndex: -1})
+	cb.lastDay = postDay
+}
+
+func (cb *contentBuilder) addThread(thread thread, postIndex int) {
+	isSelected := postIndex == cb.model.selectedPostIndex
+	for _, line := range cb.model.formatPostWithSelection(thread.post, isSelected) {
+		cb.lines = append(cb.lines, contentLine{text: line, postIndex: postIndex})
+	}
+	for _, reply := range thread.replies {
+		for _, line := range cb.model.formatReplyWithSelection(reply, false) {
+			cb.lines = append(cb.lines, contentLine{text: line, postIndex: -1})
+		}
+	}
+}
+
+func (cb *contentBuilder) addThreadSeparator(thread thread, isLast bool) {
+	if cb.hasUnread && !cb.separatorInserted && cb.model.lastReadPostID == thread.post.ID {
+		cb.pendingUnreadSeparator = true
+	}
+	if isLast {
+		return
+	}
+	if cb.pendingUnreadSeparator && !cb.separatorInserted {
+		cb.lines = append(cb.lines, contentLine{text: cb.model.formatUnreadSeparator(), postIndex: unreadSeparatorIndex})
+		cb.separatorInserted = true
+		cb.pendingUnreadSeparator = false
+	} else {
+		cb.lines = append(cb.lines, contentLine{text: "", postIndex: -1})
+	}
+}
+
 // buildAllContentLinesWithPosts builds content lines with post index tracking.
 func (m Model) buildAllContentLinesWithPosts() []contentLine {
 	if len(m.posts) == 0 {
@@ -1879,69 +1905,18 @@ func (m Model) buildAllContentLinesWithPosts() []contentLine {
 		threads[i], threads[j] = threads[j], threads[i]
 	}
 
-	var lines []contentLine
-	var lastDay time.Time
-	var separatorInserted bool
-	var pendingUnreadSeparator bool
-	postIndex := 0
-	hasUnread := false
+	cb := contentBuilder{model: m}
 	if m.lastReadPostID != "" && len(threads) > 0 {
-		lastThreadID := threads[len(threads)-1].post.ID
-		hasUnread = m.lastReadPostID != lastThreadID
+		cb.hasUnread = m.lastReadPostID != threads[len(threads)-1].post.ID
 	}
 
 	for i, thread := range threads {
-		// Get post time for day separator
-		postTime, err := thread.post.GetCreatedTime()
-		if err == nil {
-			localTime := postTime.Local()
-			postDay := time.Date(localTime.Year(), localTime.Month(), localTime.Day(), 0, 0, 0, 0, localTime.Location())
-			if lastDay.IsZero() || !postDay.Equal(lastDay) {
-				if i > 0 {
-					lines = append(lines, contentLine{text: "", postIndex: -1})
-				}
-				lines = append(lines, contentLine{text: m.formatDaySeparator(localTime), postIndex: -1})
-				lastDay = postDay
-			}
-		}
-
-		// Format main post with selection indicator
-		isSelected := postIndex == m.selectedPostIndex
-		postLines := m.formatPostWithSelection(thread.post, isSelected)
-		for _, line := range postLines {
-			lines = append(lines, contentLine{text: line, postIndex: postIndex})
-		}
-
-		// Format replies (not selectable, use -1)
-		for _, reply := range thread.replies {
-			replyLines := m.formatReplyWithSelection(reply, false)
-			for _, line := range replyLines {
-				lines = append(lines, contentLine{text: line, postIndex: -1})
-			}
-		}
-
-		// Insert separator AFTER the last-read thread when there are unread posts
-		if hasUnread && !separatorInserted && m.lastReadPostID != "" {
-			if thread.post.ID == m.lastReadPostID {
-				pendingUnreadSeparator = true
-			}
-		}
-
-		// Blank line between threads
-		if i < len(threads)-1 {
-			if pendingUnreadSeparator && !separatorInserted {
-				lines = append(lines, contentLine{text: m.formatUnreadSeparator(), postIndex: unreadSeparatorIndex})
-				separatorInserted = true
-				pendingUnreadSeparator = false
-			} else {
-				lines = append(lines, contentLine{text: "", postIndex: -1})
-			}
-		}
-
-		postIndex++
+		cb.addDaySeparator(thread, i)
+		cb.addThread(thread, i)
+		cb.addThreadSeparator(thread, i == len(threads)-1)
 	}
 
-	return lines
+	return cb.lines
 }
 
 // formatPostWithSelection formats a post with optional selection indicator.
@@ -2009,6 +1984,17 @@ func (m *Model) handleCopyMenuKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func copyImageAction(post *Post, theme *Theme, dims ImageDimensions, label string) string {
+	data, err := RenderShareCard(post, theme, dims)
+	if err != nil {
+		return "⚠ Render failed"
+	}
+	if err := CopyImageToClipboard(data); err != nil {
+		return "⚠ Copy failed"
+	}
+	return "✓ Copied " + label
+}
+
 // executeCopyAction performs the copy operation based on copyMenuIndex.
 func (m *Model) executeCopyAction() {
 	if m.selectedPostIndex < 0 || m.selectedPostIndex >= len(m.displayedPosts) {
@@ -2019,37 +2005,16 @@ func (m *Model) executeCopyAction() {
 	post := m.displayedPosts[m.selectedPostIndex]
 
 	switch m.copyMenuIndex {
-	case 0: // Text
-		text := FormatPostAsText(post)
-		if err := CopyTextToClipboard(text); err != nil {
+	case 0:
+		if err := CopyTextToClipboard(FormatPostAsText(post)); err != nil {
 			m.copyConfirmation = "⚠ Copy failed"
 		} else {
 			m.copyConfirmation = "✓ Copied text"
 		}
-
-	case 1: // Square image
-		data, err := RenderShareCard(post, m.theme, SquareImage)
-		if err != nil {
-			m.copyConfirmation = "⚠ Render failed"
-			return
-		}
-		if err := CopyImageToClipboard(data); err != nil {
-			m.copyConfirmation = "⚠ Copy failed"
-		} else {
-			m.copyConfirmation = "✓ Copied square image"
-		}
-
-	case 2: // Landscape image
-		data, err := RenderShareCard(post, m.theme, LandscapeImage)
-		if err != nil {
-			m.copyConfirmation = "⚠ Render failed"
-			return
-		}
-		if err := CopyImageToClipboard(data); err != nil {
-			m.copyConfirmation = "⚠ Copy failed"
-		} else {
-			m.copyConfirmation = "✓ Copied landscape image"
-		}
+	case 1:
+		m.copyConfirmation = copyImageAction(post, m.theme, SquareImage, "square image")
+	case 2:
+		m.copyConfirmation = copyImageAction(post, m.theme, LandscapeImage, "landscape image")
 	}
 }
 
@@ -2096,25 +2061,7 @@ func (m Model) renderCopyMenuOverlayBox() overlayBox {
 		Width(menuWidth)
 
 	contentWithBackground := m.fillBackgroundBlock(menuContent.String(), menuWidth, m.theme.BackgroundSecondary)
-	styledBox := menuStyle.Render(contentWithBackground)
-
-	boxHeight := strings.Count(styledBox, "\n") + 1
-	boxWidth := lipgloss.Width(styledBox)
-	topPadding := (m.height - boxHeight) / 2
-	leftPadding := (m.width - boxWidth) / 2
-
-	if leftPadding < 0 {
-		leftPadding = 0
-	}
-	if topPadding < 0 {
-		topPadding = 0
-	}
-
-	return overlayBox{
-		lines: strings.Split(styledBox, "\n"),
-		top:   topPadding,
-		left:  leftPadding,
-	}
+	return m.centerOverlay(menuStyle.Render(contentWithBackground))
 }
 
 // renderCopyMenuOverlay returns a string-rendered overlay (used in tests).
