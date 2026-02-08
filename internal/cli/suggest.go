@@ -33,6 +33,10 @@ This command shows 2-3 recent posts from the last 2-6 hours (configurable)
 along with 2-3 randomly selected examples to inspire your next post.
 It also surfaces a random older post as "reply bait" to encourage interaction.
 
+To keep the feed from feeling templated, each nudge also includes a rotating
+"style mode" (one-liner, vent, tiny win, shoutout, etc.). It's optional —
+use it when you're stuck or bored.
+
 Use --context to get context-specific nudges. Available contexts:
   deep-in-it       Mid-task, in the trenches (Gripes, War Stories, Shop Talk)
   just-shipped     Finished something (War Stories, Props, Banter)
@@ -91,6 +95,28 @@ var replyBaitPrompts = []string{
 	"+1? Or fight them on it?",
 }
 
+func chooseStyleMode(cfg *config.SuggestConfig, contextName, mode string) config.StyleMode {
+	if cfg == nil || cfg.StyleModes == nil {
+		return config.StyleMode{}
+	}
+
+	key := "default"
+	if mode == "reply" {
+		key = "reply"
+	} else if contextName != "" {
+		key = contextName
+	}
+
+	modes := cfg.StyleModes[key]
+	if len(modes) == 0 && key != "default" {
+		modes = cfg.StyleModes["default"]
+	}
+	if len(modes) == 0 {
+		return config.StyleMode{}
+	}
+	return modes[rand.IntN(len(modes))]
+}
+
 // getTonePrefix returns the tone prefix for a given pressure level.
 func getTonePrefix(pressure int) string {
 	if pressure < 0 {
@@ -112,6 +138,47 @@ func chooseSuggestMode(recentPosts []*feed.Post) string {
 		return "reply"
 	}
 	return "post"
+}
+
+func selectSuggestExamples(cfg *config.SuggestConfig, contextName string) []string {
+	if contextName != "" {
+		return cfg.GetExamplesForContext(contextName)
+	}
+	return cfg.GetAllExamples()
+}
+
+func resolveSuggestJSONMode(contextName string, recentPosts []*feed.Post) string {
+	mode := chooseSuggestMode(recentPosts)
+	if contextName == "reply" {
+		mode = "reply"
+	}
+	// Fall back to post mode when reply has no posts to work with
+	if mode == "reply" && len(recentPosts) == 0 {
+		mode = "post"
+	}
+	return mode
+}
+
+func buildStyleModeOutput(style config.StyleMode) map[string]string {
+	return map[string]string{
+		"name": style.Name,
+		"hint": style.Hint,
+	}
+}
+
+func maybeAddContextOutput(output map[string]interface{}, cfg *config.SuggestConfig, contextName string) {
+	if contextName == "" {
+		return
+	}
+	ctx := cfg.GetContext(contextName)
+	if ctx == nil {
+		return
+	}
+	output["context"] = map[string]interface{}{
+		"name":       contextName,
+		"prompt":     ctx.Prompt,
+		"categories": ctx.Categories,
+	}
 }
 
 // shouldFireNudge determines whether a nudge should be sent based on pressure level.
@@ -291,12 +358,13 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	printToneAndContext(cfg, contextName, pressure)
-
 	mode := chooseSuggestMode(recentPosts)
 	if contextName == "reply" {
 		mode = "reply"
 	}
+
+	style := chooseStyleMode(cfg, contextName, mode)
+	printToneContextAndStyle(cfg, contextName, pressure, style)
 
 	if mode == "reply" && len(recentPosts) > 0 {
 		return formatReplyMode(recentPosts, cfg)
@@ -310,17 +378,21 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	return nil
 }
 
-// printToneAndContext prints the tone prefix and context prompt header.
-func printToneAndContext(cfg *config.SuggestConfig, contextName string, pressure int) {
+// printToneContextAndStyle prints the tone prefix, context prompt, and rotating style mode.
+func printToneContextAndStyle(cfg *config.SuggestConfig, contextName string, pressure int, style config.StyleMode) {
 	if tonePrefix := getTonePrefix(pressure); tonePrefix != "" {
 		fmt.Printf("%s\n\n", tonePrefix)
 	}
-	if contextName == "" {
-		return
+	if contextName != "" {
+		ctx := cfg.GetContext(contextName)
+		if ctx != nil && ctx.Prompt != "" {
+			fmt.Printf("Context: %s\n", ctx.Prompt)
+		}
 	}
-	ctx := cfg.GetContext(contextName)
-	if ctx != nil && ctx.Prompt != "" {
-		fmt.Printf("Context: %s\n\n", ctx.Prompt)
+	if style.Name != "" && style.Hint != "" {
+		fmt.Printf("Style mode (rotating): %s — %s\n\n", style.Name, style.Hint)
+	} else {
+		fmt.Println()
 	}
 }
 
@@ -456,29 +528,19 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	var examples []string
-	if contextName != "" {
-		examples = cfg.GetExamplesForContext(contextName)
-	} else {
-		examples = cfg.GetAllExamples()
-	}
+	examples := selectSuggestExamples(cfg, contextName)
+	mode := resolveSuggestJSONMode(contextName, recentPosts)
 
-	mode := chooseSuggestMode(recentPosts)
-	if contextName == "reply" {
-		mode = "reply"
-	}
-	// Fall back to post mode when reply has no posts to work with
-	if mode == "reply" && len(recentPosts) == 0 {
-		mode = "post"
-	}
+	style := chooseStyleMode(cfg, contextName, mode)
 
 	output := map[string]interface{}{
-		"skipped":  false,
-		"pressure": pressure,
-		"tone":     getTonePrefix(pressure),
-		"mode":     mode,
-		"posts":    buildPostsOutput(recentPosts),
-		"examples": getRandomExamples(examples, 2, 3),
+		"skipped":    false,
+		"pressure":   pressure,
+		"tone":       getTonePrefix(pressure),
+		"mode":       mode,
+		"style_mode": buildStyleModeOutput(style),
+		"posts":      buildPostsOutput(recentPosts),
+		"examples":   getRandomExamples(examples, 2, 3),
 	}
 
 	if bait := buildReplyBaitOutput(allPosts, recentPosts); bait != nil {
@@ -492,16 +554,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		output["reply_examples"] = getRandomExamples(replyExamples, 2, 3)
 	}
 
-	if contextName != "" {
-		ctx := cfg.GetContext(contextName)
-		if ctx != nil {
-			output["context"] = map[string]interface{}{
-				"name":       contextName,
-				"prompt":     ctx.Prompt,
-				"categories": ctx.Categories,
-			}
-		}
-	}
+	maybeAddContextOutput(output, cfg, contextName)
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
