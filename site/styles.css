@@ -28,6 +28,10 @@ body {
   font-family: var(--font-body);
   font-size: var(--body-size);
   color: var(--text-color);
+  background: radial-gradient(1200px 600px at 10% -10%, #3a3056 0%, transparent 60%),
+    radial-gradient(900px 420px at 90% 5%, #2b2f4b 0%, transparent 60%),
+    linear-gradient(180deg, #282a36, #1f202b);
+  min-height: 100vh;
 }
 
 h1,
