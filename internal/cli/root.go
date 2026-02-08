@@ -75,31 +75,36 @@ func formatRelativeTime(d time.Duration) string {
 	}
 }
 
-func init() {
-	// If ldflags weren't provided, try to get version info from build info
-	// Go 1.18+ embeds VCS information when building from a git repository
-	if Commit == "unknown" {
-		if info, ok := debug.ReadBuildInfo(); ok {
-			var modified bool
-			for _, setting := range info.Settings {
-				switch setting.Key {
-				case "vcs.revision":
-					if len(setting.Value) >= 7 {
-						Commit = setting.Value[:7] // short hash
-					} else {
-						Commit = setting.Value
-					}
-				case "vcs.time":
-					BuildDate = setting.Value
-				case "vcs.modified":
-					modified = setting.Value == "true"
-				}
+func loadVCSBuildInfo() {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+
+	var modified bool
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			if len(setting.Value) >= 7 {
+				Commit = setting.Value[:7]
+			} else {
+				Commit = setting.Value
 			}
-			// Append dirty suffix after we've found the revision
-			if modified && Commit != "unknown" {
-				Commit += "-dirty"
-			}
+		case "vcs.time":
+			BuildDate = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
 		}
+	}
+
+	if modified && Commit != "unknown" {
+		Commit += "-dirty"
+	}
+}
+
+func init() {
+	if Commit == "unknown" {
+		loadVCSBuildInfo()
 	}
 }
 

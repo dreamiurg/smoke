@@ -476,33 +476,43 @@ func fixConfigFile() (*FixResult, error) {
 	return &FixResult{Description: "Created default config file"}, nil
 }
 
-// applyFixes attempts to fix all fixable issues
-// Returns the number of fixes applied (or would be applied in dry-run mode)
+func applyFixForCheck(check Check, dryRun bool) bool {
+	if check.Status == StatusPass || !check.CanFix || check.Fix == nil {
+		return false
+	}
+
+	if dryRun {
+		fmt.Printf("Would fix: %s\n", check.Name)
+		return true
+	}
+
+	result, err := check.Fix()
+	if err != nil {
+		fmt.Printf("Failed to fix %s: %v\n", check.Name, err)
+		return false
+	}
+
+	printFixResult(check.Name, result)
+	return true
+}
+
+func printFixResult(name string, result *FixResult) {
+	if result != nil && result.BackupPath != "" {
+		fmt.Printf("Backed up to: %s\n", result.BackupPath)
+	}
+	if result != nil && result.Description != "" {
+		fmt.Printf("Fixed: %s (%s)\n", name, result.Description)
+	} else {
+		fmt.Printf("Fixed: %s\n", name)
+	}
+}
+
 func applyFixes(categories []Category, dryRun bool) (int, error) {
 	fixCount := 0
 
 	for _, cat := range categories {
 		for _, check := range cat.Checks {
-			if check.Status != StatusPass && check.CanFix && check.Fix != nil {
-				if dryRun {
-					fmt.Printf("Would fix: %s\n", check.Name)
-				} else {
-					result, err := check.Fix()
-					if err != nil {
-						fmt.Printf("Failed to fix %s: %v\n", check.Name, err)
-						continue
-					}
-					// Print backup path first if one was created
-					if result != nil && result.BackupPath != "" {
-						fmt.Printf("Backed up to: %s\n", result.BackupPath)
-					}
-					// Print what was fixed with description
-					if result != nil && result.Description != "" {
-						fmt.Printf("Fixed: %s (%s)\n", check.Name, result.Description)
-					} else {
-						fmt.Printf("Fixed: %s\n", check.Name)
-					}
-				}
+			if applyFixForCheck(check, dryRun) {
 				fixCount++
 			}
 		}

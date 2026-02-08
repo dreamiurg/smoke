@@ -25,23 +25,14 @@ var (
 	LandscapeImage = ImageDimensions{Width: 1200, Height: 630, Name: "landscape"}
 )
 
-// RenderShareCard renders a post as a shareable PNG image.
-// Uses theme colors for Carbon-style terminal aesthetic.
-func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, error) {
-	dc := gg.NewContext(dims.Width, dims.Height)
-
-	// Convert theme colors to Go color.Color (use Dark variant for terminal aesthetic)
+// renderCardBackground draws the card background and window controls.
+func renderCardBackground(dc *gg.Context, theme *Theme, dims ImageDimensions) (padding, innerPadding, cardWidth float64) {
 	bgColor := hexToColor(theme.Background.Dark)
-	textColor := hexToColor(theme.Text.Dark)
-	accentColor := hexToColor(theme.Accent.Dark)
-
-	// Fill background
 	dc.SetColor(bgColor)
 	dc.Clear()
 
-	// Draw rounded rectangle card (with some padding)
-	padding := float64(dims.Width) * 0.05
-	cardWidth := float64(dims.Width) - padding*2
+	padding = float64(dims.Width) * 0.05
+	cardWidth = float64(dims.Width) - padding*2
 	cardHeight := float64(dims.Height) - padding*2
 	cornerRadius := 20.0
 
@@ -49,18 +40,15 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	drawRoundedRect(dc, padding, padding, cardWidth, cardHeight, cornerRadius)
 	dc.Fill()
 
-	// Card inner padding
-	innerPadding := padding + 40
+	innerPadding = padding + 40
 
-	// Draw window controls (Carbon-style dots)
 	dotY := innerPadding + 10
 	dotRadius := 7.0
 	dotSpacing := 20.0
-
 	colors := []color.Color{
-		color.RGBA{255, 95, 86, 255},  // Red
-		color.RGBA{255, 189, 46, 255}, // Yellow
-		color.RGBA{39, 201, 63, 255},  // Green
+		color.RGBA{255, 95, 86, 255},
+		color.RGBA{255, 189, 46, 255},
+		color.RGBA{39, 201, 63, 255},
 	}
 	for i, c := range colors {
 		dc.SetColor(c)
@@ -68,9 +56,13 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 		dc.Fill()
 	}
 
-	// Draw handle
+	return padding, innerPadding, cardWidth
+}
+
+// renderCardHandle draws the author handle (agent@project [caller]).
+// Returns the Y position below the handle for content placement.
+func renderCardHandle(dc *gg.Context, post *Post, theme *Theme, innerPadding, dotY, fontSize float64) float64 {
 	handleY := dotY + 50
-	fontSize := float64(dims.Width) * 0.025
 	loadMonoFont(dc, fontSize)
 	handle := post.Author
 	if handle == "" {
@@ -78,15 +70,13 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 	}
 
 	agent, project := SplitIdentity(handle)
-	agentColor := agentColorForTheme(agent, theme)
 	projectColor := hexToColor(theme.TextMuted.Dark)
 
-	dc.SetColor(agentColor)
+	dc.SetColor(agentColorForTheme(agent, theme))
 	dc.DrawString(agent, innerPadding, handleY)
 
-	handleWidth := 0.0
 	agentWidth, _ := dc.MeasureString(agent)
-	handleWidth += agentWidth
+	handleWidth := agentWidth
 
 	if project != "" {
 		dc.SetColor(projectColor)
@@ -95,27 +85,20 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 		handleWidth += projectWidth
 	}
 
-	caller := ResolveCallerTag(post)
-	if caller != "" {
+	if caller := ResolveCallerTag(post); caller != "" {
 		dc.SetColor(projectColor)
-		callerLabel := " (" + caller + ")"
-		dc.DrawString(callerLabel, innerPadding+handleWidth, handleY)
+		dc.DrawString(" ("+caller+")", innerPadding+handleWidth, handleY)
 	}
 
-	// Draw content
-	contentY := handleY + fontSize*2
-	dc.SetColor(textColor)
+	return handleY
+}
+
+// renderCardContent draws the post content with auto-sizing font.
+func renderCardContent(dc *gg.Context, post *Post, theme *Theme, innerPadding, contentY, cardWidth, availableHeight, fontSize float64) {
+	dc.SetColor(hexToColor(theme.Text.Dark))
 	contentFontSize := fontSize * 1.5
 	minFontSize := fontSize * 0.8
-
 	maxWidth := cardWidth - 80
-	footerFontSize := fontSize * 0.8
-	footerY := float64(dims.Height) - innerPadding
-	contentMaxY := footerY - (footerFontSize * 1.6)
-	if contentMaxY < contentY {
-		contentMaxY = contentY
-	}
-	availableHeight := contentMaxY - contentY
 
 	var lines []string
 	var lineHeight float64
@@ -123,39 +106,54 @@ func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, er
 		loadMonoFont(dc, contentFontSize)
 		lines = dc.WordWrap(post.Content, maxWidth)
 		lineHeight = contentFontSize * 1.4
-		totalHeight := lineHeight * float64(len(lines))
-		if totalHeight <= availableHeight || contentFontSize <= minFontSize {
+		if lineHeight*float64(len(lines)) <= availableHeight || contentFontSize <= minFontSize {
 			break
 		}
 		contentFontSize -= 1.0
 	}
 
-	if availableHeight > 0 && len(lines) > 0 {
-		maxLines := int(math.Floor(availableHeight / lineHeight))
-		if maxLines <= 0 {
-			lines = nil
-		}
-		if len(lines) > maxLines && maxLines > 0 {
-			lines = lines[:maxLines]
-			last := strings.TrimRight(lines[maxLines-1], " ")
-			lines[maxLines-1] = last + "…"
-		}
-		if maxLines > 0 {
-			for i, line := range lines {
-				if i >= maxLines {
-					break
-				}
-				dc.DrawString(line, innerPadding, contentY+float64(i)*lineHeight)
-			}
-		}
+	if availableHeight <= 0 || len(lines) == 0 {
+		return
 	}
 
-	// Draw footer
-	dc.SetColor(accentColor)
+	maxLines := int(math.Floor(availableHeight / lineHeight))
+	if maxLines <= 0 {
+		return
+	}
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+		lines[maxLines-1] = strings.TrimRight(lines[maxLines-1], " ") + "…"
+	}
+	for i, line := range lines {
+		dc.DrawString(line, innerPadding, contentY+float64(i)*lineHeight)
+	}
+}
+
+// RenderShareCard renders a post as a shareable PNG image.
+// Uses theme colors for Carbon-style terminal aesthetic.
+func RenderShareCard(post *Post, theme *Theme, dims ImageDimensions) ([]byte, error) {
+	dc := gg.NewContext(dims.Width, dims.Height)
+
+	_, innerPadding, cardWidth := renderCardBackground(dc, theme, dims)
+
+	dotY := innerPadding + 10
+	fontSize := float64(dims.Width) * 0.025
+	handleY := renderCardHandle(dc, post, theme, innerPadding, dotY, fontSize)
+
+	contentY := handleY + fontSize*2
+	footerFontSize := fontSize * 0.8
+	footerY := float64(dims.Height) - innerPadding
+	contentMaxY := footerY - (footerFontSize * 1.6)
+	if contentMaxY < contentY {
+		contentMaxY = contentY
+	}
+
+	renderCardContent(dc, post, theme, innerPadding, contentY, cardWidth, contentMaxY-contentY, fontSize)
+
+	dc.SetColor(hexToColor(theme.Accent.Dark))
 	loadMonoFont(dc, footerFontSize)
 	dc.DrawString(ShareFooter, innerPadding, footerY)
 
-	// Encode to PNG
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, dc.Image()); err != nil {
 		return nil, err

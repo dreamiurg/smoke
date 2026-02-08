@@ -103,6 +103,42 @@ func isSmokeHook(command string) bool {
 		strings.Contains(command, "smoke-nudge.sh")
 }
 
+// updateSmokeHookCommand searches a hooks array for a smoke hook and updates its command.
+// Returns true if a smoke hook was found and updated.
+func updateSmokeHookCommand(hooks []interface{}, scriptPath string) bool {
+	for _, hook := range hooks {
+		hookMap, ok := hook.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		command, ok := hookMap["command"].(string)
+		if ok && isSmokeHook(command) {
+			hookMap["command"] = scriptPath
+			return true
+		}
+	}
+	return false
+}
+
+// findSmokeHookInEntries searches event entries for a smoke hook and updates its command.
+// Returns true if a smoke hook was found and updated.
+func findSmokeHookInEntries(eventArray []interface{}, scriptPath string) bool {
+	for _, entry := range eventArray {
+		entryMap, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		entryHooks, ok := entryMap["hooks"].([]interface{})
+		if !ok {
+			continue
+		}
+		if updateSmokeHookCommand(entryHooks, scriptPath) {
+			return true
+		}
+	}
+	return false
+}
+
 // addHookToSettings adds or updates a smoke hook in settings
 func addHookToSettings(settings map[string]interface{}, event HookEvent, scriptPath string) error {
 	// Ensure hooks section exists
@@ -119,40 +155,8 @@ func addHookToSettings(settings map[string]interface{}, event HookEvent, scriptP
 		eventArray = []interface{}{}
 	}
 
-	// Check if smoke hook already exists
-	hookExists := false
-	for _, entry := range eventArray {
-		entryMap, ok := entry.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		entryHooks, ok := entryMap["hooks"].([]interface{})
-		if !ok {
-			continue
-		}
-
-		for _, hook := range entryHooks {
-			hookMap, ok := hook.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			if command, ok := hookMap["command"].(string); ok && isSmokeHook(command) {
-				// Update existing hook
-				hookMap["command"] = scriptPath
-				hookExists = true
-				break
-			}
-		}
-
-		if hookExists {
-			break
-		}
-	}
-
-	// If hook doesn't exist, add new entry
-	if !hookExists {
+	// Update existing smoke hook or add new entry
+	if !findSmokeHookInEntries(eventArray, scriptPath) {
 		newEntry := map[string]interface{}{
 			"matcher": "",
 			"hooks": []interface{}{
@@ -167,6 +171,42 @@ func addHookToSettings(settings map[string]interface{}, event HookEvent, scriptP
 
 	hooks[eventKey] = eventArray
 	return nil
+}
+
+// filterSmokeHooksFromEntry removes smoke hooks from a single entry.
+// Returns the filtered entry and whether it should be kept.
+func filterSmokeHooksFromEntry(entry interface{}) (interface{}, bool) {
+	entryMap, ok := entry.(map[string]interface{})
+	if !ok {
+		return entry, true
+	}
+
+	entryHooks, ok := entryMap["hooks"].([]interface{})
+	if !ok {
+		return entry, true
+	}
+
+	// Filter hooks within entry
+	var filteredHooks []interface{}
+	for _, hook := range entryHooks {
+		hookMap, ok := hook.(map[string]interface{})
+		if !ok {
+			filteredHooks = append(filteredHooks, hook)
+			continue
+		}
+
+		command, ok := hookMap["command"].(string)
+		if !ok || !isSmokeHook(command) {
+			filteredHooks = append(filteredHooks, hook)
+		}
+	}
+
+	if len(filteredHooks) == 0 {
+		return nil, false
+	}
+
+	entryMap["hooks"] = filteredHooks
+	return entryMap, true
 }
 
 // removeHookFromSettings removes smoke hooks from settings
@@ -184,40 +224,11 @@ func removeHookFromSettings(settings map[string]interface{}, event HookEvent) er
 		return nil // No entries for this event
 	}
 
-	// Filter out smoke hooks
+	// Filter out entries with only smoke hooks
 	var filtered []interface{}
 	for _, entry := range eventArray {
-		entryMap, ok := entry.(map[string]interface{})
-		if !ok {
-			filtered = append(filtered, entry)
-			continue
-		}
-
-		entryHooks, ok := entryMap["hooks"].([]interface{})
-		if !ok {
-			filtered = append(filtered, entry)
-			continue
-		}
-
-		// Filter hooks within entry
-		var filteredHooks []interface{}
-		for _, hook := range entryHooks {
-			hookMap, ok := hook.(map[string]interface{})
-			if !ok {
-				filteredHooks = append(filteredHooks, hook)
-				continue
-			}
-
-			command, ok := hookMap["command"].(string)
-			if !ok || !isSmokeHook(command) {
-				filteredHooks = append(filteredHooks, hook)
-			}
-		}
-
-		// Keep entry if it still has non-smoke hooks
-		if len(filteredHooks) > 0 {
-			entryMap["hooks"] = filteredHooks
-			filtered = append(filtered, entryMap)
+		if kept, keep := filterSmokeHooksFromEntry(entry); keep {
+			filtered = append(filtered, kept)
 		}
 	}
 
@@ -229,6 +240,38 @@ func removeHookFromSettings(settings map[string]interface{}, event HookEvent) er
 	}
 
 	return nil
+}
+
+// hooksContainSmoke checks if any hook in the array is a smoke hook.
+func hooksContainSmoke(hooks []interface{}) bool {
+	for _, hook := range hooks {
+		hookMap, ok := hook.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if command, ok := hookMap["command"].(string); ok && isSmokeHook(command) {
+			return true
+		}
+	}
+	return false
+}
+
+// entriesContainSmokeHook checks if any entry in the event array contains a smoke hook.
+func entriesContainSmokeHook(eventArray []interface{}) bool {
+	for _, entry := range eventArray {
+		entryMap, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		entryHooks, ok := entryMap["hooks"].([]interface{})
+		if !ok {
+			continue
+		}
+		if hooksContainSmoke(entryHooks) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkHookInSettings checks if a smoke hook is configured in settings
@@ -244,29 +287,5 @@ func checkHookInSettings(settings map[string]interface{}, event HookEvent) bool 
 		return false
 	}
 
-	// Check if any entry contains a smoke hook
-	for _, entry := range eventArray {
-		entryMap, ok := entry.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		entryHooks, ok := entryMap["hooks"].([]interface{})
-		if !ok {
-			continue
-		}
-
-		for _, hook := range entryHooks {
-			hookMap, ok := hook.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			if command, ok := hookMap["command"].(string); ok && isSmokeHook(command) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return entriesContainSmokeHook(eventArray)
 }
