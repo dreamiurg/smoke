@@ -13,6 +13,7 @@
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-display: "IBM Plex Sans", system-ui, sans-serif;
   --body-size: 20px;
+  --pico-font-size: 20px;
   --h1-size: 54px;
   --h2-size: 30px;
   --small-size: 14px;
@@ -100,6 +101,8 @@ figure.hero {
 figure.hero img {
   border-radius: 16px;
   border: 1px solid #44475a;
+  width: 100%;
+  height: auto;
 }
 
 section {
@@ -140,6 +143,8 @@ section p {
 .code-block pre {
   margin: 0;
   font-size: calc(var(--body-size) - 2px);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .copy {
@@ -179,6 +184,8 @@ section p {
   margin: 0;
   padding: 16px;
   font-size: calc(var(--body-size) - 2px);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .diagram {
@@ -204,12 +211,104 @@ footer small {
   font-size: var(--small-size);
 }
 
+/* ── Tablet ── */
 @media (max-width: 720px) {
+  :root {
+    --h1-size: 38px;
+    --h2-size: 26px;
+    --body-size: 18px;
+    --pico-font-size: 18px;
+    --small-size: 13px;
+    --space-mult: 0.8;
+  }
+
   nav {
     flex-direction: column;
     align-items: flex-start;
   }
+
   footer {
     flex-direction: column;
+  }
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  :root {
+    --h1-size: 30px;
+    --h2-size: 22px;
+    --body-size: 17px;
+    --pico-font-size: 17px;
+    --small-size: 13px;
+    --space-mult: 0.65;
+  }
+
+  body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  header h1 {
+    line-height: 1.15;
+  }
+
+  header .lead {
+    font-size: var(--body-size);
+    line-height: 1.5;
+  }
+
+  figure.hero {
+    margin-left: -14px;
+    margin-right: -14px;
+  }
+
+  figure.hero img {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .code-block {
+    padding: 10px 12px 14px;
+  }
+
+  .code-block pre,
+  .terminal pre {
+    font-size: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: pre;
+    word-break: normal;
+  }
+
+  .terminal-head,
+  .code-head {
+    font-size: 12px;
+  }
+
+  .copy {
+    font-size: 12px;
+    padding: 3px 7px;
+    top: 10px;
+    right: 10px;
+  }
+
+  section ul {
+    padding-left: 1.2em;
+  }
+
+  details summary {
+    font-size: var(--body-size);
+  }
+
+  .diagram {
+    margin-left: -14px;
+    margin-right: -14px;
+  }
+
+  .diagram img {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 }
