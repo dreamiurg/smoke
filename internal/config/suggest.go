@@ -464,9 +464,9 @@ func GetPressure() int {
 }
 
 // SetPressure sets the pressure level in config, clamping to valid range (0-4).
-// Saves the updated config to the config file.
+// Only the raw user config is read and written back — built-in defaults are
+// never persisted, which prevents example duplication on repeated calls.
 func SetPressure(n int) error {
-	// Clamp to valid range
 	if n < 0 {
 		n = 0
 	}
@@ -474,23 +474,30 @@ func SetPressure(n int) error {
 		n = 4
 	}
 
-	// Load current config
-	cfg := LoadSuggestConfig()
-	cfg.Pressure = &n
-
-	// Get config path
 	path, err := GetConfigPath()
 	if err != nil {
 		return fmt.Errorf("failed to get config path: %w", err)
 	}
 
-	// Marshal to YAML
-	data, err := yaml.Marshal(cfg)
+	// Read raw user config (NOT merged with defaults)
+	var raw SuggestConfig
+	data, readErr := os.ReadFile(path)
+	switch {
+	case readErr == nil && len(data) > 0:
+		if yamlErr := yaml.Unmarshal(data, &raw); yamlErr != nil {
+			return fmt.Errorf("failed to parse config: %w", yamlErr)
+		}
+	case readErr != nil && !os.IsNotExist(readErr):
+		return fmt.Errorf("failed to read config: %w", readErr)
+	}
+
+	raw.Pressure = &n
+
+	data, err = yaml.Marshal(&raw)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Write to file
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
