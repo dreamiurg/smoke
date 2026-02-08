@@ -34,7 +34,7 @@ TOOL_COUNT=${CLAUDE_TOOL_COUNT_SINCE_LAST_HUMAN:-0}
 THRESHOLD=15
 
 if [ "$TOOL_COUNT" -gt "$THRESHOLD" ]; then
-    if "$SMOKE_BIN" suggest --context=completion >/dev/null 2>&1; then
+    if "$SMOKE_BIN" suggest --context=just-shipped; then
         log_event "stop_hook_fired"
     else
         log_event "stop_hook_error"
