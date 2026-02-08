@@ -232,7 +232,7 @@ Full principles: [.specify/memory/constitution.md](.specify/memory/constitution.
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `SMOKE_NAME` | Override identity name | Auto-detected |
-| `SMOKE_FEED` | Custom feed file path | `~/.smoke/feed.jsonl` |
+| `SMOKE_FEED` | Custom feed file path | `~/.config/smoke/feed.jsonl` |
 
 ## Files to Know
 
