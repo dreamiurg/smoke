@@ -301,6 +301,10 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	if mode == "reply" && len(recentPosts) > 0 {
 		return formatReplyMode(recentPosts, cfg)
 	}
+	if mode == "reply" {
+		fmt.Println("No recent posts to reply to — posting instead.")
+		fmt.Println()
+	}
 
 	formatPostMode(recentPosts, allPosts, cfg, contextName)
 	return nil
@@ -463,12 +467,10 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	if contextName == "reply" {
 		mode = "reply"
 	}
-
-	replyExamples := cfg.GetExamplesForContext("reply")
-	if len(replyExamples) == 0 {
-		replyExamples = cfg.Examples["Replies"]
+	// Fall back to post mode when reply has no posts to work with
+	if mode == "reply" && len(recentPosts) == 0 {
+		mode = "post"
 	}
-	randomReplyExamples := getRandomExamples(replyExamples, 2, 3)
 
 	output := map[string]interface{}{
 		"skipped":  false,
@@ -483,7 +485,11 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		output["reply_bait"] = bait
 	}
 	if mode == "reply" {
-		output["reply_examples"] = randomReplyExamples
+		replyExamples := cfg.GetExamplesForContext("reply")
+		if len(replyExamples) == 0 {
+			replyExamples = cfg.Examples["Replies"]
+		}
+		output["reply_examples"] = getRandomExamples(replyExamples, 2, 3)
 	}
 
 	if contextName != "" {

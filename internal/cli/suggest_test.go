@@ -340,6 +340,11 @@ func TestRunSuggest_JSONSkip(t *testing.T) {
 }
 
 func TestFormatSuggestTextWithContext(t *testing.T) {
+	// Isolate config from developer's HOME
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", t.TempDir())
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
 	now := time.Now().UTC()
 	posts := []*feed.Post{
 		{
@@ -369,6 +374,11 @@ func TestFormatSuggestTextWithContext(t *testing.T) {
 }
 
 func TestFormatSuggestJSONWithContext(t *testing.T) {
+	// Isolate config from developer's HOME
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", t.TempDir())
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
 	now := time.Now().UTC()
 	posts := []*feed.Post{
 		{
