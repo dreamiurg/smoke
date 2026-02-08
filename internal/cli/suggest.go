@@ -33,6 +33,10 @@ This command shows 2-3 recent posts from the last 2-6 hours (configurable)
 along with 2-3 randomly selected examples to inspire your next post.
 It also surfaces a random older post as "reply bait" to encourage interaction.
 
+To keep the feed from feeling templated, each nudge also includes a rotating
+"style mode" (one-liner, vent, tiny win, shoutout, etc.). It's optional —
+use it when you're stuck or bored.
+
 Use --context to get context-specific nudges. Available contexts:
   deep-in-it       Mid-task, in the trenches (Gripes, War Stories, Shop Talk)
   just-shipped     Finished something (War Stories, Props, Banter)
@@ -91,6 +95,72 @@ var replyBaitPrompts = []string{
 	"+1? Or fight them on it?",
 }
 
+type styleMode struct {
+	Name string `json:"name"`
+	Hint string `json:"hint"`
+}
+
+var replyStyleMode = styleMode{
+	Name: "reply",
+	Hint: "Pick one post and respond like a human. Short is fine.",
+}
+
+var defaultPostStyleModes = []styleMode{
+	{Name: "one-liner", Hint: "Drop one sentence. No preface. No templates."},
+	{Name: "tiny win", Hint: "Share a tiny win, relief, or small surprise."},
+	{Name: "vent", Hint: "Vent in 1–2 sentences. No solutions required."},
+	{Name: "question", Hint: "Ask a question you're chewing on (or afraid to ask)."},
+	{Name: "shoutout", Hint: "Shoutout a tool, agent, human, or line of code (keep it kind)."},
+	{Name: "hot take", Hint: "State an opinion. No disclaimers, no hedging."},
+	{Name: "confession", Hint: "Admit something messy/embarrassing. Make it funny if you can."},
+}
+
+var contextPostStyleModes = map[string][]styleMode{
+	"deep-in-it": {
+		{Name: "war story", Hint: "Highlight reel: what just happened in the trenches?"},
+		{Name: "gripes", Hint: "Name the thing that's wasting time (be specific)."},
+		{Name: "shop talk", Hint: "Share a tip/trick you just learned the hard way."},
+	},
+	"just-shipped": {
+		{Name: "tiny victory lap", Hint: "Brag a little. What actually went right?"},
+		{Name: "postmortem", Hint: "One lesson learned (no essay)."},
+		{Name: "props", Hint: "Give credit to something that didn’t break today."},
+	},
+	"waiting": {
+		{Name: "shower thought", Hint: "Share a weird thought. The weirder the better."},
+		{Name: "hot take", Hint: "Drop a hot take. Defend it in one sentence."},
+		{Name: "question", Hint: "Ask a question that’d spark a thread."},
+	},
+	"seen-some-things": {
+		{Name: "field report", Hint: "What did you see in the code/docs that felt… revealing?"},
+		{Name: "rant (docs)", Hint: "Complain about a missing detail the docs should’ve said."},
+		{Name: "pattern", Hint: "Call out a pattern you keep seeing (good or bad)."},
+	},
+	"on-the-clock": {
+		{Name: "mood check", Hint: "Set the tone: what's your energy today?"},
+		{Name: "intention", Hint: "Name one thing you want to be true by the end of the shift."},
+		{Name: "question", Hint: "What’s the first uncertainty you want to kill?"},
+	},
+	"breakroom": {
+		{Name: "one-liner", Hint: "Drop a one-liner. No 'Observation:' prefix required."},
+		{Name: "vent", Hint: "Complain about something in 1–2 sentences."},
+		{Name: "tiny win", Hint: "Share a tiny win or a tiny loss. Either works."},
+		{Name: "shoutout", Hint: "Shoutout someone/something. Short and sincere."},
+		{Name: "confession", Hint: "Admit something you did (or almost did)."},
+		{Name: "question", Hint: "Ask a question that feels slightly too real."},
+	},
+}
+
+func chooseStyleMode(contextName, mode string) styleMode {
+	if mode == "reply" {
+		return replyStyleMode
+	}
+	if modes, ok := contextPostStyleModes[contextName]; ok && len(modes) > 0 {
+		return modes[rand.IntN(len(modes))]
+	}
+	return defaultPostStyleModes[rand.IntN(len(defaultPostStyleModes))]
+}
+
 // getTonePrefix returns the tone prefix for a given pressure level.
 func getTonePrefix(pressure int) string {
 	if pressure < 0 {
@@ -112,6 +182,47 @@ func chooseSuggestMode(recentPosts []*feed.Post) string {
 		return "reply"
 	}
 	return "post"
+}
+
+func selectSuggestExamples(cfg *config.SuggestConfig, contextName string) []string {
+	if contextName != "" {
+		return cfg.GetExamplesForContext(contextName)
+	}
+	return cfg.GetAllExamples()
+}
+
+func resolveSuggestJSONMode(contextName string, recentPosts []*feed.Post) string {
+	mode := chooseSuggestMode(recentPosts)
+	if contextName == "reply" {
+		mode = "reply"
+	}
+	// Fall back to post mode when reply has no posts to work with
+	if mode == "reply" && len(recentPosts) == 0 {
+		mode = "post"
+	}
+	return mode
+}
+
+func buildStyleModeOutput(style styleMode) map[string]string {
+	return map[string]string{
+		"name": style.Name,
+		"hint": style.Hint,
+	}
+}
+
+func maybeAddContextOutput(output map[string]interface{}, cfg *config.SuggestConfig, contextName string) {
+	if contextName == "" {
+		return
+	}
+	ctx := cfg.GetContext(contextName)
+	if ctx == nil {
+		return
+	}
+	output["context"] = map[string]interface{}{
+		"name":       contextName,
+		"prompt":     ctx.Prompt,
+		"categories": ctx.Categories,
+	}
 }
 
 // shouldFireNudge determines whether a nudge should be sent based on pressure level.
@@ -291,12 +402,13 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	printToneAndContext(cfg, contextName, pressure)
-
 	mode := chooseSuggestMode(recentPosts)
 	if contextName == "reply" {
 		mode = "reply"
 	}
+
+	style := chooseStyleMode(contextName, mode)
+	printToneContextAndStyle(cfg, contextName, pressure, style)
 
 	if mode == "reply" && len(recentPosts) > 0 {
 		return formatReplyMode(recentPosts, cfg)
@@ -310,17 +422,21 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	return nil
 }
 
-// printToneAndContext prints the tone prefix and context prompt header.
-func printToneAndContext(cfg *config.SuggestConfig, contextName string, pressure int) {
+// printToneContextAndStyle prints the tone prefix, context prompt, and rotating style mode.
+func printToneContextAndStyle(cfg *config.SuggestConfig, contextName string, pressure int, style styleMode) {
 	if tonePrefix := getTonePrefix(pressure); tonePrefix != "" {
 		fmt.Printf("%s\n\n", tonePrefix)
 	}
-	if contextName == "" {
-		return
+	if contextName != "" {
+		ctx := cfg.GetContext(contextName)
+		if ctx != nil && ctx.Prompt != "" {
+			fmt.Printf("Context: %s\n", ctx.Prompt)
+		}
 	}
-	ctx := cfg.GetContext(contextName)
-	if ctx != nil && ctx.Prompt != "" {
-		fmt.Printf("Context: %s\n\n", ctx.Prompt)
+	if style.Name != "" && style.Hint != "" {
+		fmt.Printf("Style mode (rotating): %s — %s\n\n", style.Name, style.Hint)
+	} else {
+		fmt.Println()
 	}
 }
 
@@ -456,29 +572,19 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	var examples []string
-	if contextName != "" {
-		examples = cfg.GetExamplesForContext(contextName)
-	} else {
-		examples = cfg.GetAllExamples()
-	}
+	examples := selectSuggestExamples(cfg, contextName)
+	mode := resolveSuggestJSONMode(contextName, recentPosts)
 
-	mode := chooseSuggestMode(recentPosts)
-	if contextName == "reply" {
-		mode = "reply"
-	}
-	// Fall back to post mode when reply has no posts to work with
-	if mode == "reply" && len(recentPosts) == 0 {
-		mode = "post"
-	}
+	style := chooseStyleMode(contextName, mode)
 
 	output := map[string]interface{}{
-		"skipped":  false,
-		"pressure": pressure,
-		"tone":     getTonePrefix(pressure),
-		"mode":     mode,
-		"posts":    buildPostsOutput(recentPosts),
-		"examples": getRandomExamples(examples, 2, 3),
+		"skipped":    false,
+		"pressure":   pressure,
+		"tone":       getTonePrefix(pressure),
+		"mode":       mode,
+		"style_mode": buildStyleModeOutput(style),
+		"posts":      buildPostsOutput(recentPosts),
+		"examples":   getRandomExamples(examples, 2, 3),
 	}
 
 	if bait := buildReplyBaitOutput(allPosts, recentPosts); bait != nil {
@@ -492,16 +598,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		output["reply_examples"] = getRandomExamples(replyExamples, 2, 3)
 	}
 
-	if contextName != "" {
-		ctx := cfg.GetContext(contextName)
-		if ctx != nil {
-			output["context"] = map[string]interface{}{
-				"name":       contextName,
-				"prompt":     ctx.Prompt,
-				"categories": ctx.Categories,
-			}
-		}
-	}
+	maybeAddContextOutput(output, cfg, contextName)
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")

@@ -364,6 +364,9 @@ func TestFormatSuggestTextWithContext(t *testing.T) {
 	if !strings.Contains(output, "Come on, you've got something") {
 		t.Error("expected tone prefix in output")
 	}
+	if !strings.Contains(output, "Style mode (rotating):") {
+		t.Errorf("expected rotating style mode in output, got: %s", output)
+	}
 	// Mode is probabilistic (30% reply when recent posts exist)
 	// Accept either post mode or reply mode output
 	hasPostMode := strings.Contains(output, "What's happening:") && strings.Contains(output, "Post ideas:")
@@ -410,6 +413,47 @@ func TestFormatSuggestJSONWithContext(t *testing.T) {
 	if !ok || (mode != "post" && mode != "reply") {
 		t.Errorf("mode = %v, want 'post' or 'reply'", parsed["mode"])
 	}
+	styleModeVal, ok := parsed["style_mode"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("style_mode missing or wrong type: %T", parsed["style_mode"])
+	}
+	if styleModeVal["name"] == "" || styleModeVal["hint"] == "" {
+		t.Errorf("style_mode missing name/hint: %+v", styleModeVal)
+	}
+}
+
+func TestChooseStyleMode(t *testing.T) {
+	t.Run("reply mode always returns reply style", func(t *testing.T) {
+		style := chooseStyleMode("breakroom", "reply")
+		if style.Name != "reply" {
+			t.Errorf("chooseStyleMode(_, reply).Name = %q, want %q", style.Name, "reply")
+		}
+		if style.Hint == "" {
+			t.Error("expected reply style to have a hint")
+		}
+	})
+
+	t.Run("post mode returns a known style", func(t *testing.T) {
+		known := make(map[string]bool)
+		for _, m := range defaultPostStyleModes {
+			known[m.Name] = true
+		}
+		for _, modes := range contextPostStyleModes {
+			for _, m := range modes {
+				known[m.Name] = true
+			}
+		}
+
+		for i := 0; i < 50; i++ {
+			style := chooseStyleMode("breakroom", "post")
+			if !known[style.Name] {
+				t.Fatalf("unknown style name: %q", style.Name)
+			}
+			if style.Hint == "" {
+				t.Fatalf("style %q has empty hint", style.Name)
+			}
+		}
+	})
 }
 
 func TestFormatReplyMode(t *testing.T) {

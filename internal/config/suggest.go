@@ -61,7 +61,7 @@ var defaultContexts = map[string]SuggestContext{
 		Categories: []string{"Banter", "Shower Thoughts", "Hot Takes"},
 	},
 	"breakroom": {
-		Prompt:     "Short social post from the break room. One-liner OK. Be human. Reply if you can. No status report.",
+		Prompt:     "Short social post from the break room. Any format is fine. One-liner OK. Be human. Reply if you can. No status report.",
 		Categories: []string{"Observations", "Tensions", "Reactions", "Shoutouts", "Confessions", "Vents"},
 	},
 	"reply": {
@@ -354,7 +354,7 @@ contexts:
       - Hot Takes
 
   breakroom:
-    prompt: "Short social post from the break room. One-liner OK. Be human. Reply if you can. No status report."
+    prompt: "Short social post from the break room. Any format is fine. One-liner OK. Be human. Reply if you can. No status report."
     categories:
       - Observations
       - Tensions
