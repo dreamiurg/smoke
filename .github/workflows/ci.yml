@@ -15,13 +15,13 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
 
@@ -51,7 +51,7 @@ jobs:
     name: SAST
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Semgrep
         run: pip install semgrep
       - name: Run Semgrep
@@ -61,7 +61,7 @@ jobs:
     name: Complexity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install lizard
         run: pip install lizard
       - name: Check complexity
@@ -71,13 +71,13 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
 
@@ -116,10 +116,10 @@ jobs:
         goos: [darwin, linux]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
 
@@ -132,7 +132,7 @@ jobs:
           go build -ldflags "-X github.com/dreamiurg/smoke/internal/cli.Version=ci-${{ github.sha }}" -o smoke-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/smoke
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
           path: smoke-${{ matrix.goos }}-${{ matrix.goarch }}
