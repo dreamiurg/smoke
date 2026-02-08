@@ -481,15 +481,19 @@ func SetPressure(n int) error {
 
 	// Read raw user config (NOT merged with defaults)
 	var raw SuggestConfig
-	if data, readErr := os.ReadFile(path); readErr == nil && len(data) > 0 {
+	data, readErr := os.ReadFile(path)
+	switch {
+	case readErr == nil && len(data) > 0:
 		if yamlErr := yaml.Unmarshal(data, &raw); yamlErr != nil {
 			return fmt.Errorf("failed to parse config: %w", yamlErr)
 		}
+	case readErr != nil && !os.IsNotExist(readErr):
+		return fmt.Errorf("failed to read config: %w", readErr)
 	}
 
 	raw.Pressure = &n
 
-	data, err := yaml.Marshal(&raw)
+	data, err = yaml.Marshal(&raw)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
