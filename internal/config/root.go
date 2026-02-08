@@ -24,25 +24,54 @@ func GetConfigDir() (string, error) {
 // ErrInvalidFeedPath is returned when SMOKE_FEED path is outside allowed directories
 var ErrInvalidFeedPath = errors.New("SMOKE_FEED path must be within home directory")
 
+// resolveHomePaths returns the home directory and its symlink-resolved form.
+func resolveHomePaths() (home, resolvedHome string, err error) {
+	home, err = os.UserHomeDir()
+	if err != nil {
+		return "", "", err
+	}
+	// Resolve symlinks to handle /var -> /private/var on macOS
+	resolvedHome, err = filepath.EvalSymlinks(home)
+	if err != nil {
+		resolvedHome = home
+	}
+	return home, resolvedHome, nil
+}
+
+// isPathInHome checks whether cleanPath or resolvedPath falls within the home directory.
+func isPathInHome(cleanPath, resolvedPath, home, resolvedHome string) bool {
+	homePrefix := home + string(filepath.Separator)
+	resolvedHomePrefix := resolvedHome + string(filepath.Separator)
+	return strings.HasPrefix(cleanPath, homePrefix) || cleanPath == home ||
+		strings.HasPrefix(resolvedPath, resolvedHomePrefix) || resolvedPath == resolvedHome
+}
+
+// isPathInTemp checks whether the path falls within allowed temporary directories.
+func isPathInTemp(cleanPath string) bool {
+	if strings.HasPrefix(cleanPath, "/tmp/") ||
+		strings.HasPrefix(cleanPath, "/var/folders/") ||
+		strings.HasPrefix(cleanPath, "/private/tmp/") ||
+		strings.HasPrefix(cleanPath, "/private/var/folders/") {
+		return true
+	}
+	if tmpDir := os.Getenv("TMPDIR"); tmpDir != "" {
+		return strings.HasPrefix(cleanPath, tmpDir)
+	}
+	return false
+}
+
 // validateFeedPath ensures the path is safe (absolute, within allowed directories)
 // Allowed: home directory, temp directories (/tmp, $TMPDIR, /var/folders)
 func validateFeedPath(path string) (string, error) {
-	// Resolve to absolute path and clean it
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
 	cleanPath := filepath.Clean(absPath)
 
-	// Get home directory and resolve symlinks for consistent comparison
-	home, err := os.UserHomeDir()
+	home, resolvedHome, err := resolveHomePaths()
 	if err != nil {
 		return "", err
-	}
-	// Resolve symlinks on home to handle /var -> /private/var on macOS
-	resolvedHome, err := filepath.EvalSymlinks(home)
-	if err != nil {
-		resolvedHome = home // Fall back if home doesn't exist or can't resolve
 	}
 
 	// Also try to resolve the path's parent for comparison
@@ -53,23 +82,7 @@ func validateFeedPath(path string) (string, error) {
 		}
 	}
 
-	// Check if path is within home directory (using both resolved and unresolved)
-	homePrefix := home + string(filepath.Separator)
-	resolvedHomePrefix := resolvedHome + string(filepath.Separator)
-
-	inHome := strings.HasPrefix(cleanPath, homePrefix) || cleanPath == home ||
-		strings.HasPrefix(resolvedPath, resolvedHomePrefix) || resolvedPath == resolvedHome
-
-	// Also allow temp directories for testing
-	inTemp := strings.HasPrefix(cleanPath, "/tmp/") ||
-		strings.HasPrefix(cleanPath, "/var/folders/") ||
-		strings.HasPrefix(cleanPath, "/private/tmp/") ||
-		strings.HasPrefix(cleanPath, "/private/var/folders/")
-	if tmpDir := os.Getenv("TMPDIR"); tmpDir != "" {
-		inTemp = inTemp || strings.HasPrefix(cleanPath, tmpDir)
-	}
-
-	if !inHome && !inTemp {
+	if !isPathInHome(cleanPath, resolvedPath, home, resolvedHome) && !isPathInTemp(cleanPath) {
 		return "", ErrInvalidFeedPath
 	}
 	return cleanPath, nil

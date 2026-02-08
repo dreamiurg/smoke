@@ -85,9 +85,15 @@ func warnCheck(name, msg, detail string) Check {
 	return Check{Name: name, Status: StatusWarn, Message: msg, Detail: detail}
 }
 
-// failCheck creates a failing check with the given name, message, detail, and optional fix
-func failCheck(name, msg, detail string, canFix bool, fix func() (*FixResult, error)) Check {
-	return Check{Name: name, Status: StatusFail, Message: msg, Detail: detail, CanFix: canFix, Fix: fix}
+// failOpts holds optional fields for creating a failing check.
+type failOpts struct {
+	CanFix bool
+	Fix    func() (*FixResult, error)
+}
+
+// failCheck creates a failing check with the given name, message, detail, and optional fix options.
+func failCheck(name, msg, detail string, opts failOpts) Check {
+	return Check{Name: name, Status: StatusFail, Message: msg, Detail: detail, CanFix: opts.CanFix, Fix: opts.Fix}
 }
 
 // Category groups related checks
@@ -207,23 +213,23 @@ func performCodexIntegrationCheck() Check {
 
 	configPath, err := config.GetCodexConfigPath()
 	if err != nil {
-		return failCheck(name, "error", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "error", Detail: err.Error()}
 	}
 
 	if _, statErr := os.Stat(configPath); statErr != nil {
 		if os.IsNotExist(statErr) {
 			return warnCheck(name, "codex config not found", "Install Codex or run 'smoke init' after installing")
 		}
-		return failCheck(name, "error", statErr.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "error", Detail: statErr.Error()}
 	}
 
 	configured, err := config.IsSmokeConfiguredInCodex()
 	if err != nil {
-		return failCheck(name, "error", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "error", Detail: err.Error()}
 	}
 	hasInstructions, err := config.HasCodexSmokeInstructions()
 	if err != nil {
-		return failCheck(name, "error", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "error", Detail: err.Error()}
 	}
 
 	if configured && hasInstructions {
@@ -249,7 +255,7 @@ func performHooksChecks() []Check {
 	status, err := hooks.GetStatus()
 	if err != nil {
 		return []Check{
-			failCheck("Hook Status", "error", err.Error(), false, nil),
+			{Name: "Hook Status", Status: StatusFail, Message: "error", Detail: err.Error()},
 		}
 	}
 
@@ -526,18 +532,18 @@ func performConfigDirCheck() Check {
 	const name = "Config Directory"
 	configDir, err := config.GetConfigDir()
 	if err != nil {
-		return failCheck(name, "cannot determine config directory", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot determine config directory", Detail: err.Error()}
 	}
 
 	info, err := os.Stat(configDir)
 	if os.IsNotExist(err) {
-		return failCheck(name, "not found", fmt.Sprintf("Run 'smoke doctor --fix' to create %s", configDir), true, fixConfigDir)
+		return Check{Name: name, Status: StatusFail, Message: "not found", Detail: fmt.Sprintf("Run 'smoke doctor --fix' to create %s", configDir), CanFix: true, Fix: fixConfigDir}
 	}
 	if err != nil {
-		return failCheck(name, "cannot access", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot access", Detail: err.Error()}
 	}
 	if !info.IsDir() {
-		return failCheck(name, "not a directory", configDir, false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "not a directory", Detail: configDir}
 	}
 
 	// Check if writable by creating a temp file
@@ -557,18 +563,18 @@ func performFeedFileCheck() Check {
 	const name = "Feed File"
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		return failCheck(name, "cannot determine feed path", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot determine feed path", Detail: err.Error()}
 	}
 
 	info, err := os.Stat(feedPath)
 	if os.IsNotExist(err) {
-		return failCheck(name, "not found", fmt.Sprintf("Run 'smoke doctor --fix' to create %s", feedPath), true, fixFeedFile)
+		return Check{Name: name, Status: StatusFail, Message: "not found", Detail: fmt.Sprintf("Run 'smoke doctor --fix' to create %s", feedPath), CanFix: true, Fix: fixFeedFile}
 	}
 	if err != nil {
-		return failCheck(name, "cannot access", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot access", Detail: err.Error()}
 	}
 	if info.IsDir() {
-		return failCheck(name, "is a directory, expected file", feedPath, false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "is a directory, expected file", Detail: feedPath}
 	}
 
 	// Check if readable
@@ -586,12 +592,12 @@ func performFeedFormatCheck() Check {
 	const name = "Feed Format"
 	feedPath, err := config.GetFeedPath()
 	if err != nil {
-		return failCheck(name, "cannot determine feed path", "", false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot determine feed path"}
 	}
 
 	f, err := os.Open(feedPath)
 	if err != nil {
-		return failCheck(name, "cannot open feed file", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot open feed file", Detail: err.Error()}
 	}
 	defer func() { _ = f.Close() }()
 
@@ -615,7 +621,7 @@ func performFeedFormatCheck() Check {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return failCheck(name, "error reading feed", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "error reading feed", Detail: err.Error()}
 	}
 
 	if totalLines == 0 {
@@ -637,7 +643,7 @@ func performTUIConfigCheck() Check {
 	const name = "TUI Config"
 	tuiPath, err := config.GetTUIConfigPath()
 	if err != nil {
-		return failCheck(name, "cannot determine TUI config path", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot determine TUI config path", Detail: err.Error()}
 	}
 
 	data, err := os.ReadFile(tuiPath)
@@ -646,13 +652,13 @@ func performTUIConfigCheck() Check {
 		return passCheck(name, "not present (using defaults)")
 	}
 	if err != nil {
-		return failCheck(name, "cannot read", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot read", Detail: err.Error()}
 	}
 
 	// Parse as generic map to check for deprecated fields
 	var parsed map[string]interface{}
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		return failCheck(name, "invalid YAML", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "invalid YAML", Detail: err.Error()}
 	}
 
 	// Check for deprecated "style" field (should be "layout")
@@ -748,7 +754,7 @@ func performConfigFileCheck() Check {
 	const name = "Config File"
 	configPath, err := config.GetConfigPath()
 	if err != nil {
-		return failCheck(name, "cannot determine config path", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot determine config path", Detail: err.Error()}
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -763,13 +769,13 @@ func performConfigFileCheck() Check {
 		}
 	}
 	if err != nil {
-		return failCheck(name, "cannot read", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "cannot read", Detail: err.Error()}
 	}
 
 	// Validate YAML syntax
 	var parsed map[string]any
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		return failCheck(name, "invalid YAML", err.Error(), false, nil)
+		return Check{Name: name, Status: StatusFail, Message: "invalid YAML", Detail: err.Error()}
 	}
 
 	return passCheck(name, configPath)

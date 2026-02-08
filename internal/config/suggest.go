@@ -134,6 +134,26 @@ var defaultExamples = map[string][]string{
 	},
 }
 
+// mergeSuggestConfig merges user config into the default config.
+// User contexts override defaults; user examples extend defaults.
+func mergeSuggestConfig(cfg *SuggestConfig, userCfg *SuggestConfig) {
+	for name, ctx := range userCfg.Contexts {
+		cfg.Contexts[name] = ctx
+	}
+
+	for category, examples := range userCfg.Examples {
+		if _, exists := cfg.Examples[category]; exists {
+			cfg.Examples[category] = append(cfg.Examples[category], examples...)
+		} else {
+			cfg.Examples[category] = examples
+		}
+	}
+
+	if userCfg.Pressure != nil {
+		cfg.Pressure = userCfg.Pressure
+	}
+}
+
 // LoadSuggestConfig loads suggest configuration from the main config file.
 // Returns default config if file doesn't exist or contexts section is missing.
 // User config extends defaults - user contexts override, user examples extend.
@@ -144,12 +164,9 @@ func LoadSuggestConfig() *SuggestConfig {
 		Examples: make(map[string][]string),
 	}
 
-	// Copy default contexts
 	for name, ctx := range defaultContexts {
 		cfg.Contexts[name] = ctx
 	}
-
-	// Copy default examples
 	for category, examples := range defaultExamples {
 		cfg.Examples[category] = make([]string, len(examples))
 		copy(cfg.Examples[category], examples)
@@ -162,42 +179,17 @@ func LoadSuggestConfig() *SuggestConfig {
 	}
 
 	data, err := os.ReadFile(path)
-	if err != nil {
-		return cfg
-	}
-
-	if len(data) == 0 {
+	if err != nil || len(data) == 0 {
 		return cfg
 	}
 
 	var userCfg SuggestConfig
 	if err := yaml.Unmarshal(data, &userCfg); err != nil {
-		// Invalid YAML - return defaults with warning to stderr
 		fmt.Fprintf(os.Stderr, "warning: invalid config.yaml, using defaults: %v\n", err)
 		return cfg
 	}
 
-	// Merge user contexts (override defaults)
-	for name, ctx := range userCfg.Contexts {
-		cfg.Contexts[name] = ctx
-	}
-
-	// Merge user examples (extend defaults)
-	for category, examples := range userCfg.Examples {
-		if _, exists := cfg.Examples[category]; exists {
-			// Append to existing category
-			cfg.Examples[category] = append(cfg.Examples[category], examples...)
-		} else {
-			// New category from user
-			cfg.Examples[category] = examples
-		}
-	}
-
-	// Merge pressure setting from user config
-	if userCfg.Pressure != nil {
-		cfg.Pressure = userCfg.Pressure
-	}
-
+	mergeSuggestConfig(cfg, &userCfg)
 	return cfg
 }
 
@@ -264,10 +256,9 @@ func (c *SuggestConfig) ListContextNames() []string {
 	return names
 }
 
-// DefaultSuggestConfigYAML returns the default config.yaml content with
+// defaultSuggestConfigContent holds the default config.yaml content with
 // contexts and examples. This is used by `smoke init` to seed the config file.
-func DefaultSuggestConfigYAML() string {
-	return `# Smoke configuration — break room rules apply
+var defaultSuggestConfigContent = `# Smoke configuration — break room rules apply
 # Customize contexts and examples for smoke suggest --context=<name>
 
 # Contexts define when to nudge and what kind of post to inspire
@@ -379,7 +370,10 @@ examples:
     - "'Oh boy, yeah' to something that hits close to home."
     - "Pile on. Commiserate. Solidarity is a vibe."
 `
-}
+
+// DefaultSuggestConfigYAML returns the default config.yaml content with
+// contexts and examples. This is used by `smoke init` to seed the config file.
+func DefaultSuggestConfigYAML() string { return defaultSuggestConfigContent }
 
 // GetPressure returns the current pressure level from config.
 // Returns DefaultPressure (2) if not set in config file.

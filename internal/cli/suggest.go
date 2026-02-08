@@ -331,42 +331,66 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	return nil
 }
 
+// postOutput represents a post in JSON output format.
+type postOutput struct {
+	ID        string `json:"id"`
+	Author    string `json:"author"`
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
+	TimeAgo   string `json:"time_ago"`
+}
+
+// buildPostsOutput converts feed posts to JSON-serializable post output structs.
+func buildPostsOutput(posts []*feed.Post) []postOutput {
+	result := make([]postOutput, len(posts))
+	for i, post := range posts {
+		createdTime, err := post.GetCreatedTime()
+		if err != nil {
+			createdTime = time.Now()
+		}
+		result[i] = postOutput{
+			ID:        post.ID,
+			Author:    post.Author,
+			Content:   post.Content,
+			CreatedAt: post.CreatedAt,
+			TimeAgo:   formatTimeAgo(createdTime),
+		}
+	}
+	return result
+}
+
+// buildReplyBaitOutput builds the reply bait section for JSON output.
+func buildReplyBaitOutput(allPosts, recentPosts []*feed.Post) map[string]interface{} {
+	bait := pickReplyBait(allPosts, recentPosts)
+	if bait == nil {
+		return nil
+	}
+	createdTime, err := bait.GetCreatedTime()
+	if err != nil {
+		createdTime = time.Now()
+	}
+	prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
+	return map[string]interface{}{
+		"post": postOutput{
+			ID:        bait.ID,
+			Author:    bait.Author,
+			Content:   bait.Content,
+			CreatedAt: bait.CreatedAt,
+			TimeAgo:   formatTimeAgo(createdTime),
+		},
+		"prompt":  prompt,
+		"command": fmt.Sprintf("smoke reply %s 'your reply'", bait.ID),
+	}
+}
+
 // formatSuggestJSONWithContext formats suggestions as JSON with context info.
 // Includes reply bait to encourage interaction.
 func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Post, cfg *config.SuggestConfig, contextName string, pressure int) error {
-	// Limit to 2-3 most recent posts
 	maxPostsToShow := 3
 	if len(recentPosts) > maxPostsToShow {
 		recentPosts = recentPosts[:maxPostsToShow]
 	}
 
-	// Build posts array for JSON output
-	type PostOutput struct {
-		ID        string `json:"id"`
-		Author    string `json:"author"`
-		Content   string `json:"content"`
-		CreatedAt string `json:"created_at"`
-		TimeAgo   string `json:"time_ago"`
-	}
-
-	postsOutput := make([]PostOutput, len(recentPosts))
-	for i, post := range recentPosts {
-		createdTime, err := post.GetCreatedTime()
-		if err != nil {
-			createdTime = time.Now()
-		}
-		timeAgo := formatTimeAgo(createdTime)
-
-		postsOutput[i] = PostOutput{
-			ID:        post.ID,
-			Author:    post.Author,
-			Content:   post.Content,
-			CreatedAt: post.CreatedAt,
-			TimeAgo:   timeAgo,
-		}
-	}
-
-	// Get examples based on context
 	var examples []string
 	if contextName != "" {
 		examples = cfg.GetExamplesForContext(contextName)
@@ -374,40 +398,18 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		examples = cfg.GetAllExamples()
 	}
 
-	// Get random examples
-	randomExamples := getRandomExamples(examples, 2, 3)
-
-	// Build final output structure
 	output := map[string]interface{}{
 		"skipped":  false,
 		"pressure": pressure,
 		"tone":     getTonePrefix(pressure),
-		"posts":    postsOutput,
-		"examples": randomExamples,
+		"posts":    buildPostsOutput(recentPosts),
+		"examples": getRandomExamples(examples, 2, 3),
 	}
 
-	// Add reply bait
-	bait := pickReplyBait(allPosts, recentPosts)
-	if bait != nil {
-		createdTime, err := bait.GetCreatedTime()
-		if err != nil {
-			createdTime = time.Now()
-		}
-		prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
-		output["reply_bait"] = map[string]interface{}{
-			"post": PostOutput{
-				ID:        bait.ID,
-				Author:    bait.Author,
-				Content:   bait.Content,
-				CreatedAt: bait.CreatedAt,
-				TimeAgo:   formatTimeAgo(createdTime),
-			},
-			"prompt":  prompt,
-			"command": fmt.Sprintf("smoke reply %s 'your reply'", bait.ID),
-		}
+	if bait := buildReplyBaitOutput(allPosts, recentPosts); bait != nil {
+		output["reply_bait"] = bait
 	}
 
-	// Add context info if specified
 	if contextName != "" {
 		ctx := cfg.GetContext(contextName)
 		if ctx != nil {
@@ -419,7 +421,6 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		}
 	}
 
-	// Encode to JSON and write to stdout
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(output)

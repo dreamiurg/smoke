@@ -47,11 +47,18 @@ func formatThreadOneline(w io.Writer, thread thread, cw *ColorWriter) {
 	}
 }
 
+// threadFormatContext bundles formatting dependencies for thread rendering.
+type threadFormatContext struct {
+	formatter *Formatter
+	cw        *ColorWriter
+	termWidth int
+}
+
 // formatThreadCompact formats a thread in compact mode with an optional trailing blank line.
-func formatThreadCompact(w io.Writer, thread thread, formatter *Formatter, cw *ColorWriter, termWidth int, trailingBlank bool) {
-	formatter.formatCompact(w, thread.post, cw, termWidth)
-	for _, reply := range thread.replies {
-		formatReply(w, thread.post, reply, cw, termWidth)
+func formatThreadCompact(w io.Writer, t thread, ctx *threadFormatContext, trailingBlank bool) {
+	ctx.formatter.formatCompact(w, t.post, ctx.cw, ctx.termWidth)
+	for _, reply := range t.replies {
+		formatReply(w, t.post, reply, ctx.cw, ctx.termWidth)
 	}
 	if trailingBlank {
 		_, _ = fmt.Fprintln(w)
@@ -70,13 +77,17 @@ func FormatFeed(w io.Writer, posts []*Post, opts FormatOptions, total int) {
 	formatter := NewFormatter()
 	cw := NewColorWriter(w, opts.ColorMode)
 	threads := buildThreads(posts)
-	termWidth := opts.getTerminalWidth()
+	ctx := &threadFormatContext{
+		formatter: formatter,
+		cw:        cw,
+		termWidth: opts.getTerminalWidth(),
+	}
 
 	for i, thread := range threads {
 		if opts.Oneline {
 			formatThreadOneline(w, thread, cw)
 		} else {
-			formatThreadCompact(w, thread, formatter, cw, termWidth, i < len(threads)-1)
+			formatThreadCompact(w, thread, ctx, i < len(threads)-1)
 		}
 	}
 

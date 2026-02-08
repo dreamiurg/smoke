@@ -87,8 +87,18 @@ type overlayBox struct {
 	left  int
 }
 
-// NewModel creates a new TUI model with the given store, theme, contrast, layout, and version.
-func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *LayoutStyle, cfg *config.TUIConfig, version string) Model {
+// ModelOptions bundles dependencies for creating a new TUI model.
+type ModelOptions struct {
+	Store    *Store
+	Theme    *Theme
+	Contrast *ContrastLevel
+	Layout   *LayoutStyle
+	Config   *config.TUIConfig
+	Version  string
+}
+
+// NewModel creates a new TUI model with the given options.
+func NewModel(opts ModelOptions) Model {
 	// Load last read state
 	state, err := config.LoadReadState()
 	lastReadID := ""
@@ -99,14 +109,14 @@ func NewModel(store *Store, theme *Theme, contrast *ContrastLevel, layout *Layou
 	}
 
 	return Model{
-		theme:          theme,
-		contrast:       contrast,
-		layout:         layout,
-		autoRefresh:    cfg.AutoRefresh,
-		store:          store,
-		config:         cfg,
+		theme:          opts.Theme,
+		contrast:       opts.Contrast,
+		layout:         opts.Layout,
+		autoRefresh:    opts.Config.AutoRefresh,
+		store:          opts.Store,
+		config:         opts.Config,
 		pressure:       config.GetPressure(),
-		version:        version,
+		version:        opts.Version,
 		lastReadPostID: lastReadID,
 		lastReadAt:     lastReadAt,
 	}
@@ -1481,8 +1491,25 @@ func (m Model) centerOverlay(styledBox string) overlayBox {
 	}
 }
 
-// renderHelpOverlayBox creates a centered help overlay box.
-func (m Model) renderHelpOverlayBox() overlayBox {
+// buildLeftHelpColumn builds the left column of help sections.
+func buildLeftHelpColumn(hs helpStyles) string {
+	var b strings.Builder
+	b.WriteString(hs.renderSection("NAVIGATION", []helpRow{
+		{"↑/k", "Select previous post"}, {"↓/j", "Select next post"},
+		{"PgUp", "Select previous page"}, {"PgDn", "Select next page"},
+		{"Home", "Top post"}, {"End", "Bottom post"}, {"g/G", "Top/bottom post"},
+	}, 5))
+	b.WriteString("\n")
+	b.WriteString(hs.renderSection("SHARE", []helpRow{{"c", "Copy selected post"}}, 5))
+	b.WriteString("\n")
+	b.WriteString(hs.renderSection("READ STATUS", []helpRow{
+		{"Space", "Mark read to here"}, {"d d", "Delete selected post"}, {"q", "Quit"},
+	}, 5))
+	return b.String()
+}
+
+// buildRightHelpColumn builds the right column of help sections.
+func (m Model) buildRightHelpColumn(hs helpStyles) string {
 	autoStr := "OFF"
 	if m.autoRefresh {
 		autoStr = "ON"
@@ -1491,43 +1518,33 @@ func (m Model) renderHelpOverlayBox() overlayBox {
 	if m.layout != nil {
 		layoutName = m.layout.DisplayName
 	}
-
-	hs := m.newHelpStyles()
-
-	leftColumn := strings.Builder{}
-	leftColumn.WriteString(hs.renderSection("NAVIGATION", []helpRow{
-		{"↑/k", "Select previous post"}, {"↓/j", "Select next post"},
-		{"PgUp", "Select previous page"}, {"PgDn", "Select next page"},
-		{"Home", "Top post"}, {"End", "Bottom post"}, {"g/G", "Top/bottom post"},
-	}, 5))
-	leftColumn.WriteString("\n")
-	leftColumn.WriteString(hs.renderSection("SHARE", []helpRow{{"c", "Copy selected post"}}, 5))
-	leftColumn.WriteString("\n")
-	leftColumn.WriteString(hs.renderSection("READ STATUS", []helpRow{
-		{"Space", "Mark read to here"}, {"d d", "Delete selected post"}, {"q", "Quit"},
-	}, 5))
-
 	pressureLevel := config.GetPressureLevel(m.pressure)
-	rightColumn := strings.Builder{}
-	rightColumn.WriteString(hs.renderSection("SETTINGS", []helpRow{
+
+	var b strings.Builder
+	b.WriteString(hs.renderSection("SETTINGS", []helpRow{
 		{"a", "Toggle auto-refresh"}, {"l/L", "Cycle layout"},
 		{"t/T", "Cycle theme"}, {"+/-", "Adjust pressure"}, {"r", "Refresh now"},
 	}, 7))
-	rightColumn.WriteString("\n")
-	rightColumn.WriteString(hs.renderSection("CURRENT SETTINGS", []helpRow{
+	b.WriteString("\n")
+	b.WriteString(hs.renderSection("CURRENT SETTINGS", []helpRow{
 		{"Auto:", autoStr}, {"Layout:", layoutName},
 		{"Theme:", m.theme.DisplayName}, {"Pressure:", pressureLevel.Label},
 	}, 7))
+	return b.String()
+}
 
-	leftBlock := leftColumn.String()
-	rightBlock := rightColumn.String()
-	leftBlock = m.fillBackgroundBlock(leftBlock, blockWidth(leftBlock), m.theme.BackgroundSecondary)
+// renderHelpOverlayBox creates a centered help overlay box.
+func (m Model) renderHelpOverlayBox() overlayBox {
+	hs := m.newHelpStyles()
+
+	leftBlock := m.fillBackgroundBlock(buildLeftHelpColumn(hs), blockWidth(buildLeftHelpColumn(hs)), m.theme.BackgroundSecondary)
+	rightBlock := m.buildRightHelpColumn(hs)
 	rightBlock = m.fillBackgroundBlock(rightBlock, blockWidth(rightBlock), m.theme.BackgroundSecondary)
 
 	columns := lipgloss.JoinHorizontal(lipgloss.Top,
 		leftBlock, hs.base.Render(strings.Repeat(" ", 4)), rightBlock)
 
-	helpContent := strings.Builder{}
+	var helpContent strings.Builder
 	helpContent.WriteString(hs.title.Render("Smoke Feed Help") + "\n")
 	helpContent.WriteString(hs.divider.Render(strings.Repeat("─", lipgloss.Width("Smoke Feed Help"))) + "\n")
 	helpContent.WriteString(columns + "\n")

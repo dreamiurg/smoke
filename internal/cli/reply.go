@@ -37,47 +37,47 @@ func init() {
 	rootCmd.AddCommand(replyCmd)
 }
 
+// validateAndGetStore validates the parent ID format, creates a feed store,
+// and verifies the parent post exists.
+func validateAndGetStore(parentID string) (*feed.Store, error) {
+	if !feed.ValidateID(parentID) {
+		return nil, fmt.Errorf("invalid post ID format: %s", parentID)
+	}
+
+	feedPath, err := config.GetFeedPath()
+	if err != nil {
+		return nil, err
+	}
+	store := feed.NewStoreWithPath(feedPath)
+
+	exists, err := store.Exists(parentID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("post %s not found", parentID)
+	}
+
+	return store, nil
+}
+
 func runReply(_ *cobra.Command, args []string) error {
 	parentID := args[0]
 	message := args[1]
 
-	// Start command tracking
 	tracker := logging.StartCommand("reply", args)
 
-	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
 		tracker.Fail(err)
 		return err
 	}
 
-	// Validate parent ID format
-	if !feed.ValidateID(parentID) {
-		err := fmt.Errorf("invalid post ID format: %s", parentID)
-		tracker.Fail(err)
-		return err
-	}
-
-	// Get store
-	feedPath, err := config.GetFeedPath()
+	store, err := validateAndGetStore(parentID)
 	if err != nil {
 		tracker.Fail(err)
 		return err
 	}
-	store := feed.NewStoreWithPath(feedPath)
 
-	// Check if parent post exists
-	exists, err := store.Exists(parentID)
-	if err != nil {
-		tracker.Fail(err)
-		return err
-	}
-	if !exists {
-		err = fmt.Errorf("post %s not found", parentID)
-		tracker.Fail(err)
-		return err
-	}
-
-	// Get identity
 	identity, err := config.GetIdentity(replyAuthor)
 	if err != nil {
 		tracker.Fail(err)
@@ -85,7 +85,6 @@ func runReply(_ *cobra.Command, args []string) error {
 	}
 	tracker.SetIdentity(identity.String(), identity.Agent, identity.Project)
 
-	// Create reply
 	reply, err := feed.NewReply(identity.String(), identity.Project, identity.Suffix, message, parentID)
 	if err != nil {
 		if err == feed.ErrContentTooLong {
@@ -96,17 +95,14 @@ func runReply(_ *cobra.Command, args []string) error {
 	}
 	reply.Caller = tracker.Caller()
 
-	// Store reply
 	if err := store.Append(reply); err != nil {
 		tracker.Fail(fmt.Errorf("failed to save reply: %w", err))
 		return fmt.Errorf("failed to save reply: %w", err)
 	}
 
-	// Add post metrics and complete tracking
 	tracker.AddPostMetrics(reply.ID, reply.Author)
 	tracker.Complete()
 
-	// Output confirmation
 	feed.FormatReplied(os.Stdout, reply)
 	return nil
 }

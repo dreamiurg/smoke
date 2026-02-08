@@ -224,7 +224,14 @@ func runTUIMode(store *feed.Store, _ *logging.CommandTracker) error {
 	version := Version
 
 	// Create model and run
-	m := feed.NewModel(store, theme, contrast, layout, cfg, version)
+	m := feed.NewModel(feed.ModelOptions{
+		Store:    store,
+		Theme:    theme,
+		Contrast: contrast,
+		Layout:   layout,
+		Config:   cfg,
+		Version:  version,
+	})
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

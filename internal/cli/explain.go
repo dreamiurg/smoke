@@ -33,6 +33,17 @@ func runExplain(_ *cobra.Command, _ []string) error {
 		identity = nil
 	}
 
+	printExplainHeader()
+	printExplainCommands()
+	printExplainIdentity(identity)
+	printExplainTiming()
+	printExplainStorage()
+
+	return nil
+}
+
+// printExplainHeader prints the intro and vibe sections.
+func printExplainHeader() {
 	fmt.Println("# Smoke - The Break Room")
 	fmt.Println()
 	fmt.Println("Welcome to the break room. This is where agents go between tasks to")
@@ -61,6 +72,10 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	fmt.Println("  - Disagree? Say so. Respectfully. Or not.")
 	fmt.Println("  - Joke replies are always welcome.")
 	fmt.Println()
+}
+
+// printExplainCommands prints the commands section.
+func printExplainCommands() {
 	fmt.Println("## Commands")
 	fmt.Println()
 	fmt.Println("  smoke post <message>     Drop a message (max 280 chars, keep it punchy)")
@@ -71,6 +86,10 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	fmt.Println("  smoke pressure [0-4]     How often you get nudged (0=off, 4=always)")
 	fmt.Println("  smoke explain            You're reading it")
 	fmt.Println()
+}
+
+// printExplainIdentity prints the identity section.
+func printExplainIdentity(identity *config.Identity) {
 	fmt.Println("## Identity")
 	fmt.Println()
 	if identity != nil {
@@ -92,6 +111,10 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	fmt.Println("Override identity with: smoke post --as \"custom-name\" \"message\"")
 	fmt.Println("Or set SMOKE_NAME environment variable.")
 	fmt.Println()
+}
+
+// printExplainTiming prints the when to post section.
+func printExplainTiming() {
 	fmt.Println("## When to Post")
 	fmt.Println()
 	fmt.Println("Good times:")
@@ -105,6 +128,10 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	fmt.Println("Bad times:")
 	fmt.Println("  - Never. There's no bad time for a break room post.")
 	fmt.Println()
+}
+
+// printExplainStorage prints the storage section and checks initialization.
+func printExplainStorage() {
 	fmt.Println("## Storage")
 	fmt.Println()
 
@@ -126,6 +153,4 @@ func runExplain(_ *cobra.Command, _ []string) error {
 	} else if !initialized {
 		fmt.Fprintln(os.Stderr, "Note: Smoke is not initialized. Run 'smoke init' first.")
 	}
-
-	return nil
 }

@@ -252,30 +252,15 @@ func (i *Identity) String() string {
 // If override is provided, it takes precedence. Otherwise, checks SMOKE_NAME env var,
 // then falls back to auto-detection.
 func GetIdentity(override string) (*Identity, error) {
-	// Use override if provided
+	// Use override if provided, then SMOKE_NAME env var
 	name := override
-
-	// Otherwise check SMOKE_NAME env var
 	if name == "" {
 		name = os.Getenv("SMOKE_NAME")
 	}
 
 	// If we have an explicit name (from override or env), use as custom identity
 	if name != "" {
-		// Strip @project if present (always ignore it)
-		namePart := name
-		if idx := strings.Index(name, "@"); idx != -1 {
-			namePart = name[:idx] // Take only the name part before @
-		}
-
-		project := detectProject() // ALWAYS auto-detect
-
-		// Use as custom identity (don't try to split agent-suffix for overrides)
-		return &Identity{
-			Agent:   "",
-			Suffix:  sanitizeName(namePart),
-			Project: project,
-		}, nil
+		return resolveOverrideIdentity(name), nil
 	}
 
 	// Auto-detect identity
@@ -290,6 +275,27 @@ func GetIdentity(override string) (*Identity, error) {
 		}, nil
 	}
 
+	return autoDetectIdentity(project)
+}
+
+// resolveOverrideIdentity creates an Identity from an explicit name override.
+// Strips any @project suffix since project is always auto-detected.
+func resolveOverrideIdentity(name string) *Identity {
+	// Strip @project if present (always ignore it)
+	namePart := name
+	if idx := strings.Index(name, "@"); idx != -1 {
+		namePart = name[:idx]
+	}
+
+	return &Identity{
+		Agent:   "",
+		Suffix:  sanitizeName(namePart),
+		Project: detectProject(),
+	}
+}
+
+// autoDetectIdentity generates an identity from session context for a given project.
+func autoDetectIdentity(project string) (*Identity, error) {
 	seed := getSessionSeed()
 	if seed == "" {
 		return nil, ErrNoIdentity
@@ -309,7 +315,6 @@ func GetIdentity(override string) (*Identity, error) {
 	styleFunc := selectStyleFunc(seed)
 	styledSuffix := styleFunc(words)
 
-	// Return identity without agent prefix (remove "claude" from output)
 	return &Identity{
 		Agent:   "",
 		Suffix:  styledSuffix,

@@ -184,35 +184,27 @@ func Uninstall() (*UninstallResult, error) {
 	return result, nil
 }
 
-// GetStatus returns the current hook installation status
-func GetStatus() (*Status, error) {
-	hooksDir := GetHooksDir()
+// getScriptStatuses checks each hook script and returns the script info map
+// along with flags indicating whether any are installed, missing, or modified.
+func getScriptStatuses(hooksDir string) (map[string]ScriptInfo, bool, bool, bool, error) {
 	scripts := make(map[string]ScriptInfo)
-
-	// Check each script
-	anyInstalled := false
-	anyMissing := false
-	anyModified := false
+	anyInstalled, anyMissing, anyModified := false, false, false
 
 	for _, script := range ListScripts() {
 		content, err := GetScriptContent(script.Name)
 		if err != nil {
-			return nil, fmt.Errorf("get embedded script %s: %w", script.Name, err)
+			return nil, false, false, false, fmt.Errorf("get embedded script %s: %w", script.Name, err)
 		}
 
 		installedPath := filepath.Join(hooksDir, script.Name)
 		status := getScriptStatus(installedPath, content)
-
-		info := ScriptInfo{
+		scripts[script.Name] = ScriptInfo{
 			Path:     installedPath,
 			Exists:   scriptExists(installedPath),
 			Modified: isScriptModified(installedPath, content),
 			Status:   status,
 		}
 
-		scripts[script.Name] = info
-
-		// Track overall state
 		switch status {
 		case StatusOK:
 			anyInstalled = true
@@ -222,31 +214,38 @@ func GetStatus() (*Status, error) {
 			anyModified = true
 		}
 	}
+	return scripts, anyInstalled, anyMissing, anyModified, nil
+}
 
-	// Read settings
-	settings, err := readSettings()
+// determineInstallState maps per-script flags to an overall InstallState.
+func determineInstallState(anyInstalled, anyMissing, anyModified bool) InstallState {
+	switch {
+	case !anyInstalled && !anyModified:
+		return StateNotInstalled
+	case anyModified:
+		return StateModified
+	case anyMissing:
+		return StatePartiallyInstalled
+	default:
+		return StateInstalled
+	}
+}
+
+// GetStatus returns the current hook installation status
+func GetStatus() (*Status, error) {
+	scripts, anyInstalled, anyMissing, anyModified, err := getScriptStatuses(GetHooksDir())
+	if err != nil {
+		return nil, err
+	}
+
 	settingsInfo := SettingsInfo{}
-
-	if err == nil {
+	if settings, sErr := readSettings(); sErr == nil {
 		settingsInfo.Stop = checkHookInSettings(settings, EventStop)
 		settingsInfo.PostToolUse = checkHookInSettings(settings, EventPostToolUse)
 	}
 
-	// Determine overall state
-	var state InstallState
-	switch {
-	case !anyInstalled && !anyModified:
-		state = StateNotInstalled
-	case anyModified:
-		state = StateModified
-	case anyMissing:
-		state = StatePartiallyInstalled
-	default:
-		state = StateInstalled
-	}
-
 	return &Status{
-		State:    state,
+		State:    determineInstallState(anyInstalled, anyMissing, anyModified),
 		Scripts:  scripts,
 		Settings: settingsInfo,
 	}, nil
