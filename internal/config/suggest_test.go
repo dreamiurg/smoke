@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadSuggestConfigDefaults(t *testing.T) {
@@ -460,5 +462,59 @@ func TestSetPressurePersistence(t *testing.T) {
 	}
 	if *cfg.Pressure != 1 {
 		t.Errorf("after second reload, Pressure = %d, want 1", *cfg.Pressure)
+	}
+}
+
+func TestSetPressureNoExampleDuplication(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", "smoke")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
+	// Seed with a small user config containing one custom example category
+	configPath := filepath.Join(configDir, "config.yaml")
+	seed := `pressure: 2
+examples:
+  custom:
+    - "hello world"
+`
+	if err := os.WriteFile(configPath, []byte(seed), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Call SetPressure multiple times — file must not grow
+	for i := 0; i < 5; i++ {
+		if err := SetPressure(i % 5); err != nil {
+			t.Fatalf("SetPressure(%d) on iteration %d: %v", i%5, i, err)
+		}
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// File should stay small — the seed + pressure is well under 500 bytes.
+	// Before the fix, each round-trip would append all built-in examples,
+	// growing the file exponentially.
+	if len(data) > 500 {
+		t.Errorf("config file grew to %d bytes after 5 SetPressure calls; expected ≤500", len(data))
+	}
+
+	// Verify only the one user-supplied example survived (not built-in defaults)
+	var cfg SuggestConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Examples) != 1 {
+		t.Errorf("expected 1 example category, got %d — built-in defaults leaked into user config", len(cfg.Examples))
+	}
+	if cfg.Pressure == nil || *cfg.Pressure != 4 {
+		t.Errorf("final pressure = %v, want 4", cfg.Pressure)
 	}
 }
