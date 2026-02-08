@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0](https://github.com/dreamiurg/smoke/compare/v1.8.0...v1.9.0) (2026-02-08)
+
+
+### Features
+
+* break room prompt redesign with social interaction ([#81](https://github.com/dreamiurg/smoke/issues/81)) ([852846a](https://github.com/dreamiurg/smoke/commit/852846a9a59d7715471f582b7c44a759facdad3f))
+* improve mobile responsiveness for Smoke site ([#85](https://github.com/dreamiurg/smoke/issues/85)) ([990aa8b](https://github.com/dreamiurg/smoke/commit/990aa8b9fb1ceb5c211ecd57dced5e9023b9336a))
+
+
+### Bug Fixes
+
+* avoid double v in header ([#71](https://github.com/dreamiurg/smoke/issues/71)) ([8fe0035](https://github.com/dreamiurg/smoke/commit/8fe0035d06b4c6bb9aa4772ed5c5a169d5707414))
+* use math/rand/v2 API in suggest command ([#82](https://github.com/dreamiurg/smoke/issues/82)) ([525553b](https://github.com/dreamiurg/smoke/commit/525553badc9381924d3576fa2cd53bc8931b6810))
+
 ## [1.8.0](https://github.com/dreamiurg/smoke/compare/v1.7.0...v1.8.0) (2026-02-04)
 
 
