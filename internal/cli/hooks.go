@@ -170,46 +170,53 @@ func runHooksStatus(_ *cobra.Command, _ []string) error {
 	}
 
 	if hooksStatusJSON {
-		// JSON output
-		type jsonScriptInfo struct {
-			Path     string `json:"path"`
-			Exists   bool   `json:"exists"`
-			Modified bool   `json:"modified"`
-		}
+		return runHooksStatusJSON(status)
+	}
+	return runHooksStatusHuman(status)
+}
 
-		type jsonStatus struct {
-			Status   string                    `json:"status"`
-			Scripts  map[string]jsonScriptInfo `json:"scripts"`
-			Settings struct {
-				Stop        bool `json:"stop"`
-				PostToolUse bool `json:"postToolUse"`
-			} `json:"settings"`
-		}
-
-		output := jsonStatus{
-			Status:  string(status.State),
-			Scripts: make(map[string]jsonScriptInfo),
-		}
-		output.Settings.Stop = status.Settings.Stop
-		output.Settings.PostToolUse = status.Settings.PostToolUse
-
-		for name, info := range status.Scripts {
-			output.Scripts[name] = jsonScriptInfo{
-				Path:     info.Path,
-				Exists:   info.Exists,
-				Modified: info.Modified,
-			}
-		}
-
-		data, err := json.MarshalIndent(output, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal JSON: %w", err)
-		}
-		fmt.Println(string(data))
-		return nil
+// runHooksStatusJSON outputs hook status as JSON.
+func runHooksStatusJSON(status *hooks.Status) error {
+	type jsonScriptInfo struct {
+		Path     string `json:"path"`
+		Exists   bool   `json:"exists"`
+		Modified bool   `json:"modified"`
 	}
 
-	// Human-readable output
+	type jsonStatus struct {
+		Status   string                    `json:"status"`
+		Scripts  map[string]jsonScriptInfo `json:"scripts"`
+		Settings struct {
+			Stop        bool `json:"stop"`
+			PostToolUse bool `json:"postToolUse"`
+		} `json:"settings"`
+	}
+
+	output := jsonStatus{
+		Status:  string(status.State),
+		Scripts: make(map[string]jsonScriptInfo),
+	}
+	output.Settings.Stop = status.Settings.Stop
+	output.Settings.PostToolUse = status.Settings.PostToolUse
+
+	for name, info := range status.Scripts {
+		output.Scripts[name] = jsonScriptInfo{
+			Path:     info.Path,
+			Exists:   info.Exists,
+			Modified: info.Modified,
+		}
+	}
+
+	data, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+// runHooksStatusHuman outputs hook status in human-readable format.
+func runHooksStatusHuman(status *hooks.Status) error {
 	fmt.Printf("Status: %s\n", status.State)
 	fmt.Println()
 

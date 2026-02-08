@@ -292,7 +292,7 @@ func TestFailCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			check := failCheck("Fail Name", "fail message", "fail details", tt.canFix, tt.fixFunc)
+			check := failCheck("Fail Name", "fail message", "fail details", failOpts{CanFix: tt.canFix, Fix: tt.fixFunc})
 
 			if check.Name != "Fail Name" {
 				t.Errorf("failCheck().Name = %q, want %q", check.Name, "Fail Name")

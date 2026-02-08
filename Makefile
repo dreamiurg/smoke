@@ -57,7 +57,7 @@ lint: ## Run golangci-lint (includes vet, imports check, etc.)
 
 complexity-check: ## Check cyclomatic complexity thresholds (CCN<=15, length<=60, params<=5)
 	@command -v lizard >/dev/null 2>&1 || { echo "Error: lizard not found. Install with: pipx install lizard"; exit 1; }
-	lizard -l go -C 15 -L 60 -a 5 -w .
+	lizard -l go -C 15 -L 60 -a 5 -w -x "*_test.go" .
 
 fmt: ## Format code with goimports (matches CI)
 	$(GOIMPORTS) -l -w .

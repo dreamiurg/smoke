@@ -24,7 +24,14 @@ func testModel(store *Store) Model {
 		Layout:      "comfy",
 		AutoRefresh: true,
 	}
-	return NewModel(store, theme, contrast, layout, cfg, "test")
+	return NewModel(ModelOptions{
+		Store:    store,
+		Theme:    theme,
+		Contrast: contrast,
+		Layout:   layout,
+		Config:   cfg,
+		Version:  "test",
+	})
 }
 
 func TestNewModel(t *testing.T) {
@@ -39,7 +46,14 @@ func TestNewModel(t *testing.T) {
 		AutoRefresh: true,
 	}
 
-	model := NewModel(store, theme, contrast, layout, cfg, "1.0.0")
+	model := NewModel(ModelOptions{
+		Store:    store,
+		Theme:    theme,
+		Contrast: contrast,
+		Layout:   layout,
+		Config:   cfg,
+		Version:  "1.0.0",
+	})
 
 	if model.theme != theme {
 		t.Error("NewModel() did not set theme")
@@ -995,7 +1009,14 @@ func TestInitialSelection_Unread(t *testing.T) {
 		Layout:      "comfy",
 		AutoRefresh: false,
 	}
-	model := NewModel(store, theme, contrast, layout, cfg, "test")
+	model := NewModel(ModelOptions{
+		Store:    store,
+		Theme:    theme,
+		Contrast: contrast,
+		Layout:   layout,
+		Config:   cfg,
+		Version:  "test",
+	})
 
 	now := time.Now().UTC()
 	posts := []*Post{

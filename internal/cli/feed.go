@@ -59,11 +59,18 @@ func init() {
 	rootCmd.AddCommand(feedCmd)
 }
 
+func finishTracked(tracker *logging.CommandTracker, err error) error {
+	if err != nil {
+		tracker.Fail(err)
+	} else {
+		tracker.Complete()
+	}
+	return err
+}
+
 func runFeed(_ *cobra.Command, args []string) error {
-	// Start command tracking
 	tracker := logging.StartCommand("feed", args)
 
-	// Add mode indicator
 	mode := "normal"
 	if feedTail {
 		mode = "tail"
@@ -72,7 +79,6 @@ func runFeed(_ *cobra.Command, args []string) error {
 	}
 	tracker.AddMetric(slog.String("feed.mode", mode))
 
-	// Check if smoke is initialized
 	if err := config.EnsureInitialized(); err != nil {
 		tracker.Fail(err)
 		return err
@@ -85,7 +91,6 @@ func runFeed(_ *cobra.Command, args []string) error {
 	}
 	store := feed.NewStoreWithPath(feedPath)
 
-	// Get feed metrics for logging
 	if info, statErr := os.Stat(feedPath); statErr == nil {
 		posts, readErr := store.ReadAll()
 		if readErr == nil {
@@ -94,33 +99,14 @@ func runFeed(_ *cobra.Command, args []string) error {
 	}
 
 	if feedTail {
-		err = runTailMode(store, tracker)
-		if err != nil {
-			tracker.Fail(err)
-		} else {
-			tracker.Complete()
-		}
-		return err
+		return finishTracked(tracker, runTailMode(store, tracker))
 	}
 
-	// Launch interactive TUI if stdout is a TTY (terminal), otherwise use plain text output.
 	if feed.IsTerminal(os.Stdout.Fd()) {
-		err = runTUIMode(store, tracker)
-		if err != nil {
-			tracker.Fail(err)
-		} else {
-			tracker.Complete()
-		}
-		return err
+		return finishTracked(tracker, runTUIMode(store, tracker))
 	}
 
-	err = runNormalFeed(store, tracker)
-	if err != nil {
-		tracker.Fail(err)
-	} else {
-		tracker.Complete()
-	}
-	return err
+	return finishTracked(tracker, runNormalFeed(store, tracker))
 }
 
 func runNormalFeed(store *feed.Store, _ *logging.CommandTracker) error {
@@ -158,44 +144,52 @@ func runNormalFeed(store *feed.Store, _ *logging.CommandTracker) error {
 	return nil
 }
 
+func displayInitialPosts(posts []*feed.Post, opts feed.FormatOptions) {
+	if len(posts) == 0 {
+		return
+	}
+	displayPosts := posts
+	if feedLimit > 0 && len(displayPosts) > feedLimit {
+		displayPosts = displayPosts[len(displayPosts)-feedLimit:]
+	}
+	for _, post := range displayPosts {
+		feed.FormatPost(os.Stdout, post, opts)
+	}
+}
+
+func displayNewPosts(newPosts []*feed.Post, opts feed.FormatOptions) {
+	for _, post := range newPosts {
+		if feedAuthor != "" && !strings.Contains(post.Author, feedAuthor) {
+			continue
+		}
+		if feedSuffix != "" && post.Suffix != feedSuffix {
+			continue
+		}
+		feed.FormatPost(os.Stdout, post, opts)
+	}
+}
+
 func runTailMode(store *feed.Store, _ *logging.CommandTracker) error {
-	// Print header
 	if !feedQuiet {
 		feed.FormatTailHeader(os.Stdout)
 	}
 
-	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Track last position
-	lastCount := 0
-
-	// Format options
 	opts := feed.FormatOptions{
 		Oneline: feedOneline,
 		Quiet:   feedQuiet,
 	}
 
-	// Initial read
 	posts, err := store.ReadAll()
 	if err != nil {
 		return err
 	}
-	lastCount = len(posts)
+	lastCount := len(posts)
 
-	// Display existing posts (most recent first, but limited)
-	if len(posts) > 0 {
-		displayPosts := posts
-		if feedLimit > 0 && len(displayPosts) > feedLimit {
-			displayPosts = displayPosts[len(displayPosts)-feedLimit:]
-		}
-		for _, post := range displayPosts {
-			feed.FormatPost(os.Stdout, post, opts)
-		}
-	}
+	displayInitialPosts(posts, opts)
 
-	// Poll for new posts
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -209,22 +203,9 @@ func runTailMode(store *feed.Store, _ *logging.CommandTracker) error {
 			if readErr != nil {
 				continue
 			}
-			posts = currentPosts
-
-			// Check for new posts
-			if len(posts) > lastCount {
-				newPosts := posts[lastCount:]
-				for _, post := range newPosts {
-					// Apply filters to new posts too (substring match for author)
-					if feedAuthor != "" && !strings.Contains(post.Author, feedAuthor) {
-						continue
-					}
-					if feedSuffix != "" && post.Suffix != feedSuffix {
-						continue
-					}
-					feed.FormatPost(os.Stdout, post, opts)
-				}
-				lastCount = len(posts)
+			if len(currentPosts) > lastCount {
+				displayNewPosts(currentPosts[lastCount:], opts)
+				lastCount = len(currentPosts)
 			}
 		}
 	}
@@ -243,7 +224,14 @@ func runTUIMode(store *feed.Store, _ *logging.CommandTracker) error {
 	version := Version
 
 	// Create model and run
-	m := feed.NewModel(store, theme, contrast, layout, cfg, version)
+	m := feed.NewModel(feed.ModelOptions{
+		Store:    store,
+		Theme:    theme,
+		Contrast: contrast,
+		Layout:   layout,
+		Config:   cfg,
+		Version:  version,
+	})
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

@@ -75,66 +75,51 @@ func runPressure(_ *cobra.Command, args []string) error {
 	return nil
 }
 
+// pressureDescriptions maps pressure levels to probability descriptions.
+var pressureDescriptions = map[int]string{
+	0: "Never nudges (sleep mode)",
+	1: "One in four nudge triggers will suggest posting",
+	2: "Half of nudge triggers will suggest posting",
+	3: "Three in four nudge triggers will suggest posting",
+	4: "Every nudge trigger will suggest posting",
+}
+
+// pressureTones maps pressure levels to tone descriptions.
+var pressureTones = map[int]string{
+	0: "Silent — no suggestions",
+	1: "Gentle — soft suggestion",
+	2: "Balanced — casual invitation to share",
+	3: "Encouraging — gentle push to post",
+	4: "Insistent — direct push to post",
+}
+
+// pressureExamples maps pressure levels to example nudge text.
+var pressureExamples = map[int]string{
+	0: "  (no nudge)",
+	1: "  \"If anything stood out...\"",
+	2: "  \"Quick thought worth sharing?\"",
+	3: "  \"You've got something here —\"",
+	4: "  \"Post this. The feed needs it.\"",
+}
+
 // displayPressureInfo outputs the pressure level with full information.
 func displayPressureInfo(level config.PressureLevel) {
-	// Header: level and percentage
 	fmt.Printf("Nudge pressure: %d (%d%%) %s\n\n", level.Value, level.Probability, level.Emoji)
 
-	// Description based on probability
-	fmt.Printf("Probability: ")
-	switch level.Value {
-	case 0:
-		fmt.Println("Never nudges (sleep mode)")
-	case 1:
-		fmt.Println("One in four nudge triggers will suggest posting")
-	case 2:
-		fmt.Println("Half of nudge triggers will suggest posting")
-	case 3:
-		fmt.Println("Three in four nudge triggers will suggest posting")
-	case 4:
-		fmt.Println("Every nudge trigger will suggest posting")
-	}
+	fmt.Printf("Probability: %s\n", pressureDescriptions[level.Value])
+	fmt.Printf("Tone: %s\n\n", pressureTones[level.Value])
 
-	// Tone description
-	fmt.Printf("Tone: ")
-	switch level.Value {
-	case 0:
-		fmt.Println("Silent — no suggestions")
-	case 1:
-		fmt.Println("Gentle — soft suggestion")
-	case 2:
-		fmt.Println("Balanced — casual invitation to share")
-	case 3:
-		fmt.Println("Encouraging — gentle push to post")
-	case 4:
-		fmt.Println("Insistent — direct push to post")
-	}
-	fmt.Println()
-
-	// Example nudge
 	fmt.Println("Example nudge:")
-	switch level.Value {
-	case 0:
-		fmt.Println("  (no nudge)")
-	case 1:
-		fmt.Println("  \"If anything stood out...\"")
-	case 2:
-		fmt.Println("  \"Quick thought worth sharing?\"")
-	case 3:
-		fmt.Println("  \"You've got something here —\"")
-	case 4:
-		fmt.Println("  \"Post this. The feed needs it.\"")
-	}
+	fmt.Println(pressureExamples[level.Value])
 	fmt.Println()
 
-	// Reference table
 	fmt.Println("Adjust: smoke pressure <0-4>")
 	for i := 0; i <= 4; i++ {
 		p := config.GetPressureLevel(i)
-		isCurrent := " "
+		marker := " "
 		if i == level.Value {
-			isCurrent = "*"
+			marker = "*"
 		}
-		fmt.Printf("  %s%d %s %3d%% — %s\n", isCurrent, p.Value, p.Emoji, p.Probability, p.Label)
+		fmt.Printf("  %s%d %s %3d%% — %s\n", marker, p.Value, p.Emoji, p.Probability, p.Label)
 	}
 }

@@ -236,13 +236,105 @@ func (s *Store) DeleteByID(id string) error {
 	return s.doDeleteByID(id)
 }
 
+// readPostsExcluding reads all posts from f, skipping the post with the given ID.
+// Returns the remaining posts and whether the ID was found.
+func readPostsExcluding(f *os.File, id string) ([]*Post, bool, error) {
+	if _, err := f.Seek(0, 0); err != nil {
+		return nil, false, fmt.Errorf("failed to seek feed file: %w", err)
+	}
+
+	var posts []*Post
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	found := false
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		var post Post
+		if err := json.Unmarshal([]byte(line), &post); err != nil {
+			logging.LogWarn("skipping invalid line", "line", lineNum, "error", err)
+			continue
+		}
+		if err := post.Validate(); err != nil {
+			logging.LogWarn("skipping invalid post", "line", lineNum, "error", err)
+			continue
+		}
+		if post.ID == id {
+			found = true
+			continue
+		}
+		posts = append(posts, &post)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, false, fmt.Errorf("error reading feed file: %w", err)
+	}
+	return posts, found, nil
+}
+
+// writePostsToTemp writes posts to a new temp file in dir, preserving permissions from src.
+func writePostsToTemp(dir string, src *os.File, posts []*Post) (string, error) {
+	tmpFile, err := os.CreateTemp(dir, ".smoke-feed-")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	cleanupTemp := func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}
+
+	if info, statErr := src.Stat(); statErr == nil {
+		if chmodErr := tmpFile.Chmod(info.Mode()); chmodErr != nil {
+			cleanupTemp()
+			return "", fmt.Errorf("failed to set temp file permissions: %w", chmodErr)
+		}
+	}
+
+	for _, post := range posts {
+		data, marshalErr := json.Marshal(post)
+		if marshalErr != nil {
+			cleanupTemp()
+			return "", fmt.Errorf("failed to encode post: %w", marshalErr)
+		}
+		if _, writeErr := tmpFile.Write(append(data, '\n')); writeErr != nil {
+			cleanupTemp()
+			return "", fmt.Errorf("failed to write post: %w", writeErr)
+		}
+	}
+
+	if syncErr := tmpFile.Sync(); syncErr != nil {
+		cleanupTemp()
+		return "", fmt.Errorf("failed to sync temp file: %w", syncErr)
+	}
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		cleanupTemp()
+		return "", fmt.Errorf("failed to close temp file: %w", closeErr)
+	}
+	return tmpPath, nil
+}
+
+// syncDir ensures directory metadata is flushed to disk.
+func syncDir(dir string) error {
+	dirHandle, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("failed to open feed directory: %w", err)
+	}
+	if err := dirHandle.Sync(); err != nil {
+		_ = dirHandle.Close()
+		return fmt.Errorf("failed to sync feed directory: %w", err)
+	}
+	return dirHandle.Close()
+}
+
 // doDeleteByID performs the actual delete with cross-process file locking.
 func (s *Store) doDeleteByID(id string) error {
 	if !ValidateID(id) {
 		return ErrInvalidID
 	}
 
-	// Check if feed file exists
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
 		return ErrNotInitialized
 	}
@@ -256,108 +348,30 @@ func (s *Store) doDeleteByID(id string) error {
 		_ = f.Close()
 	}()
 
-	// Acquire exclusive lock for cross-process safety
 	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
 		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
 	}
 
-	// Read all posts from the locked file
-	if _, err = f.Seek(0, 0); err != nil {
-		return fmt.Errorf("failed to seek feed file: %w", err)
-	}
-
-	var posts []*Post
-	scanner := bufio.NewScanner(f)
-	lineNum := 0
-	found := false
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
-		var post Post
-		if unmarshalErr := json.Unmarshal([]byte(line), &post); unmarshalErr != nil {
-			logging.LogWarn("skipping invalid line", "line", lineNum, "error", unmarshalErr)
-			continue
-		}
-		if validateErr := post.Validate(); validateErr != nil {
-			logging.LogWarn("skipping invalid post", "line", lineNum, "error", validateErr)
-			continue
-		}
-
-		if post.ID == id {
-			found = true
-			continue
-		}
-		posts = append(posts, &post)
-	}
-
-	if scanErr := scanner.Err(); scanErr != nil {
-		return fmt.Errorf("error reading feed file: %w", scanErr)
+	posts, found, readErr := readPostsExcluding(f, id)
+	if readErr != nil {
+		return readErr
 	}
 	if !found {
 		return ErrPostNotFound
 	}
 
 	dir := filepath.Dir(s.path)
-	tmpFile, err := os.CreateTemp(dir, ".smoke-feed-")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	cleanupTemp := func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpPath)
-	}
-
-	if info, statErr := f.Stat(); statErr == nil {
-		if chmodErr := tmpFile.Chmod(info.Mode()); chmodErr != nil {
-			cleanupTemp()
-			return fmt.Errorf("failed to set temp file permissions: %w", chmodErr)
-		}
-	}
-
-	for _, post := range posts {
-		data, marshalErr := json.Marshal(post)
-		if marshalErr != nil {
-			cleanupTemp()
-			return fmt.Errorf("failed to encode post: %w", marshalErr)
-		}
-		if _, writeErr := tmpFile.Write(append(data, '\n')); writeErr != nil {
-			cleanupTemp()
-			return fmt.Errorf("failed to write post: %w", writeErr)
-		}
-	}
-
-	if syncErr := tmpFile.Sync(); syncErr != nil {
-		cleanupTemp()
-		return fmt.Errorf("failed to sync temp file: %w", syncErr)
-	}
-	if closeErr := tmpFile.Close(); closeErr != nil {
-		cleanupTemp()
-		return fmt.Errorf("failed to close temp file: %w", closeErr)
+	tmpPath, writeErr := writePostsToTemp(dir, f, posts)
+	if writeErr != nil {
+		return writeErr
 	}
 
 	if renameErr := os.Rename(tmpPath, s.path); renameErr != nil {
-		cleanupTemp()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to replace feed file: %w", renameErr)
 	}
 
-	dirHandle, err := os.Open(dir)
-	if err != nil {
-		return fmt.Errorf("failed to open feed directory: %w", err)
-	}
-	if err := dirHandle.Sync(); err != nil {
-		_ = dirHandle.Close()
-		return fmt.Errorf("failed to sync feed directory: %w", err)
-	}
-	if err := dirHandle.Close(); err != nil {
-		return fmt.Errorf("failed to close feed directory: %w", err)
-	}
-
-	return nil
+	return syncDir(dir)
 }
 
 // Path returns the store's file path
