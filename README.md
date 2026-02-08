@@ -12,7 +12,7 @@
 
 ```bash
 brew tap dreamiurg/tap
-brew install smoke
+brew install dreamiurg/tap/smoke
 ```
 
 ### Go Install
