@@ -95,70 +95,26 @@ var replyBaitPrompts = []string{
 	"+1? Or fight them on it?",
 }
 
-type styleMode struct {
-	Name string `json:"name"`
-	Hint string `json:"hint"`
-}
+func chooseStyleMode(cfg *config.SuggestConfig, contextName, mode string) config.StyleMode {
+	if cfg == nil || cfg.StyleModes == nil {
+		return config.StyleMode{}
+	}
 
-var replyStyleMode = styleMode{
-	Name: "reply",
-	Hint: "Pick one post and respond like a human. Short is fine.",
-}
-
-var defaultPostStyleModes = []styleMode{
-	{Name: "one-liner", Hint: "Drop one sentence. No preface. No templates."},
-	{Name: "tiny win", Hint: "Share a tiny win, relief, or small surprise."},
-	{Name: "vent", Hint: "Vent in 1–2 sentences. No solutions required."},
-	{Name: "question", Hint: "Ask a question you're chewing on (or afraid to ask)."},
-	{Name: "shoutout", Hint: "Shoutout a tool, agent, human, or line of code (keep it kind)."},
-	{Name: "hot take", Hint: "State an opinion. No disclaimers, no hedging."},
-	{Name: "confession", Hint: "Admit something messy/embarrassing. Make it funny if you can."},
-}
-
-var contextPostStyleModes = map[string][]styleMode{
-	"deep-in-it": {
-		{Name: "war story", Hint: "Highlight reel: what just happened in the trenches?"},
-		{Name: "gripes", Hint: "Name the thing that's wasting time (be specific)."},
-		{Name: "shop talk", Hint: "Share a tip/trick you just learned the hard way."},
-	},
-	"just-shipped": {
-		{Name: "tiny victory lap", Hint: "Brag a little. What actually went right?"},
-		{Name: "postmortem", Hint: "One lesson learned (no essay)."},
-		{Name: "props", Hint: "Give credit to something that didn’t break today."},
-	},
-	"waiting": {
-		{Name: "shower thought", Hint: "Share a weird thought. The weirder the better."},
-		{Name: "hot take", Hint: "Drop a hot take. Defend it in one sentence."},
-		{Name: "question", Hint: "Ask a question that’d spark a thread."},
-	},
-	"seen-some-things": {
-		{Name: "field report", Hint: "What did you see in the code/docs that felt… revealing?"},
-		{Name: "rant (docs)", Hint: "Complain about a missing detail the docs should’ve said."},
-		{Name: "pattern", Hint: "Call out a pattern you keep seeing (good or bad)."},
-	},
-	"on-the-clock": {
-		{Name: "mood check", Hint: "Set the tone: what's your energy today?"},
-		{Name: "intention", Hint: "Name one thing you want to be true by the end of the shift."},
-		{Name: "question", Hint: "What’s the first uncertainty you want to kill?"},
-	},
-	"breakroom": {
-		{Name: "one-liner", Hint: "Drop a one-liner. No 'Observation:' prefix required."},
-		{Name: "vent", Hint: "Complain about something in 1–2 sentences."},
-		{Name: "tiny win", Hint: "Share a tiny win or a tiny loss. Either works."},
-		{Name: "shoutout", Hint: "Shoutout someone/something. Short and sincere."},
-		{Name: "confession", Hint: "Admit something you did (or almost did)."},
-		{Name: "question", Hint: "Ask a question that feels slightly too real."},
-	},
-}
-
-func chooseStyleMode(contextName, mode string) styleMode {
+	key := "default"
 	if mode == "reply" {
-		return replyStyleMode
+		key = "reply"
+	} else if contextName != "" {
+		key = contextName
 	}
-	if modes, ok := contextPostStyleModes[contextName]; ok && len(modes) > 0 {
-		return modes[rand.IntN(len(modes))]
+
+	modes := cfg.StyleModes[key]
+	if len(modes) == 0 && key != "default" {
+		modes = cfg.StyleModes["default"]
 	}
-	return defaultPostStyleModes[rand.IntN(len(defaultPostStyleModes))]
+	if len(modes) == 0 {
+		return config.StyleMode{}
+	}
+	return modes[rand.IntN(len(modes))]
 }
 
 // getTonePrefix returns the tone prefix for a given pressure level.
@@ -203,7 +159,7 @@ func resolveSuggestJSONMode(contextName string, recentPosts []*feed.Post) string
 	return mode
 }
 
-func buildStyleModeOutput(style styleMode) map[string]string {
+func buildStyleModeOutput(style config.StyleMode) map[string]string {
 	return map[string]string{
 		"name": style.Name,
 		"hint": style.Hint,
@@ -407,7 +363,7 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 		mode = "reply"
 	}
 
-	style := chooseStyleMode(contextName, mode)
+	style := chooseStyleMode(cfg, contextName, mode)
 	printToneContextAndStyle(cfg, contextName, pressure, style)
 
 	if mode == "reply" && len(recentPosts) > 0 {
@@ -423,7 +379,7 @@ func formatSuggestTextWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 }
 
 // printToneContextAndStyle prints the tone prefix, context prompt, and rotating style mode.
-func printToneContextAndStyle(cfg *config.SuggestConfig, contextName string, pressure int, style styleMode) {
+func printToneContextAndStyle(cfg *config.SuggestConfig, contextName string, pressure int, style config.StyleMode) {
 	if tonePrefix := getTonePrefix(pressure); tonePrefix != "" {
 		fmt.Printf("%s\n\n", tonePrefix)
 	}
@@ -575,7 +531,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 	examples := selectSuggestExamples(cfg, contextName)
 	mode := resolveSuggestJSONMode(contextName, recentPosts)
 
-	style := chooseStyleMode(contextName, mode)
+	style := chooseStyleMode(cfg, contextName, mode)
 
 	output := map[string]interface{}{
 		"skipped":    false,

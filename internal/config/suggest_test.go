@@ -176,6 +176,9 @@ func TestDefaultSuggestConfigYAML(t *testing.T) {
 	if !contains(yaml, "examples:") {
 		t.Error("YAML should contain 'examples:' section")
 	}
+	if !contains(yaml, "style_modes:") {
+		t.Error("YAML should contain 'style_modes:' section")
+	}
 	if !contains(yaml, "prompt:") {
 		t.Error("YAML should contain 'prompt:' fields")
 	}
@@ -216,6 +219,11 @@ contexts:
     prompt: "Override deep-in-it prompt"
     categories:
       - War Stories
+
+style_modes:
+  breakroom:
+    - name: "meme"
+      hint: "Post a meme-format one-liner"
 
 examples:
   Gripes:
@@ -277,6 +285,21 @@ examples:
 	}
 	if newCat[0] != "Example in new category" {
 		t.Errorf("NewCategory example = %q, want %q", newCat[0], "Example in new category")
+	}
+
+	// Verify style mode was merged in
+	modes := cfg.StyleModes["breakroom"]
+	foundMode := false
+	for _, m := range modes {
+		if m.Name == "meme" {
+			foundMode = true
+			if m.Hint != "Post a meme-format one-liner" {
+				t.Errorf("breakroom style mode hint = %q, want %q", m.Hint, "Post a meme-format one-liner")
+			}
+		}
+	}
+	if !foundMode {
+		t.Error("expected merged breakroom style mode 'meme' not found")
 	}
 }
 

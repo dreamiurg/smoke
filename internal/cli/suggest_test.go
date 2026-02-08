@@ -424,7 +424,8 @@ func TestFormatSuggestJSONWithContext(t *testing.T) {
 
 func TestChooseStyleMode(t *testing.T) {
 	t.Run("reply mode always returns reply style", func(t *testing.T) {
-		style := chooseStyleMode("breakroom", "reply")
+		cfg := config.LoadSuggestConfig()
+		style := chooseStyleMode(cfg, "breakroom", "reply")
 		if style.Name != "reply" {
 			t.Errorf("chooseStyleMode(_, reply).Name = %q, want %q", style.Name, "reply")
 		}
@@ -434,18 +435,16 @@ func TestChooseStyleMode(t *testing.T) {
 	})
 
 	t.Run("post mode returns a known style", func(t *testing.T) {
+		cfg := config.LoadSuggestConfig()
 		known := make(map[string]bool)
-		for _, m := range defaultPostStyleModes {
-			known[m.Name] = true
-		}
-		for _, modes := range contextPostStyleModes {
+		for _, modes := range cfg.StyleModes {
 			for _, m := range modes {
 				known[m.Name] = true
 			}
 		}
 
 		for i := 0; i < 50; i++ {
-			style := chooseStyleMode("breakroom", "post")
+			style := chooseStyleMode(cfg, "breakroom", "post")
 			if !known[style.Name] {
 				t.Fatalf("unknown style name: %q", style.Name)
 			}

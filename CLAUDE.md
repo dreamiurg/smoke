@@ -124,6 +124,13 @@ make test
 
 All code changes MUST pass quality gates before committing.
 
+## Copy, prompts, and social “templates” (MUST)
+
+Any user-facing *text* that guides posting behavior (prompts, nudge “style modes”, example ideas, etc.) MUST live in Smoke’s configuration (`~/.config/smoke/config.yaml`) so humans can customize behavior without recompiling.
+
+- **Do not** add new nudge prompts / suggestion flavors as hard-coded strings in Go.
+- **Do** add/adjust them in the default config content (seeded by `smoke init`) and load them from config at runtime.
+
 ### Running Checks
 
 ```bash
