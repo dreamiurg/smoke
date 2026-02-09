@@ -171,9 +171,14 @@ func TestGetIdentity_AutoDetect(t *testing.T) {
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty suffix from auto-detection")
 	}
-	// Auto-detection no longer sets Agent (removed "claude" prefix)
-	if identity.Agent != "" {
-		t.Error("Expected empty agent for auto-detected identity")
+	// Agent should be set to detected agent type (e.g., "claude" when running under Claude)
+	// or empty when no agent is detected
+	detectedAgent := detectAgentContext()
+	if detectedAgent == "unknown" {
+		detectedAgent = ""
+	}
+	if identity.Agent != detectedAgent {
+		t.Errorf("Expected agent %q, got %q", detectedAgent, identity.Agent)
 	}
 	// Should have detected project
 	if identity.Project == "" {
@@ -203,9 +208,13 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty suffix even with PPID fallback")
 	}
-	// Auto-detection no longer sets Agent (removed "claude" prefix)
-	if identity.Agent != "" {
-		t.Errorf("Expected empty agent for auto-detected identity, got %q", identity.Agent)
+	// Agent is now set from detectAgentContext()
+	detectedAgent := detectAgentContext()
+	if detectedAgent == "unknown" {
+		detectedAgent = ""
+	}
+	if identity.Agent != detectedAgent {
+		t.Errorf("Expected agent %q, got %q", detectedAgent, identity.Agent)
 	}
 	t.Logf("Identity with PPID fallback: %s", identity.String())
 }
@@ -583,10 +592,13 @@ func TestGetIdentity_AutoDetectPath(t *testing.T) {
 	identity, err := GetIdentity("")
 	require.NoError(t, err)
 
-	// Verify all components are populated
-	// Auto-detection no longer sets Agent (removed "claude" prefix)
-	if identity.Agent != "" {
-		t.Errorf("Expected empty Agent in auto-detect path, got %q", identity.Agent)
+	// Agent is set from detectAgentContext() (e.g., "claude" under Claude Code)
+	detectedAgent := detectAgentContext()
+	if detectedAgent == "unknown" {
+		detectedAgent = ""
+	}
+	if identity.Agent != detectedAgent {
+		t.Errorf("Expected Agent %q in auto-detect path, got %q", detectedAgent, identity.Agent)
 	}
 	if identity.Suffix == "" {
 		t.Error("Expected non-empty Suffix in auto-detect path")
@@ -658,10 +670,11 @@ func TestGetIdentity_NameWithoutAt(t *testing.T) {
 // TestClaudeCodeSessionIdentity verifies that when running under Claude Code,
 // the session seed uses PPID instead of terminal session ID for per-session identity.
 func TestClaudeCodeSessionIdentity(t *testing.T) {
-	// This test only works when actually running under Claude Code, since we need
-	// a real Claude process ancestor for findClaudeAncestor() to detect
-	if claudePID := findClaudeAncestor(); claudePID == 0 {
-		t.Skip("This test requires actually running under Claude Code (need real Claude ancestor)")
+	// This test only works when actually running under an agent, since we need
+	// a real agent process ancestor for findAgentAncestorPID() to detect
+	agent, agentPID := findAgentAncestorPID()
+	if agentPID == 0 {
+		t.Skip("This test requires running under a known agent (need real agent ancestor)")
 	}
 
 	origClaudeCode := os.Getenv("CLAUDECODE")
@@ -673,30 +686,29 @@ func TestClaudeCodeSessionIdentity(t *testing.T) {
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
-	// Simulate running under Claude Code
-	os.Setenv("CLAUDECODE", "1")
 	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "same-terminal-session")
 
 	// Get identity - should use PPID-based seed, not TERM_SESSION_ID
 	identity1, err := GetIdentity("")
 	require.NoError(t, err)
-	require.NotEmpty(t, identity1.Suffix, "Should generate identity under Claude Code")
+	require.NotEmpty(t, identity1.Suffix, "Should generate identity under agent")
 
-	// Verify the seed format includes claude-ppid prefix by checking getSessionSeed directly
+	// Verify the seed format includes agent-ppid prefix
 	seed := getSessionSeed()
-	require.Contains(t, seed, "claude-ppid-", "Session seed should use claude-ppid format under Claude Code")
+	expectedPrefix := agent + "-ppid-"
+	require.Contains(t, seed, expectedPrefix, "Session seed should use %s format", expectedPrefix)
 
-	t.Logf("Claude Code session identity: %s (seed: %s)", identity1.String(), seed)
+	t.Logf("Agent session identity: %s (seed: %s)", identity1.String(), seed)
 }
 
-// TestNonClaudeCodeUsesTerminalSession verifies that when NOT running under Claude Code,
+// TestNonAgentUsesTerminalSession verifies that when NOT running under any agent,
 // the session seed uses terminal session ID as before.
-func TestNonClaudeCodeUsesTerminalSession(t *testing.T) {
-	// Skip this test if actually running under Claude Code, since we can't
-	// simulate "not under Claude" when findClaudeAncestor() will find Claude
-	if claudePID := findClaudeAncestor(); claudePID > 0 {
-		t.Skip("Cannot test non-Claude behavior when actually running under Claude Code")
+func TestNonAgentUsesTerminalSession(t *testing.T) {
+	// Skip this test if actually running under an agent, since we can't
+	// simulate "not under agent" when findAgentAncestorPID() will find it
+	if _, pid := findAgentAncestorPID(); pid > 0 {
+		t.Skip("Cannot test non-agent behavior when actually running under an agent")
 	}
 
 	origClaudeCode := os.Getenv("CLAUDECODE")
@@ -794,12 +806,13 @@ func TestIsPIDRunning(t *testing.T) {
 }
 
 // TestSessionFileCrossProcessSharing tests the main use case:
-// Claude Code writes session file, ccstatusline reads it
+// Agent writes session file, ccstatusline reads it
 func TestSessionFileCrossProcessSharing(t *testing.T) {
-	// This test only works when actually running under Claude Code, since we need
-	// a real Claude process ancestor for findClaudeAncestor() to detect
-	if claudePID := findClaudeAncestor(); claudePID == 0 {
-		t.Skip("This test requires actually running under Claude Code (need real Claude ancestor)")
+	// This test only works when actually running under an agent, since we need
+	// a real agent process ancestor for findAgentAncestorPID() to detect
+	agent, agentPID := findAgentAncestorPID()
+	if agentPID == 0 {
+		t.Skip("This test requires running under a known agent (need real agent ancestor)")
 	}
 
 	tmpDir := t.TempDir()
@@ -807,12 +820,10 @@ func TestSessionFileCrossProcessSharing(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
 	origHome := os.Getenv("HOME")
-	origClaudeCode := os.Getenv("CLAUDECODE")
 	origTermSession := os.Getenv("TERM_SESSION_ID")
 	origSmokeName := os.Getenv("SMOKE_NAME")
 	defer func() {
 		os.Setenv("HOME", origHome)
-		os.Setenv("CLAUDECODE", origClaudeCode)
 		os.Setenv("TERM_SESSION_ID", origTermSession)
 		os.Setenv("SMOKE_NAME", origSmokeName)
 	}()
@@ -823,36 +834,32 @@ func TestSessionFileCrossProcessSharing(t *testing.T) {
 	termSessionID := "shared-terminal-123"
 	os.Setenv("TERM_SESSION_ID", termSessionID)
 
-	// Step 1: Simulate Claude Code running - should write session file
-	os.Setenv("CLAUDECODE", "1")
-	claudeSeed := getSessionSeed()
-	require.Contains(t, claudeSeed, "claude-ppid-", "Claude Code should use PPID-based seed")
+	// Step 1: Agent running - should write session file
+	agentSeed := getSessionSeed()
+	expectedPrefix := agent + "-ppid-"
+	require.Contains(t, agentSeed, expectedPrefix, "Agent should use PPID-based seed")
 
 	// Verify session file was written
 	info := readSessionInfo()
-	require.NotNil(t, info, "Session file should exist after Claude Code invocation")
-	require.Equal(t, claudeSeed, info.Seed, "Session file should contain the Claude seed")
+	require.NotNil(t, info, "Session file should exist after agent invocation")
+	require.Equal(t, agentSeed, info.Seed, "Session file should contain the agent seed")
 	require.Equal(t, termSessionID, info.TermSessionID, "Session file should contain terminal session ID")
 
-	// Step 2: Simulate ccstatusline (not under Claude Code) - should read from session file
-	os.Setenv("CLAUDECODE", "")
-
-	// The stored PID is our current process's PPID (the test runner)
-	// Since we're in the same process, we need to use a running PID
+	// Step 2: Simulate ccstatusline - should read from session file
 	// Update the session file with current process PID for testing
-	info.PID = os.Getpid() // Use current PID which is definitely running
+	info.PID = os.Getpid()
 	require.NoError(t, writeSessionInfo(info))
 
 	statuslineSeed := getSessionSeed()
-	require.Equal(t, claudeSeed, statuslineSeed, "ccstatusline should get same seed as Claude Code via session file")
+	require.Equal(t, agentSeed, statuslineSeed, "ccstatusline should get same seed as agent via session file")
 }
 
 // TestSessionFileIgnoredWhenDifferentTerminal tests that session file is ignored
 // when called from a different terminal
 func TestSessionFileIgnoredWhenDifferentTerminal(t *testing.T) {
-	// Skip if running under Claude - process tree walking takes priority over session file
-	if claudePID := findClaudeAncestor(); claudePID > 0 {
-		t.Skip("Cannot test session file fallback when running under Claude Code")
+	// Skip if running under an agent - process tree walking takes priority over session file
+	if _, pid := findAgentAncestorPID(); pid > 0 {
+		t.Skip("Cannot test session file fallback when running under an agent")
 	}
 
 	tmpDir := t.TempDir()
@@ -891,11 +898,11 @@ func TestSessionFileIgnoredWhenDifferentTerminal(t *testing.T) {
 }
 
 // TestSessionFileIgnoredWhenProcessDead tests that session file is ignored
-// when the Claude Code process is no longer running
+// when the agent process is no longer running
 func TestSessionFileIgnoredWhenProcessDead(t *testing.T) {
-	// Skip if running under Claude - process tree walking takes priority over session file
-	if claudePID := findClaudeAncestor(); claudePID > 0 {
-		t.Skip("Cannot test session file fallback when running under Claude Code")
+	// Skip if running under an agent - process tree walking takes priority over session file
+	if _, pid := findAgentAncestorPID(); pid > 0 {
+		t.Skip("Cannot test session file fallback when running under an agent")
 	}
 
 	tmpDir := t.TempDir()
@@ -1098,41 +1105,71 @@ func TestIsHumanSession_DeadProcessSession(t *testing.T) {
 	t.Logf("isHumanSession() with dead process: %v", result)
 }
 
-// TestFindClaudeAncestor tests the process tree walking for Claude detection
-func TestFindClaudeAncestor(t *testing.T) {
-	// In a normal test environment, we're not running under Claude
-	// so this should return 0
-	pid := findClaudeAncestor()
+// TestFindAgentAncestorPID tests the process tree walking for agent detection
+func TestFindAgentAncestorPID(t *testing.T) {
+	agent, pid := findAgentAncestorPID()
 
-	// The result depends on whether we're actually running under Claude
-	// In CI or standalone tests, this should be 0
+	// The result depends on whether we're actually running under an agent
 	// We just verify it doesn't crash and returns a reasonable value
+	t.Logf("findAgentAncestorPID() returned agent=%q PID=%d", agent, pid)
+	require.GreaterOrEqual(t, pid, 0, "PID should be non-negative")
+	if pid > 0 {
+		require.NotEmpty(t, agent, "Agent name should be non-empty when PID > 0")
+	}
+}
+
+// TestFindClaudeAncestor tests backward-compat wrapper
+func TestFindClaudeAncestor(t *testing.T) {
+	pid := findClaudeAncestor()
 	t.Logf("findClaudeAncestor() returned PID: %d", pid)
 	require.GreaterOrEqual(t, pid, 0, "PID should be non-negative")
 }
 
-// TestGetSessionSeed_UsesClaudeAncestor verifies that getSessionSeed uses
-// the Claude ancestor when available
-func TestGetSessionSeed_UsesClaudeAncestor(t *testing.T) {
+// TestDetectAgentContext_CodexSandbox verifies CODEX_SANDBOX detection
+func TestDetectAgentContext_CodexSandbox(t *testing.T) {
+	// When running under Claude, the process tree walk will find Claude first.
+	// Skip in that case — this test targets the env-var-only detection path.
+	if _, pid := findAgentAncestorPID(); pid > 0 {
+		t.Skip("Cannot test CODEX_SANDBOX env detection when running under an agent process")
+	}
+
+	origSandbox := os.Getenv("CODEX_SANDBOX")
+	origAgent := os.Getenv("SMOKE_AGENT")
 	origClaudeCode := os.Getenv("CLAUDECODE")
+	origClaudeCode2 := os.Getenv("CLAUDE_CODE")
+	defer func() {
+		os.Setenv("CODEX_SANDBOX", origSandbox)
+		os.Setenv("SMOKE_AGENT", origAgent)
+		os.Setenv("CLAUDECODE", origClaudeCode)
+		os.Setenv("CLAUDE_CODE", origClaudeCode2)
+	}()
+
+	os.Setenv("SMOKE_AGENT", "")
+	os.Setenv("CLAUDECODE", "")
+	os.Setenv("CLAUDE_CODE", "")
+	os.Setenv("CODEX_SANDBOX", "seatbelt")
+
+	agent := detectAgentContext()
+	require.Equal(t, "codex", agent, "CODEX_SANDBOX=seatbelt should detect as codex")
+}
+
+// TestGetSessionSeed_UsesAgentAncestor verifies that getSessionSeed uses
+// the agent ancestor when available
+func TestGetSessionSeed_UsesAgentAncestor(t *testing.T) {
 	origSmokeName := os.Getenv("SMOKE_NAME")
 	origSessionID := os.Getenv("TERM_SESSION_ID")
 	defer func() {
-		os.Setenv("CLAUDECODE", origClaudeCode)
 		os.Setenv("SMOKE_NAME", origSmokeName)
 		os.Setenv("TERM_SESSION_ID", origSessionID)
 	}()
 
-	// Simulate NOT running directly under Claude Code
-	os.Setenv("CLAUDECODE", "")
 	os.Setenv("SMOKE_NAME", "")
 	os.Setenv("TERM_SESSION_ID", "test-terminal")
 
-	// Get the session seed
 	seed := getSessionSeed()
 
-	// In a test environment without Claude ancestor, should fall back
-	// to terminal session ID
+	// If running under an agent, seed should contain agent-ppid-
+	// Otherwise falls back to terminal session ID
 	t.Logf("getSessionSeed() returned: %s", seed)
 	require.NotEmpty(t, seed, "Should return a non-empty seed")
 }
