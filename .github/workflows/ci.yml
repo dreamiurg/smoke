@@ -70,8 +70,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - uses: actions/checkout@v6
 
@@ -102,16 +100,23 @@ jobs:
             exit 1
           fi
 
-      - name: Upload coverage to Codecov
-        # Dependabot (and fork PRs) do not get access to repository secrets, which
-        # would make this step fail when CODECOV_TOKEN is required. Skip when the
-        # token isn't available so CI can still pass and required checks can gate merges.
-        if: ${{ always() && env.CODECOV_TOKEN != '' }}
+      # Tokenless upload for PRs (including Dependabot). Codecov will still post
+      # `codecov/patch` and `codecov/project` statuses required by our ruleset.
+      - name: Upload coverage to Codecov (pull_request)
+        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
           fail_ci_if_error: true
-          token: ${{ env.CODECOV_TOKEN }}
+
+      # Protected-branch uploads may require a token (repo secret available on push to main).
+      - name: Upload coverage to Codecov (push)
+        if: ${{ always() && github.event_name == 'push' }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
     name: Cross-compile
