@@ -216,6 +216,7 @@ func TestDetectCallerAgentFromEnv(t *testing.T) {
 		"CODEX_CLI",
 		"OPENAI_CODEX",
 		"CODEX_CI",
+		"CODEX_SANDBOX",
 		"GEMINI_API_KEY",
 		"GOOGLE_API_KEY",
 		"GEMINI_MODEL",
@@ -271,6 +272,11 @@ func TestDetectCallerAgentFromEnv(t *testing.T) {
 		{
 			name:     "codex cli",
 			envVars:  map[string]string{"CODEX_CLI": "1"},
+			expected: "codex",
+		},
+		{
+			name:     "codex sandbox (desktop app)",
+			envVars:  map[string]string{"CODEX_SANDBOX": "seatbelt"},
 			expected: "codex",
 		},
 		{

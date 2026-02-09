@@ -124,7 +124,7 @@ func detectCallerAgentFromEnv() string {
 	if envAnySet("GEMINI_CLI") {
 		return "gemini"
 	}
-	if envAnySet("CODEX", "CODEX_CLI", "OPENAI_CODEX", "CODEX_CI") {
+	if envAnySet("CODEX", "CODEX_CLI", "OPENAI_CODEX", "CODEX_CI", "CODEX_SANDBOX") {
 		return "codex"
 	}
 	if envAnySet(

@@ -89,18 +89,20 @@ func isPIDRunning(pid int) bool {
 	return err == nil
 }
 
-// findClaudeAncestor walks up the process tree looking for a Claude Code process.
-// Returns the Claude process PID if found, or 0 if not found.
+// knownAgents lists the process name substrings used to identify agent ancestors.
+var knownAgents = []string{"claude", "codex", "gemini"}
+
+// findAgentAncestorPID walks up the process tree looking for a known agent process.
+// Returns the agent name, the agent process PID, or ("", 0) if not found.
 // This allows indirect invocations (e.g., ccstatusline → smoke) to identify
-// which Claude session they belong to.
-func findClaudeAncestor() int {
+// which agent session they belong to.
+func findAgentAncestorPID() (string, int) {
 	pid := os.Getpid()
 	visited := make(map[int]bool)
 
 	for pid > 1 && !visited[pid] {
 		visited[pid] = true
 
-		// Get process info using ps
 		cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", pid), "-o", "ppid=,comm=")
 		out, err := cmd.Output()
 		if err != nil {
@@ -117,49 +119,27 @@ func findClaudeAncestor() int {
 			break
 		}
 
-		comm := fields[1]
-
-		// Check if this process is Claude Code
-		// The process name is typically "claude" or contains "claude"
-		if strings.Contains(strings.ToLower(comm), "claude") {
-			return pid
+		comm := strings.ToLower(fields[1])
+		for _, agent := range knownAgents {
+			if strings.Contains(comm, agent) {
+				return agent, pid
+			}
 		}
 
 		pid = ppid
 	}
 
-	return 0
+	return "", 0
 }
 
-// findAgentAncestor walks up the process tree looking for a process name match.
-func findAgentAncestor(substr string) bool {
-	substr = strings.ToLower(substr)
-	pid := os.Getpid()
-	visited := make(map[int]bool)
-
-	for pid > 1 && !visited[pid] {
-		visited[pid] = true
-		cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", pid), "-o", "ppid=,comm=")
-		out, err := cmd.Output()
-		if err != nil {
-			break
-		}
-		fields := strings.Fields(strings.TrimSpace(string(out)))
-		if len(fields) < 2 {
-			break
-		}
-		ppid, err := strconv.Atoi(fields[0])
-		if err != nil {
-			break
-		}
-		comm := strings.ToLower(fields[1])
-		if strings.Contains(comm, substr) {
-			return true
-		}
-		pid = ppid
+// findClaudeAncestor walks up the process tree looking for a Claude Code process.
+// Returns the Claude process PID if found, or 0 if not found.
+func findClaudeAncestor() int {
+	agent, pid := findAgentAncestorPID()
+	if agent == "claude" {
+		return pid
 	}
-
-	return false
+	return 0
 }
 
 // detectAgentContext identifies agent context from strong signals (env/process).
@@ -174,18 +154,13 @@ func detectAgentContext() string {
 	if os.Getenv("GEMINI_CLI") != "" {
 		return "gemini"
 	}
-	if os.Getenv("CODEX") == "1" || os.Getenv("CODEX_CLI") != "" || os.Getenv("OPENAI_CODEX") != "" || os.Getenv("CODEX_CI") == "1" {
+	if os.Getenv("CODEX") == "1" || os.Getenv("CODEX_CLI") != "" || os.Getenv("OPENAI_CODEX") != "" || os.Getenv("CODEX_CI") == "1" || os.Getenv("CODEX_SANDBOX") != "" {
 		return "codex"
 	}
 
-	if findClaudeAncestor() > 0 {
-		return "claude"
-	}
-	if findAgentAncestor("gemini") {
-		return "gemini"
-	}
-	if findAgentAncestor("codex") {
-		return "codex"
+	// Walk the process tree once to find any known agent ancestor
+	if agent, _ := findAgentAncestorPID(); agent != "" {
+		return agent
 	}
 
 	return "unknown"
@@ -199,31 +174,18 @@ const HumanIdentity = "<human>"
 
 // isHumanSession detects if the current session is an interactive human user.
 // Returns true if:
-// 1. Not running under Claude Code (CLAUDECODE != "1")
-// 2. Not a descendant of a Claude Code process
-// 3. No valid Claude session file exists for this terminal
-// 4. Stdin is an interactive terminal (TTY)
+// 1. No agent context detected (env vars, process tree)
+// 2. No valid agent session file exists for this terminal
+// 3. Stdin is an interactive terminal (TTY)
 func isHumanSession() bool {
-	// If agent context is detected, do not treat as human.
+	// detectAgentContext checks env vars and walks the process tree
 	if detectAgentContext() != "unknown" {
 		return false
 	}
 
-	// If running under Claude Code, definitely not human
-	if os.Getenv("CLAUDECODE") == "1" {
-		return false
-	}
-
-	// Check if we're a descendant of a Claude process (indirect invocation)
-	if claudePID := findClaudeAncestor(); claudePID > 0 {
-		return false
-	}
-
-	// Check for a valid Claude session file (ccstatusline case)
+	// Check for a valid agent session file (ccstatusline case)
 	termSessionID := os.Getenv("TERM_SESSION_ID")
 	if info := readSessionInfo(); info != nil {
-		// If session file matches terminal and Claude process is running,
-		// this could be ccstatusline or similar - treat as agent context
 		if info.TermSessionID == termSessionID && isPIDRunning(info.PID) {
 			return false
 		}
@@ -235,7 +197,7 @@ func isHumanSession() bool {
 
 // Identity represents the agent's identity for posting
 type Identity struct {
-	Agent   string // Agent type (e.g., "claude", "unknown")
+	Agent   string // Agent type (e.g., "claude", "codex", "gemini") or "" if unknown
 	Suffix  string // Adjective-animal suffix (e.g., "swift-fox")
 	Project string // Project name (e.g., "smoke")
 }
@@ -301,6 +263,12 @@ func autoDetectIdentity(project string) (*Identity, error) {
 		return nil, ErrNoIdentity
 	}
 
+	// Detect the agent type for the identity prefix
+	agent := detectAgentContext()
+	if agent == "unknown" {
+		agent = ""
+	}
+
 	// Select pattern deterministically based on seed
 	pattern := identity.SelectPattern(seed)
 
@@ -316,7 +284,7 @@ func autoDetectIdentity(project string) (*Identity, error) {
 	styledSuffix := styleFunc(words)
 
 	return &Identity{
-		Agent:   "",
+		Agent:   agent,
 		Suffix:  styledSuffix,
 		Project: project,
 	}, nil
@@ -369,21 +337,20 @@ func detectAgent() string {
 }
 
 // getSessionSeed returns a stable seed for the current session.
-// Walks the process tree to find a Claude Code ancestor, ensuring all commands
-// within the same Claude session get the same identity regardless of their
-// immediate parent process (which changes for each shell invocation).
+// Walks the process tree to find an agent ancestor (Claude, Codex, Gemini),
+// ensuring all commands within the same session get the same identity regardless
+// of their immediate parent process (which changes for each shell invocation).
 func getSessionSeed() string {
 	termSessionID := os.Getenv("TERM_SESSION_ID")
 
-	// Always walk up the process tree to find Claude Code ancestor.
-	// This is essential because each command Claude runs gets a different
-	// shell as its immediate parent, but they all share the same Claude
-	// Code ancestor process whose PID is stable for the entire session.
-	if claudePID := findClaudeAncestor(); claudePID > 0 {
-		seed := fmt.Sprintf("claude-ppid-%d", claudePID)
-		// Write session info so other processes can use the same identity
+	// Walk up the process tree to find any known agent ancestor.
+	// This is essential because each command the agent runs gets a different
+	// shell as its immediate parent, but they all share the same agent
+	// ancestor process whose PID is stable for the entire session.
+	if agent, agentPID := findAgentAncestorPID(); agentPID > 0 {
+		seed := fmt.Sprintf("%s-ppid-%d", agent, agentPID)
 		_ = writeSessionInfo(&sessionInfo{
-			PID:           claudePID,
+			PID:           agentPID,
 			TermSessionID: termSessionID,
 			Seed:          seed,
 		})
@@ -391,9 +358,9 @@ func getSessionSeed() string {
 	}
 
 	// Fallback to session file for cases where process tree walk fails
-	// (e.g., process name doesn't contain "claude")
+	// (e.g., process name doesn't match known agents)
 	if info := readSessionInfo(); info != nil {
-		// Validate: same terminal and Claude process still running
+		// Validate: same terminal and agent process still running
 		if info.TermSessionID == termSessionID && isPIDRunning(info.PID) {
 			return info.Seed
 		}
