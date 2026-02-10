@@ -27,7 +27,7 @@ or auto-detected from the session.
 Examples:
   smoke whoami                  # Output: swift-fox@smoke
   smoke whoami --name           # Output: swift-fox
-  smoke whoami --json           # Output: {"name":"swift-fox","project":"smoke"}`,
+  smoke whoami --json           # Output: {"name":"swift-fox","agent":"claude","project":"smoke"}`,
 	Args: cobra.NoArgs,
 	RunE: runWhoami,
 }
@@ -45,16 +45,13 @@ func runWhoami(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Build the name part (agent-suffix or just suffix)
-	name := identity.Suffix
-	if identity.Agent != "" {
-		name = fmt.Sprintf("%s-%s", identity.Agent, identity.Suffix)
-	}
-
 	if whoamiJSON {
 		output := map[string]string{
-			"name":    name,
+			"name":    identity.Suffix,
 			"project": identity.Project,
+		}
+		if identity.Agent != "" {
+			output["agent"] = identity.Agent
 		}
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
@@ -62,11 +59,11 @@ func runWhoami(_ *cobra.Command, _ []string) error {
 	}
 
 	if whoamiName {
-		fmt.Println(name)
+		fmt.Println(identity.Suffix)
 		return nil
 	}
 
-	// Default: name@project
+	// Default: suffix@project
 	fmt.Println(identity.String())
 	return nil
 }

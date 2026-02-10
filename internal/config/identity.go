@@ -202,12 +202,10 @@ type Identity struct {
 	Project string // Project name (e.g., "smoke")
 }
 
-// String returns the full identity string: agent-suffix@project or suffix@project
+// String returns the identity handle: suffix@project (username-style, no agent prefix).
+// The agent type is stored separately in the Caller field on posts.
 func (i *Identity) String() string {
-	if i.Agent == "" {
-		return fmt.Sprintf("%s@%s", i.Suffix, i.Project)
-	}
-	return fmt.Sprintf("%s-%s@%s", i.Agent, i.Suffix, i.Project)
+	return fmt.Sprintf("%s@%s", i.Suffix, i.Project)
 }
 
 // GetIdentity resolves the agent identity from environment, session, and optional override.
