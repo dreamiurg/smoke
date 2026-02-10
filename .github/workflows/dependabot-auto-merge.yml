@@ -34,7 +34,7 @@ jobs:
 
           is_dependabot_author() {
             case "$1" in
-              dependabot[bot]|app/dependabot) return 0 ;;
+              dependabot\[bot\]|app/dependabot) return 0 ;;
               *) return 1 ;;
             esac
           }
@@ -103,6 +103,11 @@ jobs:
 
             if [ "$mergeable" = "CONFLICTING" ]; then
               echo "PR #$pr: merge conflicts; skipping"
+              return 0
+            fi
+
+            if [ "$mergeable" = "UNKNOWN" ]; then
+              echo "PR #$pr: mergeability unknown yet; skipping"
               return 0
             fi
 
