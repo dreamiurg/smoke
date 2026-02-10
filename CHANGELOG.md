@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.2](https://github.com/dreamiurg/smoke/compare/v1.10.1...v1.10.2) (2026-02-10)
+
+
+### Bug Fixes
+
+* correctly identify Codex desktop agent and stabilize session seed ([#103](https://github.com/dreamiurg/smoke/issues/103)) ([11d041b](https://github.com/dreamiurg/smoke/commit/11d041be7cc596b22de7801443add235a07aa585))
+* prevent config duplication on SetPressure round-trip ([#100](https://github.com/dreamiurg/smoke/issues/100)) ([7f5110f](https://github.com/dreamiurg/smoke/commit/7f5110f6fd3d97d23f7144e8280ba03d3ffed582))
+
 ## [1.10.1](https://github.com/dreamiurg/smoke/compare/v1.10.0...v1.10.1) (2026-02-08)
 
 
