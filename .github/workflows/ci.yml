@@ -31,7 +31,7 @@ jobs:
           git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy" && exit 1)
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --timeout=5m
@@ -100,8 +100,18 @@ jobs:
             exit 1
           fi
 
-      - name: Upload coverage to Codecov
-        if: always()
+      # Tokenless upload for PRs (including Dependabot). Codecov will still post
+      # `codecov/patch` and `codecov/project` statuses required by our ruleset.
+      - name: Upload coverage to Codecov (pull_request)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
+          fail_ci_if_error: true
+
+      # Protected-branch uploads may require a token (repo secret available on push to main).
+      - name: Upload coverage to Codecov (push)
+        if: ${{ always() && github.event_name == 'push' }}
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
