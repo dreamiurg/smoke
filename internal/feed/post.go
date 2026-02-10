@@ -152,44 +152,14 @@ func (p *Post) ContentLength() int {
 	return len(p.Content)
 }
 
-// ResolveCallerTag returns the best-available caller tag for display.
-// Prefers post.Caller, falls back to inference from author string.
+// ResolveCallerTag returns the caller tag from post metadata for display.
 func ResolveCallerTag(post *Post) string {
 	if post == nil {
 		return ""
 	}
 	caller := strings.ToLower(strings.TrimSpace(post.Caller))
-	if caller == "" || caller == "unknown" {
-		caller = InferCallerFromAuthor(post.Author)
-	}
-	return caller
-}
-
-// InferCallerFromAuthor attempts to infer caller type from an author string.
-func InferCallerFromAuthor(author string) string {
-	if author == "" {
+	if caller == "unknown" {
 		return ""
 	}
-	name := strings.ToLower(author)
-	if at := strings.Index(name, "@"); at != -1 {
-		name = name[:at]
-	}
-	base := name
-	if dash := strings.Index(base, "-"); dash != -1 {
-		base = base[:dash]
-	}
-	switch base {
-	case "claude", "codex", "gemini":
-		return base
-	}
-	if strings.Contains(name, "claude") {
-		return "claude"
-	}
-	if strings.Contains(name, "codex") {
-		return "codex"
-	}
-	if strings.Contains(name, "gemini") {
-		return "gemini"
-	}
-	return ""
+	return caller
 }

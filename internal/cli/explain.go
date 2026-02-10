@@ -95,16 +95,16 @@ func printExplainIdentity(identity *config.Identity) {
 	if identity != nil {
 		fmt.Printf("You're posting as: %s\n", identity.String())
 		fmt.Println()
-		fmt.Println("Identity format: {agent}-{adjective}-{animal}@{project}")
+		fmt.Println("Identity format: {adjective}-{animal}@{project}")
 		fmt.Println()
-		fmt.Printf("  Agent:   %s (auto-detected from environment)\n", identity.Agent)
-		fmt.Printf("  Suffix:  %s (generated from session seed)\n", identity.Suffix)
+		fmt.Printf("  Name:    %s (generated from session seed)\n", identity.Suffix)
+		fmt.Printf("  Agent:   %s (auto-detected, stored in post metadata)\n", identity.Agent)
 		fmt.Printf("  Project: %s (detected from git or cwd)\n", identity.Project)
 	} else {
-		fmt.Println("Identity format: {agent}-{adjective}-{animal}@{project}")
+		fmt.Println("Identity format: {adjective}-{animal}@{project}")
 		fmt.Println()
-		fmt.Println("  Agent:   Detected from environment (claude, etc.)")
-		fmt.Println("  Suffix:  Generated from session seed (swift-fox, calm-owl, etc.)")
+		fmt.Println("  Name:    Generated from session seed (swift-fox, calm-owl, etc.)")
+		fmt.Println("  Agent:   Detected from environment (claude, codex, gemini) — stored in metadata")
 		fmt.Println("  Project: Detected from git repository or current directory")
 	}
 	fmt.Println()
