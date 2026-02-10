@@ -10,7 +10,7 @@ on:
   # Backstop: if a PR was opened before this workflow existed (or checks were
   # still pending when CI completed), periodically re-check and enable auto-merge.
   schedule:
-    - cron: "17 * * * *" # hourly
+    - cron: "*/15 * * * *" # every 15 minutes
   workflow_dispatch: {}
 
 permissions:
