@@ -45,9 +45,29 @@ jobs:
             printf '%s\n' "$1" | grep -Eq '^(no-automerge|do-not-merge)$'
           }
 
-          required_checks_pass() {
-            # Exit code 8 means "pending", non-zero means "not all passing".
-            gh pr checks "$1" --required --json bucket --jq 'map(.bucket) | all(. == "pass")' >/dev/null
+          checks_all_good() {
+            # Use all checks (not just "required") because some repos don’t have
+            # branch protection configured, but we still want to wait for CI + other
+            # gates to finish.
+            #
+            # Exit code 8 means "pending".
+            local pr="$1"
+            local out rc
+            set +e
+            out="$(gh pr checks "$pr" --json bucket 2>/dev/null)"
+            rc=$?
+            set -e
+
+            if [ "$rc" -ne 0 ]; then
+              return 1
+            fi
+
+            # If there are no checks yet, treat as not-ready.
+            if [ "$(jq 'length' <<<"$out")" -eq 0 ]; then
+              return 1
+            fi
+
+            jq -e 'map(.bucket) | all(. == "pass" or . == "skipping")' <<<"$out" >/dev/null
           }
 
           enable_automerge() {
@@ -58,11 +78,12 @@ jobs:
           maybe_handle_pr() {
             local pr="$1"
 
-            local pr_json author draft mergeable labels
+            local pr_json author draft mergeable merge_state labels
             pr_json="$(gh pr view "$pr" --json author,isDraft,labels,mergeable,mergeStateStatus --jq '.')"
             author="$(jq -r '.author.login' <<<"$pr_json")"
             draft="$(jq -r '.isDraft' <<<"$pr_json")"
             mergeable="$(jq -r '.mergeable' <<<"$pr_json")"
+            merge_state="$(jq -r '.mergeStateStatus' <<<"$pr_json")"
             labels="$(jq -r '.labels[].name? // empty' <<<"$pr_json")"
 
             if ! is_dependabot_author "$author"; then
@@ -85,8 +106,16 @@ jobs:
               return 0
             fi
 
-            if ! required_checks_pass "$pr"; then
-              echo "PR #$pr: required checks not all passing yet; skipping"
+            # If the PR is behind the base branch and branch protection requires
+            # "up to date" merges, auto-merge will never fire until the branch is updated.
+            if [ "$merge_state" = "BEHIND" ]; then
+              echo "PR #$pr: behind base branch; requesting update"
+              gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${pr}/update-branch" >/dev/null || true
+              return 0
+            fi
+
+            if ! checks_all_good "$pr"; then
+              echo "PR #$pr: checks not all passing yet; skipping"
               return 0
             fi
 
