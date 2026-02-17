@@ -6,9 +6,9 @@
   --c-bg:       #1a1b26;
   --c-surface:  #222336;
   --c-border:   #2e3150;
-  --c-text:     #b4bcd0;
+  --c-text:     #c8d0e0;
   --c-heading:  #e8ecf4;
-  --c-muted:    #6b7394;
+  --c-muted:    #8890ab;
   --c-accent:   #7aa2f7;
   --c-accent-h: #89b4fa;
   --c-green:    #9ece6a;
@@ -490,10 +490,10 @@ section ul li strong {
     --fs-h1:   1.75rem;   /* 28px */
     --fs-h2:   1.25rem;   /* 20px */
     --fs-h3:   1.0625rem; /* 17px */
-    --fs-body: 1rem;      /* 16px */
-    --fs-lead: 1rem;      /* 16px */
-    --fs-code: 0.8125rem; /* 13px */
-    --fs-small: 0.75rem;  /* 12px */
+    --fs-body: 1.0625rem; /* 17px – same as desktop */
+    --fs-lead: 1.0625rem; /* 17px */
+    --fs-code: 0.875rem;  /* 14px */
+    --fs-small: 0.8125rem;/* 13px */
   }
 
   body {
