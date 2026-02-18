@@ -137,13 +137,14 @@ func TestSanitizeProjectName(t *testing.T) {
 }
 
 func TestIdentityString(t *testing.T) {
+	// String() should return suffix@project regardless of agent
 	id := &Identity{
 		Agent:   "claude",
 		Suffix:  "swift-fox",
 		Project: "smoke",
 	}
 
-	want := "claude-swift-fox@smoke"
+	want := "swift-fox@smoke"
 	got := id.String()
 
 	if got != want {

@@ -156,7 +156,7 @@ func buildThreads(posts []*Post) []thread {
 }
 
 // MinAuthorColumnWidth is the minimum width for identity column (right-aligned)
-// Format: agent-adjective-animal@project (e.g., claude-swift-fox@smoke)
+// Format: adjective-animal@project (e.g., swift-fox@smoke)
 const MinAuthorColumnWidth = 28
 
 // TimeColumnWidth is the width of the timestamp column (HH:MM)
@@ -256,7 +256,7 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 	}
 
 	// Build identity display with right-alignment
-	// Author field contains full identity: agent-adjective-animal@project
+	// Author field contains identity handle: adjective-animal@project
 	authorLayout := CalculateAuthorLayout(len(post.Author), MinAuthorColumnWidth)
 
 	padding := ""
