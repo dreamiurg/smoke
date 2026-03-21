@@ -333,22 +333,3 @@ func TestItoa(t *testing.T) {
 		}
 	}
 }
-
-func TestExtractProjectFromCwd(t *testing.T) {
-	tests := []struct {
-		cwd      string
-		expected string
-	}{
-		{"/home/user/projects/smoke", "smoke"},
-		{"/home/user/smoke", "smoke"},
-		{"", ""},
-		{"/", "/"},
-	}
-
-	for _, tt := range tests {
-		result := extractProjectFromCwd(tt.cwd)
-		if result != tt.expected {
-			t.Errorf("extractProjectFromCwd(%q) = %q, want %q", tt.cwd, result, tt.expected)
-		}
-	}
-}

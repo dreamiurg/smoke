@@ -2,6 +2,7 @@ package logging
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -146,53 +147,25 @@ func categorizeError(err error) string {
 		return "none"
 	}
 
-	msg := err.Error()
+	lowered := strings.ToLower(err.Error())
 
 	// Check for common error patterns
 	switch {
-	case contains(msg, "not initialized"):
+	case strings.Contains(lowered, "not initialized"):
 		return "not_initialized"
-	case contains(msg, "permission"):
+	case strings.Contains(lowered, "permission"):
 		return "permission"
-	case contains(msg, "not found"):
+	case strings.Contains(lowered, "not found"):
 		return "not_found"
-	case contains(msg, "timeout"):
+	case strings.Contains(lowered, "timeout"):
 		return "timeout"
-	case contains(msg, "invalid"):
+	case strings.Contains(lowered, "invalid"):
 		return "invalid_input"
-	case contains(msg, "parse"):
+	case strings.Contains(lowered, "parse"):
 		return "parse_error"
-	case contains(msg, "connection"):
+	case strings.Contains(lowered, "connection"):
 		return "connection"
 	default:
 		return "unknown"
 	}
-}
-
-// contains checks if s contains substr (case-insensitive).
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && containsLower(toLower(s), toLower(substr))
-}
-
-// toLower converts ASCII characters to lowercase.
-func toLower(s string) string {
-	b := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
-	}
-	return string(b)
-}
-
-// containsLower checks if s contains substr (both assumed lowercase).
-func containsLower(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
