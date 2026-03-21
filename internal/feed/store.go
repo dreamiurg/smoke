@@ -34,18 +34,6 @@ const (
 // ErrNotInitialized is returned when the feed file doesn't exist
 var ErrNotInitialized = errors.New("feed not initialized")
 
-// PostStore defines the interface for post storage operations
-type PostStore interface {
-	Append(post *Post) error
-	ReadAll() ([]*Post, error)
-	ReadRecent(limit int) ([]*Post, error)
-	FindByID(id string) (*Post, error)
-	Exists(id string) (bool, error)
-	Count() (int, error)
-	DeleteByID(id string) error
-	Path() string
-}
-
 // Store handles reading and writing posts to the feed file
 type Store struct {
 	path string

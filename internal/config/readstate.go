@@ -97,16 +97,6 @@ func SaveReadState(state *ReadState) error {
 	return nil
 }
 
-// LoadLastReadPostID loads and returns the last-read post ID,
-// or an empty string if not set or file doesn't exist.
-func LoadLastReadPostID() string {
-	state, err := LoadReadState()
-	if err != nil || state == nil {
-		return ""
-	}
-	return state.LastReadPostID
-}
-
 // SaveLastReadPostID saves the last-read post ID to disk.
 func SaveLastReadPostID(postID string) error {
 	state := &ReadState{
