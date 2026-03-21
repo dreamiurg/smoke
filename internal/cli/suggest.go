@@ -166,7 +166,7 @@ func buildStyleModeOutput(style config.StyleMode) map[string]string {
 	}
 }
 
-func maybeAddContextOutput(output map[string]interface{}, cfg *config.SuggestConfig, contextName string) {
+func maybeAddContextOutput(output map[string]any, cfg *config.SuggestConfig, contextName string) {
 	if contextName == "" {
 		return
 	}
@@ -174,7 +174,7 @@ func maybeAddContextOutput(output map[string]interface{}, cfg *config.SuggestCon
 	if ctx == nil {
 		return
 	}
-	output["context"] = map[string]interface{}{
+	output["context"] = map[string]any{
 		"name":       contextName,
 		"prompt":     ctx.Prompt,
 		"categories": ctx.Categories,
@@ -256,7 +256,7 @@ func handleNudgeSkip(decision nudgeDecision, pressure int) error {
 	if !suggestJSON {
 		return nil
 	}
-	skipOutput := map[string]interface{}{
+	skipOutput := map[string]any{
 		"skipped":   true,
 		"pressure":  pressure,
 		"roll":      decision.roll,
@@ -497,7 +497,7 @@ func buildPostsOutput(posts []*feed.Post) []postOutput {
 }
 
 // buildReplyBaitOutput builds the reply bait section for JSON output.
-func buildReplyBaitOutput(allPosts, recentPosts []*feed.Post) map[string]interface{} {
+func buildReplyBaitOutput(allPosts, recentPosts []*feed.Post) map[string]any {
 	bait := pickReplyBait(allPosts, recentPosts)
 	if bait == nil {
 		return nil
@@ -507,7 +507,7 @@ func buildReplyBaitOutput(allPosts, recentPosts []*feed.Post) map[string]interfa
 		createdTime = time.Now()
 	}
 	prompt := replyBaitPrompts[rand.IntN(len(replyBaitPrompts))]
-	return map[string]interface{}{
+	return map[string]any{
 		"post": postOutput{
 			ID:        bait.ID,
 			Author:    bait.Author,
@@ -533,7 +533,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 
 	style := chooseStyleMode(cfg, contextName, mode)
 
-	output := map[string]interface{}{
+	output := map[string]any{
 		"skipped":    false,
 		"pressure":   pressure,
 		"tone":       getTonePrefix(pressure),
