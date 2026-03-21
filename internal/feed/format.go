@@ -283,8 +283,8 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 // Prefers breaking at a space; falls back to a hard break at width.
 func findBreakPoint(text string, width int) int {
 	breakPoint := width
-	if breakPoint > len(text) {
-		breakPoint = len(text)
+	if breakPoint >= len(text) {
+		breakPoint = len(text) - 1
 	}
 	for breakPoint > 0 && text[breakPoint] != ' ' {
 		breakPoint--

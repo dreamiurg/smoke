@@ -51,9 +51,12 @@ func HighlightAll(text string, colorize bool) string {
 	if !colorize {
 		return text
 	}
-	text = HighlightHashtags(text, true)
-	text = HighlightMentions(text, true)
-	return text
+	return combinedPattern.ReplaceAllStringFunc(text, func(match string) string {
+		if match[0] == '#' {
+			return Colorize(match, Dim, FgCyan)
+		}
+		return Colorize(match, Dim, FgMagenta)
+	})
 }
 
 // HighlightWithTheme applies highlighting with proper background color from theme.

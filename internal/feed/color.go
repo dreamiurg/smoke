@@ -50,11 +50,7 @@ func Colorize(text string, codes ...string) string {
 	if len(codes) == 0 {
 		return text
 	}
-	var prefix string
-	for _, code := range codes {
-		prefix += code
-	}
-	return prefix + text + Reset
+	return strings.Join(codes, "") + text + Reset
 }
 
 // ColorWriter wraps an io.Writer and conditionally applies color.
