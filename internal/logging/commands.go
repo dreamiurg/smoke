@@ -60,18 +60,3 @@ func LogWarn(msg string, args ...any) {
 	Logger().Warn(msg, args...)
 	Verbose(msg, args...)
 }
-
-// LogCommand is deprecated. Use StartCommand() instead.
-// Kept for backward compatibility during migration.
-func LogCommand(cmd string, args []string) {
-	Logger().Info("command invoked",
-		slog.Group("cmd",
-			slog.String("name", cmd),
-			slog.Any("args", args),
-		),
-	)
-	Verbose("command invoked",
-		slog.String("cmd.name", cmd),
-		slog.Any("cmd.args", args),
-	)
-}

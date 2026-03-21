@@ -9,37 +9,6 @@ import (
 	"testing"
 )
 
-func TestLogCommand(t *testing.T) {
-	resetGlobalState()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.log")
-
-	cfg := Config{
-		Level:    slog.LevelInfo,
-		Path:     path,
-		MaxSize:  DefaultMaxSize,
-		MaxFiles: DefaultMaxFiles,
-	}
-	Init(cfg)
-	defer Close()
-
-	// Log a command
-	LogCommand("post", []string{"hello", "world"})
-
-	// Verify log file contains the command
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	if !strings.Contains(string(data), "command invoked") {
-		t.Errorf("log should contain 'command invoked', got: %s", string(data))
-	}
-	if !strings.Contains(string(data), "post") {
-		t.Errorf("log should contain 'post', got: %s", string(data))
-	}
-}
-
 func TestLogPostCreated(t *testing.T) {
 	resetGlobalState()
 

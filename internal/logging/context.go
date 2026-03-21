@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -264,12 +263,4 @@ func itoa(i int) string {
 		b.WriteByte(digits[n])
 	}
 	return b.String()
-}
-
-// extractProjectFromCwd attempts to extract project name from cwd.
-func extractProjectFromCwd(cwd string) string {
-	if cwd == "" {
-		return ""
-	}
-	return filepath.Base(cwd)
 }
