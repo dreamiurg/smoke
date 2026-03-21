@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand/v2" // nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"os"
@@ -564,7 +565,7 @@ func formatSuggestJSONWithContext(recentPosts []*feed.Post, allPosts []*feed.Pos
 // formatSuggestPost formats a single post for the suggest output
 // Format: "smk-XXXXXX | author@project (Xm ago)"
 // Followed by the post content on the next line
-func formatSuggestPost(w *os.File, post *feed.Post, full bool) {
+func formatSuggestPost(w io.Writer, post *feed.Post, full bool) {
 	createdTime, err := post.GetCreatedTime()
 	if err != nil {
 		// Fallback if time parsing fails

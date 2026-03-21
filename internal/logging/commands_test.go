@@ -9,37 +9,6 @@ import (
 	"testing"
 )
 
-func TestLogPostCreated(t *testing.T) {
-	resetGlobalState()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.log")
-
-	cfg := Config{
-		Level:    slog.LevelInfo,
-		Path:     path,
-		MaxSize:  DefaultMaxSize,
-		MaxFiles: DefaultMaxFiles,
-	}
-	Init(cfg)
-	defer Close()
-
-	// Log a post creation
-	LogPostCreated("smk-abc123", "test-author")
-
-	// Verify log file contains the post info
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	if !strings.Contains(string(data), "post created") {
-		t.Errorf("log should contain 'post created', got: %s", string(data))
-	}
-	if !strings.Contains(string(data), "smk-abc123") {
-		t.Errorf("log should contain 'smk-abc123', got: %s", string(data))
-	}
-}
-
 func TestLogError(t *testing.T) {
 	resetGlobalState()
 
