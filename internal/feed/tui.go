@@ -1507,7 +1507,8 @@ func (m Model) buildRightHelpColumn(hs helpStyles) string {
 func (m Model) renderHelpOverlayBox() overlayBox {
 	hs := m.newHelpStyles()
 
-	leftBlock := m.fillBackgroundBlock(buildLeftHelpColumn(hs), blockWidth(buildLeftHelpColumn(hs)), m.theme.BackgroundSecondary)
+	leftCol := buildLeftHelpColumn(hs)
+	leftBlock := m.fillBackgroundBlock(leftCol, blockWidth(leftCol), m.theme.BackgroundSecondary)
 	rightBlock := m.buildRightHelpColumn(hs)
 	rightBlock = m.fillBackgroundBlock(rightBlock, blockWidth(rightBlock), m.theme.BackgroundSecondary)
 
@@ -1842,7 +1843,7 @@ func (cb *contentBuilder) addThread(thread thread, postIndex int) {
 		cb.lines = append(cb.lines, contentLine{text: line, postIndex: postIndex})
 	}
 	for _, reply := range thread.replies {
-		for _, line := range cb.model.formatReplyWithSelection(reply, false) {
+		for _, line := range cb.model.formatReply(reply) {
 			cb.lines = append(cb.lines, contentLine{text: line, postIndex: -1})
 		}
 	}
@@ -1900,12 +1901,6 @@ func (m Model) formatPostWithSelection(post *Post, isSelected bool) []string {
 		lines[i] = m.padLineToWidth(line, m.selectionBackground())
 	}
 	return lines
-}
-
-// formatReplyWithSelection formats a reply with optional selection indicator.
-func (m Model) formatReplyWithSelection(reply *Post, isSelected bool) []string {
-	// Replies are not selectable in the current UI.
-	return m.formatReply(reply)
 }
 
 // handleCopyMenuKey handles key events when the copy menu is visible.

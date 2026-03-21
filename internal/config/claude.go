@@ -2,7 +2,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,13 +11,6 @@ import (
 
 // ClaudeDir is the directory where Claude Code stores its configuration
 const ClaudeDir = ".claude"
-
-// ClaudeSettings represents a subset of ~/.claude/settings.json
-type ClaudeSettings struct {
-	Permissions struct {
-		Allow []string `json:"allow"`
-	} `json:"permissions"`
-}
 
 // ClaudeMDFile is the user's Claude instructions file
 const ClaudeMDFile = "CLAUDE.md"
@@ -166,12 +158,6 @@ func HasSmokeHint() (bool, error) {
 	return strings.Contains(string(content), SmokeHintMarker), nil
 }
 
-// IsClaudeCodeEnvironment detects if running in Claude Code.
-// Returns true if CLAUDECODE=1 environment variable is set.
-func IsClaudeCodeEnvironment() bool {
-	return os.Getenv("CLAUDECODE") == "1"
-}
-
 // GetClaudeSettingsPath returns the path to Claude Code settings file.
 // Returns ~/.claude/settings.json (expands home directory).
 func GetClaudeSettingsPath() (string, error) {
@@ -180,39 +166,4 @@ func GetClaudeSettingsPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".claude", "settings.json"), nil
-}
-
-// IsSmokeConfiguredInClaude checks if smoke is in the settings.json permissions.
-// Returns (configured bool, error).
-// - Reads settings.json at path from GetClaudeSettingsPath()
-// - Parses JSON into ClaudeSettings
-// - Searches permissions.allow array for any string containing "smoke"
-// - Returns (false, nil) if file doesn't exist (normal case)
-// - Returns (false, error) if file exists but can't be read/parsed
-func IsSmokeConfiguredInClaude() (bool, error) {
-	path, err := GetClaudeSettingsPath()
-	if err != nil {
-		return false, err
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-
-	var settings ClaudeSettings
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return false, err
-	}
-
-	for _, perm := range settings.Permissions.Allow {
-		if strings.Contains(strings.ToLower(perm), "smoke") {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }

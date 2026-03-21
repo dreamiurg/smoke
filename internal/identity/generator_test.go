@@ -53,33 +53,6 @@ func TestGenerate_Format(t *testing.T) {
 	}
 }
 
-func TestGenerateFull(t *testing.T) {
-	tests := []struct {
-		agent   string
-		seed    string
-		project string
-		wantFmt string // regex-like pattern
-	}{
-		{"claude", "session-1", "smoke", "claude-"},
-		{"unknown", "session-2", "myproject", "unknown-"},
-	}
-
-	for _, tt := range tests {
-		result := GenerateFull(tt.agent, tt.seed, tt.project)
-
-		// Should start with agent-
-		if len(result) < len(tt.agent)+1 {
-			t.Errorf("GenerateFull too short: %q", result)
-		}
-
-		// Should contain @project
-		wantSuffix := "@" + tt.project
-		if result[len(result)-len(wantSuffix):] != wantSuffix {
-			t.Errorf("GenerateFull missing project suffix: got %q, want suffix %q", result, wantSuffix)
-		}
-	}
-}
-
 // TestGenerateWithPattern tests the new multi-pattern generation functionality.
 // This test suite validates pattern selection and pattern-specific generation.
 func TestGenerateWithPattern(t *testing.T) {
@@ -416,31 +389,6 @@ func TestSessionSeedConsistency(t *testing.T) {
 	}
 
 	t.Logf("Session seed %q consistently produced username: %q", sessionSeed, username1)
-}
-
-// TestGenerateFullDeterminism verifies that GenerateFull() returns identical results across multiple calls.
-// This validates determinism of the complete identity generation including agent and project fields.
-func TestGenerateFullDeterminism(t *testing.T) {
-	agent := "test-agent"
-	seed := "full-determinism-seed"
-	project := "test-project"
-	numCalls := 12
-
-	// Call GenerateFull multiple times with the same parameters
-	results := make([]string, numCalls)
-	for i := 0; i < numCalls; i++ {
-		results[i] = GenerateFull(agent, seed, project)
-	}
-
-	// All results must be identical
-	expected := results[0]
-	for i := 1; i < numCalls; i++ {
-		if results[i] != expected {
-			t.Errorf("GenerateFull determinism failed at call %d: got %q, expected %q", i+1, results[i], expected)
-		}
-	}
-
-	t.Logf("GenerateFull returned consistent result across %d calls: %q", numCalls, expected)
 }
 
 // TestVerbNounPattern specifically validates VerbNoun generation logic.

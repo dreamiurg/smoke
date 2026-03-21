@@ -48,12 +48,6 @@ func Generate(seed string) string {
 	return fmt.Sprintf("%s-%s", Adjectives[adjIdx], Animals[animalIdx])
 }
 
-// GenerateFull creates a full identity string in the format: agent-adjective-animal@project
-func GenerateFull(agent, seed, project string) string {
-	suffix := Generate(seed)
-	return fmt.Sprintf("%s-%s@%s", agent, suffix, project)
-}
-
 // SelectPattern selects a naming pattern based on a seed hash.
 // Different seeds should produce different (though not necessarily unique) pattern selections.
 func SelectPattern(seed string) Pattern {

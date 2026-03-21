@@ -650,7 +650,7 @@ func performTUIConfigCheck() Check {
 	}
 
 	// Parse as generic map to check for deprecated fields
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		return Check{Name: name, Status: StatusFail, Message: "invalid YAML", Detail: err.Error()}
 	}
@@ -713,7 +713,7 @@ func fixTUIConfigStyleToLayout(tuiPath string) (*FixResult, error) {
 	}
 
 	// Parse as generic map
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err = yaml.Unmarshal(data, &parsed); err != nil {
 		return nil, err
 	}
