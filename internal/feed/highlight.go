@@ -13,6 +13,8 @@ var (
 	HashtagPattern = regexp.MustCompile(`(#[a-zA-Z0-9_]+)`)
 	// MentionPattern matches @mention (alphanumeric and underscores)
 	MentionPattern = regexp.MustCompile(`(@[a-zA-Z0-9_]+)`)
+	// combinedPattern matches both hashtags and mentions
+	combinedPattern = regexp.MustCompile(`(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)`)
 )
 
 // HighlightHashtags colorizes hashtags in dim cyan (muted).
@@ -77,9 +79,6 @@ func HighlightWithThemeAndBackground(text string, theme *Theme, background lipgl
 		Foreground(lipgloss.Color("#c678dd")). // dim magenta
 		Background(background).
 		Faint(true)
-
-	// Combined pattern for both hashtags and mentions
-	combinedPattern := regexp.MustCompile(`(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)`)
 
 	// Find all matches and their positions
 	matches := combinedPattern.FindAllStringIndex(text, -1)

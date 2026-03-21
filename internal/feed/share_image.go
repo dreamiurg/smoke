@@ -206,7 +206,7 @@ func hexToColor(hex string) color.Color {
 	}
 
 	var r, g, b uint8
-	n, _ := parseHex(hex)
+	n := parseHex(hex)
 	r = uint8(n >> 16)
 	g = uint8(n >> 8)
 	b = uint8(n)
@@ -215,7 +215,7 @@ func hexToColor(hex string) color.Color {
 }
 
 // parseHex parses a hex string to an integer
-func parseHex(s string) (int64, error) {
+func parseHex(s string) int64 {
 	var result int64
 	for _, c := range s {
 		result *= 16
@@ -228,7 +228,7 @@ func parseHex(s string) (int64, error) {
 			result += int64(c - 'A' + 10)
 		}
 	}
-	return result, nil
+	return result
 }
 
 // roundedRect bundles the dimensions for a rounded rectangle.

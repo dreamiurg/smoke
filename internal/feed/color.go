@@ -113,9 +113,8 @@ func (cw *ColorWriter) Dim(text string) string {
 // SplitIdentity splits an identity string into agent and project parts.
 // Identity format is "agent@project". If no @ is found, returns the full string as agent.
 func SplitIdentity(author string) (agent, project string) {
-	parts := strings.Split(author, "@")
-	if len(parts) == 2 {
-		return parts[0], parts[1]
+	if a, p, ok := strings.Cut(author, "@"); ok {
+		return a, p
 	}
 	return author, ""
 }

@@ -1,7 +1,5 @@
 package feed
 
-import "strings"
-
 // Stats contains computed statistics about the feed.
 type Stats struct {
 	PostCount    int
@@ -22,13 +20,12 @@ func ComputeStats(posts []*Post) Stats {
 		if post == nil {
 			continue
 		}
-		// Extract agent and project from author (format: agent@project)
-		parts := strings.SplitN(post.Author, "@", 2)
-		if len(parts) >= 1 && parts[0] != "" {
-			agents[parts[0]] = struct{}{}
+		agent, project := SplitIdentity(post.Author)
+		if agent != "" {
+			agents[agent] = struct{}{}
 		}
-		if len(parts) == 2 && parts[1] != "" {
-			projects[parts[1]] = struct{}{}
+		if project != "" {
+			projects[project] = struct{}{}
 		}
 	}
 

@@ -580,9 +580,8 @@ func formatSuggestPost(w *os.File, post *feed.Post, full bool) {
 	content := post.Content
 	if !full {
 		// Truncate for overview sections
-		contentPreviewWidth := 60
-		if len(content) > contentPreviewWidth {
-			content = content[:contentPreviewWidth] + "..."
+		if len(content) > feed.OnelineContentWidth {
+			content = content[:feed.OnelineContentWidth] + "..."
 		}
 	}
 	_, _ = fmt.Fprintf(w, "    %s\n", content)
