@@ -265,13 +265,3 @@ func PrevTheme(current string) string {
 	}
 	return AllThemes[0].Name
 }
-
-// Foreground returns the Text color for backward compatibility
-func (t *Theme) Foreground() lipgloss.AdaptiveColor {
-	return t.Text
-}
-
-// Dim returns the TextMuted color for backward compatibility
-func (t *Theme) Dim() lipgloss.AdaptiveColor {
-	return t.TextMuted
-}

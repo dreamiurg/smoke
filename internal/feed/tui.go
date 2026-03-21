@@ -817,52 +817,13 @@ func (m Model) buildAllContentLines() []string {
 	return lines
 }
 
-// formatDaySeparator creates a styled day separator line.
-// Format: "──── Today ────" centered with decorative lines
-func (m Model) formatDaySeparator(t time.Time) string {
-	label := DayLabel(t)
+// formatSeparator creates a styled separator line: "──── label ────"
+func (m Model) formatSeparator(label string, fg lipgloss.AdaptiveColor) string {
 	termWidth := m.contentWidth()
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
 
-	// Build separator: "──── Label ────"
-	// Minimum width for label plus surrounding spaces and some decorative chars
-	minDecor := 4 // At least 4 dashes on each side
-	labelWithSpace := " " + label + " "
-	availableForDecor := termWidth - len(labelWithSpace)
-
-	var leftDecor, rightDecor string
-	if availableForDecor >= minDecor*2 {
-		decorLen := availableForDecor / 2
-		leftDecor = strings.Repeat("─", decorLen)
-		rightDecor = strings.Repeat("─", availableForDecor-decorLen)
-	} else {
-		// Terminal too narrow - just show label
-		leftDecor = "──"
-		rightDecor = "──"
-	}
-
-	separator := leftDecor + labelWithSpace + rightDecor
-
-	// Style with muted text color
-	style := lipgloss.NewStyle().
-		Foreground(m.theme.DaySeparator).
-		Background(m.theme.Background)
-
-	return style.Render(separator)
-}
-
-// formatUnreadSeparator creates a styled "NEW" separator line.
-// Format: "──── NEW ────" centered with decorative lines
-func (m Model) formatUnreadSeparator() string {
-	label := "UNREAD"
-	termWidth := m.contentWidth()
-	if termWidth <= 0 {
-		termWidth = DefaultTerminalWidth
-	}
-
-	// Build separator: "──── NEW ────"
 	minDecor := 4
 	labelWithSpace := " " + label + " "
 	availableForDecor := termWidth - len(labelWithSpace)
@@ -879,12 +840,21 @@ func (m Model) formatUnreadSeparator() string {
 
 	separator := leftDecor + labelWithSpace + rightDecor
 
-	// Style with muted text for subtlety
 	style := lipgloss.NewStyle().
-		Foreground(m.theme.UnreadSeparator).
+		Foreground(fg).
 		Background(m.theme.Background)
 
 	return style.Render(separator)
+}
+
+// formatDaySeparator creates a styled day separator line.
+func (m Model) formatDaySeparator(t time.Time) string {
+	return m.formatSeparator(DayLabel(t), m.theme.DaySeparator)
+}
+
+// formatUnreadSeparator creates a styled "UNREAD" separator line.
+func (m Model) formatUnreadSeparator() string {
+	return m.formatSeparator("UNREAD", m.theme.UnreadSeparator)
 }
 
 // countUnread counts the number of unread posts based on lastReadPostID.
@@ -1232,7 +1202,7 @@ func (m Model) formatPostDenseWithBackground(post *Post, background lipgloss.Ada
 	}
 
 	// Wrap text: first line shorter, continuation lines full width
-	contentLines := wrapTextFirstLineShorter(post.Content, firstLineWidth, termWidth)
+	contentLines := wrapTextWithWidths(post.Content, firstLineWidth, termWidth)
 
 	// Build result lines
 	lines := make([]string, 0, len(contentLines))

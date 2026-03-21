@@ -147,11 +147,6 @@ func (p *Post) GetCreatedTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, p.CreatedAt)
 }
 
-// ContentLength returns the length of the content
-func (p *Post) ContentLength() int {
-	return len(p.Content)
-}
-
 // ResolveCallerTag returns the best-available caller tag for display.
 // Prefers post.Caller, falls back to inference from author string.
 func ResolveCallerTag(post *Post) string {

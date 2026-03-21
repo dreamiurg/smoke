@@ -91,12 +91,6 @@ func (s *Store) doAppend(post *Post) error {
 		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
 	}
 
-	// Acquire exclusive lock for multi-process safety
-	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
-		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
-	}
-	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
-
 	// Encode and write
 	data, err := json.Marshal(post)
 	if err != nil {
@@ -211,7 +205,7 @@ func (s *Store) FindByID(id string) (*Post, error) {
 // Exists checks if a post with the given ID exists
 func (s *Store) Exists(id string) (bool, error) {
 	_, err := s.FindByID(id)
-	if err == ErrPostNotFound {
+	if errors.Is(err, ErrPostNotFound) {
 		return false, nil
 	}
 	if err != nil {

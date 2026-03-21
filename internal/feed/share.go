@@ -2,7 +2,6 @@
 package feed
 
 import (
-	"fmt"
 	"strings"
 	"time"
 )
@@ -33,12 +32,16 @@ func FormatPostAsText(post *Post) string {
 	caller := ResolveCallerTag(post)
 
 	// Build the formatted post
-	sb.WriteString(fmt.Sprintf("%s\n", handle))
+	sb.WriteString(handle)
+	sb.WriteByte('\n')
 	if timestamp != "" {
-		sb.WriteString(fmt.Sprintf("%s\n", timestamp))
+		sb.WriteString(timestamp)
+		sb.WriteByte('\n')
 	}
 	if caller != "" {
-		sb.WriteString(fmt.Sprintf("via %s\n", caller))
+		sb.WriteString("via ")
+		sb.WriteString(caller)
+		sb.WriteByte('\n')
 	}
 	sb.WriteString("\n")
 	sb.WriteString(post.Content)
