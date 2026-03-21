@@ -141,11 +141,6 @@ func detectCallerAgentFromEnv() string {
 	return ""
 }
 
-// DetectCallerAgent returns the detected caller agent type.
-func DetectCallerAgent() string {
-	return detectCallerAgent()
-}
-
 // findAgentAncestor walks up the process tree looking for a process name match.
 func findAgentAncestor(substr string) bool {
 	substr = strings.ToLower(substr)
@@ -239,28 +234,5 @@ func getSessionID() string {
 
 // formatSessionID creates a consistent session ID format.
 func formatSessionID(prefix string, pid int) string {
-	return prefix + "-" + itoa(pid)
-}
-
-// itoa converts int to string without fmt dependency.
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	if i < 0 {
-		return "-" + itoa(-i)
-	}
-	var b strings.Builder
-	var digits [20]byte
-	n := 0
-	for i > 0 {
-		digits[n] = byte('0' + i%10)
-		i /= 10
-		n++
-	}
-	for n > 0 {
-		n--
-		b.WriteByte(digits[n])
-	}
-	return b.String()
+	return prefix + "-" + strconv.Itoa(pid)
 }

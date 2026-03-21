@@ -312,24 +312,3 @@ func TestDetectCallerAgentFromEnv(t *testing.T) {
 		})
 	}
 }
-
-func TestItoa(t *testing.T) {
-	tests := []struct {
-		input    int
-		expected string
-	}{
-		{0, "0"},
-		{1, "1"},
-		{-1, "-1"},
-		{123, "123"},
-		{-456, "-456"},
-		{12345, "12345"},
-	}
-
-	for _, tt := range tests {
-		result := itoa(tt.input)
-		if result != tt.expected {
-			t.Errorf("itoa(%d) = %q, want %q", tt.input, result, tt.expected)
-		}
-	}
-}
