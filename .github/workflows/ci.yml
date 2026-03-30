@@ -104,7 +104,7 @@ jobs:
       # `codecov/patch` and `codecov/project` statuses required by our ruleset.
       - name: Upload coverage to Codecov (pull_request)
         if: ${{ always() && github.event_name == 'pull_request' }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.out
           fail_ci_if_error: true
@@ -112,7 +112,7 @@ jobs:
       # Protected-branch uploads may require a token (repo secret available on push to main).
       - name: Upload coverage to Codecov (push)
         if: ${{ always() && github.event_name == 'push' }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.out
           fail_ci_if_error: true
