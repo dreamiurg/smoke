@@ -2,6 +2,7 @@ package feed
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -42,7 +43,7 @@ type Post struct {
 var ErrEmptyContent = errors.New("content cannot be empty")
 
 // ErrContentTooLong is returned when a post's content exceeds MaxContentLength.
-var ErrContentTooLong = errors.New("message exceeds 280 characters")
+var ErrContentTooLong = fmt.Errorf("message exceeds %d characters", MaxContentLength)
 
 // ErrEmptyAuthor is returned when a post's author is empty.
 var ErrEmptyAuthor = errors.New("author cannot be empty")
@@ -145,11 +146,6 @@ func (p *Post) IsReply() bool {
 // GetCreatedTime parses and returns the CreatedAt timestamp
 func (p *Post) GetCreatedTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, p.CreatedAt)
-}
-
-// ContentLength returns the length of the content
-func (p *Post) ContentLength() int {
-	return len(p.Content)
 }
 
 // ResolveCallerTag returns the best-available caller tag for display.

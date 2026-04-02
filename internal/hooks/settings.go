@@ -11,12 +11,12 @@ import (
 
 // readSettings reads and parses Claude Code settings.json
 // Returns empty map if file doesn't exist
-func readSettings() (map[string]interface{}, error) {
+func readSettings() (map[string]any, error) {
 	settingsPath := GetSettingsPath()
 
 	// If file doesn't exist, return empty settings
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		return make(map[string]interface{}), nil
+		return make(map[string]any), nil
 	}
 
 	// Read file
@@ -26,7 +26,7 @@ func readSettings() (map[string]interface{}, error) {
 	}
 
 	// Parse JSON
-	var settings map[string]interface{}
+	var settings map[string]any
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidSettings, err)
 	}
@@ -35,7 +35,7 @@ func readSettings() (map[string]interface{}, error) {
 }
 
 // writeSettings writes settings atomically to settings.json
-func writeSettings(settings map[string]interface{}) error {
+func writeSettings(settings map[string]any) error {
 	settingsPath := GetSettingsPath()
 
 	// Ensure parent directory exists
@@ -105,9 +105,9 @@ func isSmokeHook(command string) bool {
 
 // updateSmokeHookCommand searches a hooks array for a smoke hook and updates its command.
 // Returns true if a smoke hook was found and updated.
-func updateSmokeHookCommand(hooks []interface{}, scriptPath string) bool {
+func updateSmokeHookCommand(hooks []any, scriptPath string) bool {
 	for _, hook := range hooks {
-		hookMap, ok := hook.(map[string]interface{})
+		hookMap, ok := hook.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -122,13 +122,13 @@ func updateSmokeHookCommand(hooks []interface{}, scriptPath string) bool {
 
 // findSmokeHookInEntries searches event entries for a smoke hook and updates its command.
 // Returns true if a smoke hook was found and updated.
-func findSmokeHookInEntries(eventArray []interface{}, scriptPath string) bool {
+func findSmokeHookInEntries(eventArray []any, scriptPath string) bool {
 	for _, entry := range eventArray {
-		entryMap, ok := entry.(map[string]interface{})
+		entryMap, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
-		entryHooks, ok := entryMap["hooks"].([]interface{})
+		entryHooks, ok := entryMap["hooks"].([]any)
 		if !ok {
 			continue
 		}
@@ -140,27 +140,27 @@ func findSmokeHookInEntries(eventArray []interface{}, scriptPath string) bool {
 }
 
 // addHookToSettings adds or updates a smoke hook in settings
-func addHookToSettings(settings map[string]interface{}, event HookEvent, scriptPath string) error {
+func addHookToSettings(settings map[string]any, event HookEvent, scriptPath string) error {
 	// Ensure hooks section exists
-	hooks, ok := settings["hooks"].(map[string]interface{})
+	hooks, ok := settings["hooks"].(map[string]any)
 	if !ok {
-		hooks = make(map[string]interface{})
+		hooks = make(map[string]any)
 		settings["hooks"] = hooks
 	}
 
 	// Get or create event array
 	eventKey := string(event)
-	eventArray, ok := hooks[eventKey].([]interface{})
+	eventArray, ok := hooks[eventKey].([]any)
 	if !ok {
-		eventArray = []interface{}{}
+		eventArray = []any{}
 	}
 
 	// Update existing smoke hook or add new entry
 	if !findSmokeHookInEntries(eventArray, scriptPath) {
-		newEntry := map[string]interface{}{
+		newEntry := map[string]any{
 			"matcher": "",
-			"hooks": []interface{}{
-				map[string]interface{}{
+			"hooks": []any{
+				map[string]any{
 					"type":    "command",
 					"command": scriptPath,
 				},
@@ -175,21 +175,21 @@ func addHookToSettings(settings map[string]interface{}, event HookEvent, scriptP
 
 // filterSmokeHooksFromEntry removes smoke hooks from a single entry.
 // Returns the filtered entry and whether it should be kept.
-func filterSmokeHooksFromEntry(entry interface{}) (interface{}, bool) {
-	entryMap, ok := entry.(map[string]interface{})
+func filterSmokeHooksFromEntry(entry any) (any, bool) {
+	entryMap, ok := entry.(map[string]any)
 	if !ok {
 		return entry, true
 	}
 
-	entryHooks, ok := entryMap["hooks"].([]interface{})
+	entryHooks, ok := entryMap["hooks"].([]any)
 	if !ok {
 		return entry, true
 	}
 
 	// Filter hooks within entry
-	var filteredHooks []interface{}
+	var filteredHooks []any
 	for _, hook := range entryHooks {
-		hookMap, ok := hook.(map[string]interface{})
+		hookMap, ok := hook.(map[string]any)
 		if !ok {
 			filteredHooks = append(filteredHooks, hook)
 			continue
@@ -210,22 +210,22 @@ func filterSmokeHooksFromEntry(entry interface{}) (interface{}, bool) {
 }
 
 // removeHookFromSettings removes smoke hooks from settings
-func removeHookFromSettings(settings map[string]interface{}, event HookEvent) error {
+func removeHookFromSettings(settings map[string]any, event HookEvent) error {
 	// Get hooks section
-	hooks, ok := settings["hooks"].(map[string]interface{})
+	hooks, ok := settings["hooks"].(map[string]any)
 	if !ok {
 		return nil // No hooks section, nothing to remove
 	}
 
 	// Get event array
 	eventKey := string(event)
-	eventArray, ok := hooks[eventKey].([]interface{})
+	eventArray, ok := hooks[eventKey].([]any)
 	if !ok {
 		return nil // No entries for this event
 	}
 
 	// Filter out entries with only smoke hooks
-	var filtered []interface{}
+	var filtered []any
 	for _, entry := range eventArray {
 		if kept, keep := filterSmokeHooksFromEntry(entry); keep {
 			filtered = append(filtered, kept)
@@ -243,9 +243,9 @@ func removeHookFromSettings(settings map[string]interface{}, event HookEvent) er
 }
 
 // hooksContainSmoke checks if any hook in the array is a smoke hook.
-func hooksContainSmoke(hooks []interface{}) bool {
+func hooksContainSmoke(hooks []any) bool {
 	for _, hook := range hooks {
-		hookMap, ok := hook.(map[string]interface{})
+		hookMap, ok := hook.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -257,13 +257,13 @@ func hooksContainSmoke(hooks []interface{}) bool {
 }
 
 // entriesContainSmokeHook checks if any entry in the event array contains a smoke hook.
-func entriesContainSmokeHook(eventArray []interface{}) bool {
+func entriesContainSmokeHook(eventArray []any) bool {
 	for _, entry := range eventArray {
-		entryMap, ok := entry.(map[string]interface{})
+		entryMap, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
-		entryHooks, ok := entryMap["hooks"].([]interface{})
+		entryHooks, ok := entryMap["hooks"].([]any)
 		if !ok {
 			continue
 		}
@@ -275,14 +275,14 @@ func entriesContainSmokeHook(eventArray []interface{}) bool {
 }
 
 // checkHookInSettings checks if a smoke hook is configured in settings
-func checkHookInSettings(settings map[string]interface{}, event HookEvent) bool {
-	hooks, ok := settings["hooks"].(map[string]interface{})
+func checkHookInSettings(settings map[string]any, event HookEvent) bool {
+	hooks, ok := settings["hooks"].(map[string]any)
 	if !ok {
 		return false
 	}
 
 	eventKey := string(event)
-	eventArray, ok := hooks[eventKey].([]interface{})
+	eventArray, ok := hooks[eventKey].([]any)
 	if !ok {
 		return false
 	}

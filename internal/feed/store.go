@@ -34,18 +34,6 @@ const (
 // ErrNotInitialized is returned when the feed file doesn't exist
 var ErrNotInitialized = errors.New("feed not initialized")
 
-// PostStore defines the interface for post storage operations
-type PostStore interface {
-	Append(post *Post) error
-	ReadAll() ([]*Post, error)
-	ReadRecent(limit int) ([]*Post, error)
-	FindByID(id string) (*Post, error)
-	Exists(id string) (bool, error)
-	Count() (int, error)
-	DeleteByID(id string) error
-	Path() string
-}
-
 // Store handles reading and writing posts to the feed file
 type Store struct {
 	path string
@@ -90,12 +78,6 @@ func (s *Store) doAppend(post *Post) error {
 	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
 		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
 	}
-
-	// Acquire exclusive lock for multi-process safety
-	if lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); lockErr != nil {
-		return fmt.Errorf("failed to acquire file lock: %w", lockErr)
-	}
-	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
 
 	// Encode and write
 	data, err := json.Marshal(post)
@@ -211,7 +193,7 @@ func (s *Store) FindByID(id string) (*Post, error) {
 // Exists checks if a post with the given ID exists
 func (s *Store) Exists(id string) (bool, error) {
 	_, err := s.FindByID(id)
-	if err == ErrPostNotFound {
+	if errors.Is(err, ErrPostNotFound) {
 		return false, nil
 	}
 	if err != nil {

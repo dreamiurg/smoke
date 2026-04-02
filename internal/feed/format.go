@@ -171,12 +171,6 @@ const OnelineContentWidth = 60
 // OnelineTruncateLen is the truncation point for oneline content (OnelineContentWidth - 3 for "...")
 const OnelineTruncateLen = 57
 
-// SuggestPreviewWidth is the default width for truncating post previews in suggest command
-const SuggestPreviewWidth = 40
-
-// SuggestIdlePreviewWidth is the width for truncating post previews in idle suggest context
-const SuggestIdlePreviewWidth = 50
-
 // Formatter handles post formatting with state tracking for timestamp deduplication.
 // Formatter is NOT thread-safe. For concurrent use, create a separate Formatter per goroutine.
 type Formatter struct {
@@ -261,7 +255,7 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 
 	padding := ""
 	if authorLayout.Padding > 0 {
-		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
+		padding = strings.Repeat(" ", authorLayout.Padding)
 	}
 
 	identity := cw.AuthorColorize(post.Author)
@@ -279,7 +273,7 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 			_, _ = fmt.Fprintf(w, "%s %s  %s\n", timeColumn, authorRig, highlightedLine)
 		} else {
 			// Continuation lines: indent to align with content
-			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
+			indent := strings.Repeat(" ", contentLayout.Start)
 			_, _ = fmt.Fprintf(w, "%s%s\n", indent, highlightedLine)
 		}
 	}
@@ -289,8 +283,8 @@ func (f *Formatter) formatCompact(w io.Writer, post *Post, cw *ColorWriter, term
 // Prefers breaking at a space; falls back to a hard break at width.
 func findBreakPoint(text string, width int) int {
 	breakPoint := width
-	if breakPoint > len(text) {
-		breakPoint = len(text)
+	if breakPoint >= len(text) {
+		breakPoint = len(text) - 1
 	}
 	for breakPoint > 0 && text[breakPoint] != ' ' {
 		breakPoint--
@@ -335,13 +329,6 @@ func wrapText(text string, maxWidth int) []string {
 	return wrapTextWithWidths(text, maxWidth, maxWidth)
 }
 
-// wrapTextFirstLineShorter wraps text with a shorter first line width.
-// Used for dense layout where first line has a prefix but continuations wrap to column 0.
-// Convenience wrapper around wrapTextWithWidths.
-func wrapTextFirstLineShorter(text string, firstLineWidth, subsequentWidth int) []string {
-	return wrapTextWithWidths(text, firstLineWidth, subsequentWidth)
-}
-
 // formatReply formats a reply with indent (parent already shown in thread)
 func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth int) {
 	// For replies, always show timestamp (they're responses, timing matters)
@@ -356,7 +343,7 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth i
 
 	padding := ""
 	if authorLayout.Padding > 0 {
-		padding = fmt.Sprintf("%*s", authorLayout.Padding, "")
+		padding = strings.Repeat(" ", authorLayout.Padding)
 	}
 
 	identity := cw.AuthorColorize(reply.Author)
@@ -374,7 +361,7 @@ func formatReply(w io.Writer, _ *Post, reply *Post, cw *ColorWriter, termWidth i
 			_, _ = fmt.Fprintf(w, "  └─ %s %s  %s\n", timestamp, authorRig, highlightedLine)
 		} else {
 			// Continuation lines: indent to align with content
-			indent := fmt.Sprintf("%*s", contentLayout.Start, "")
+			indent := strings.Repeat(" ", contentLayout.Start)
 			_, _ = fmt.Fprintf(w, "%s%s\n", indent, highlightedLine)
 		}
 	}

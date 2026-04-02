@@ -13,45 +13,23 @@ var (
 	HashtagPattern = regexp.MustCompile(`(#[a-zA-Z0-9_]+)`)
 	// MentionPattern matches @mention (alphanumeric and underscores)
 	MentionPattern = regexp.MustCompile(`(@[a-zA-Z0-9_]+)`)
+	// combinedPattern matches both hashtags and mentions
+	combinedPattern = regexp.MustCompile(`(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)`)
 )
 
-// HighlightHashtags colorizes hashtags in dim cyan (muted).
+// HighlightAll applies ANSI highlighting (hashtags and mentions) to text.
 // If colorize is false, returns text unchanged.
-//
-// Deprecated: Use HighlightWithTheme instead to include background color.
-func HighlightHashtags(text string, colorize bool) string {
-	if !colorize {
-		return text
-	}
-	return HashtagPattern.ReplaceAllStringFunc(text, func(match string) string {
-		return Colorize(match, Dim, FgCyan)
-	})
-}
-
-// HighlightMentions colorizes mentions in dim magenta (muted).
-// If colorize is false, returns text unchanged.
-//
-// Deprecated: Use HighlightWithTheme instead to include background color.
-func HighlightMentions(text string, colorize bool) string {
-	if !colorize {
-		return text
-	}
-	return MentionPattern.ReplaceAllStringFunc(text, func(match string) string {
-		return Colorize(match, Dim, FgMagenta)
-	})
-}
-
-// HighlightAll applies all highlighting (hashtags and mentions) to text.
-// If colorize is false, returns text unchanged.
-//
-// Deprecated: Use HighlightWithTheme instead to include background color.
+// For TUI rendering with background colors, use HighlightWithTheme instead.
 func HighlightAll(text string, colorize bool) string {
 	if !colorize {
 		return text
 	}
-	text = HighlightHashtags(text, true)
-	text = HighlightMentions(text, true)
-	return text
+	return combinedPattern.ReplaceAllStringFunc(text, func(match string) string {
+		if match[0] == '#' {
+			return Colorize(match, Dim, FgCyan)
+		}
+		return Colorize(match, Dim, FgMagenta)
+	})
 }
 
 // HighlightWithTheme applies highlighting with proper background color from theme.
@@ -77,9 +55,6 @@ func HighlightWithThemeAndBackground(text string, theme *Theme, background lipgl
 		Foreground(lipgloss.Color("#c678dd")). // dim magenta
 		Background(background).
 		Faint(true)
-
-	// Combined pattern for both hashtags and mentions
-	combinedPattern := regexp.MustCompile(`(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)`)
 
 	// Find all matches and their positions
 	matches := combinedPattern.FindAllStringIndex(text, -1)

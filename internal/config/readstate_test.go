@@ -48,30 +48,6 @@ func TestSaveLastReadPostID(t *testing.T) {
 	}
 }
 
-func TestLoadLastReadPostID(t *testing.T) {
-	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	t.Cleanup(func() { os.Setenv("HOME", originalHome) })
-	os.Setenv("HOME", tmpDir)
-
-	// Empty when file doesn't exist
-	postID := LoadLastReadPostID()
-	if postID != "" {
-		t.Fatalf("Expected empty string for non-existent file, got '%s'", postID)
-	}
-
-	// Save and load
-	err := SaveLastReadPostID("post-456")
-	if err != nil {
-		t.Fatalf("SaveLastReadPostID failed: %v", err)
-	}
-
-	postID = LoadLastReadPostID()
-	if postID != "post-456" {
-		t.Fatalf("Expected 'post-456', got '%s'", postID)
-	}
-}
-
 func TestSaveLastReadPostID_Overwrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
@@ -91,9 +67,12 @@ func TestSaveLastReadPostID_Overwrite(t *testing.T) {
 	}
 
 	// Second value is saved
-	postID := LoadLastReadPostID()
-	if postID != "post-456" {
-		t.Fatalf("Expected 'post-456' after overwrite, got '%s'", postID)
+	state, err := LoadReadState()
+	if err != nil {
+		t.Fatalf("LoadReadState failed: %v", err)
+	}
+	if state.LastReadPostID != "post-456" {
+		t.Fatalf("Expected 'post-456' after overwrite, got '%s'", state.LastReadPostID)
 	}
 }
 

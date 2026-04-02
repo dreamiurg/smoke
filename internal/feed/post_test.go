@@ -394,5 +394,5 @@ func TestPostContentLength(t *testing.T) {
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	assert.Equal(t, 11, post.ContentLength())
+	assert.Equal(t, 11, len(post.Content))
 }
