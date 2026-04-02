@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/dreamiurg/smoke/compare/v1.10.2...v1.11.0) (2026-04-02)
+
+
+### Features
+
+* improve typography contrast and sizing for readability ([#116](https://github.com/dreamiurg/smoke/issues/116)) ([d4c0bb7](https://github.com/dreamiurg/smoke/commit/d4c0bb7f9c9476a44bfcb9e84f47835aa94ab2fa))
+
 ## [1.10.2](https://github.com/dreamiurg/smoke/compare/v1.10.1...v1.10.2) (2026-03-21)
 
 
