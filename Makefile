@@ -14,7 +14,7 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOIMPORTS=goimports
 GOMOD=$(GOCMD) mod
-GOVULNCHECK_VERSION ?= v1.1.4
+GOVULNCHECK_VERSION ?= v1.5.0
 
 # Linker flags for version injection
 # Support both normal repos and bare repo + worktree setups

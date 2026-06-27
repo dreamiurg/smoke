@@ -1,8 +1,8 @@
 module github.com/dreamiurg/smoke
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.24.12
+toolchain go1.25.11
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -41,8 +41,8 @@ require (
 	golang.design/x/x11 v0.2.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476 // indirect
-	golang.org/x/image v0.28.0 // indirect
+	golang.org/x/image v0.43.0 // indirect
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f // indirect
 	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 )
