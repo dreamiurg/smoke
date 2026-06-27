@@ -35,13 +35,7 @@ func GetLayout(name string) *LayoutStyle {
 			return &AllLayouts[i]
 		}
 	}
-	// Return default (comfy)
-	for i := range AllLayouts {
-		if AllLayouts[i].Name == DefaultLayoutName {
-			return &AllLayouts[i]
-		}
-	}
-	return &AllLayouts[0]
+	return &AllLayouts[1] // "comfy" default
 }
 
 // NextLayout returns the name of the next layout for cycling.
@@ -62,15 +56,4 @@ func PrevLayout(current string) string {
 		}
 	}
 	return AllLayouts[0].Name
-}
-
-// Backward compatibility aliases
-var AllStyles = AllLayouts
-
-func GetStyle(name string) *LayoutStyle {
-	return GetLayout(name)
-}
-
-func NextStyle(current string) string {
-	return NextLayout(current)
 }

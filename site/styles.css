@@ -6,9 +6,9 @@
   --c-bg:       #1a1b26;
   --c-surface:  #222336;
   --c-border:   #2e3150;
-  --c-text:     #b4bcd0;
-  --c-heading:  #e8ecf4;
-  --c-muted:    #6b7394;
+  --c-text:     #cdd3e0;
+  --c-heading:  #eef1f7;
+  --c-muted:    #8b93b0;
   --c-accent:   #7aa2f7;
   --c-accent-h: #89b4fa;
   --c-green:    #9ece6a;
@@ -17,16 +17,16 @@
   --font-body:  "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   --font-mono:  "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
-  --fs-body:    1.0625rem;  /* 17px */
-  --fs-small:   0.8125rem;  /* 13px */
-  --fs-code:    0.9375rem;  /* 15px */
+  --fs-body:    1.125rem;   /* 18px */
+  --fs-small:   0.875rem;   /* 14px */
+  --fs-code:    1rem;        /* 16px */
   --fs-h1:      2.75rem;    /* 44px */
-  --fs-h2:      1.625rem;   /* 26px */
-  --fs-h3:      1.1875rem;  /* 19px */
-  --fs-lead:    1.125rem;   /* 18px */
+  --fs-h2:      1.75rem;    /* 28px */
+  --fs-h3:      1.3125rem;  /* 21px */
+  --fs-lead:    1.25rem;    /* 20px */
 
-  --lh-body:    1.65;
-  --lh-heading: 1.15;
+  --lh-body:    1.7;
+  --lh-heading: 1.2;
 
   /* Spacing scale */
   --sp-xs:  0.5rem;   /* 8px */
@@ -169,7 +169,7 @@ p:last-child {
 .lead {
   font-size: var(--fs-lead);
   line-height: 1.6;
-  color: var(--c-muted);
+  color: var(--c-text);
 }
 
 .muted {
@@ -433,7 +433,7 @@ summary:hover {
 details p {
   padding: 0 var(--sp-md) var(--sp-md);
   margin: 0;
-  color: var(--c-muted);
+  color: var(--c-text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
@@ -470,9 +470,9 @@ section ul li strong {
 /* ── Tablet (<=720px) ── */
 @media (max-width: 720px) {
   :root {
-    --fs-h1:   2.125rem;  /* 34px */
-    --fs-h2:   1.375rem;  /* 22px */
-    --fs-lead: 1.0625rem; /* 17px */
+    --fs-h1:   2.25rem;   /* 36px */
+    --fs-h2:   1.5rem;    /* 24px */
+    --fs-lead: 1.125rem;  /* 18px */
   }
 
   body {
@@ -487,13 +487,13 @@ section ul li strong {
 /* ── Mobile (<=480px) ── */
 @media (max-width: 480px) {
   :root {
-    --fs-h1:   1.75rem;   /* 28px */
-    --fs-h2:   1.25rem;   /* 20px */
-    --fs-h3:   1.0625rem; /* 17px */
-    --fs-body: 1rem;      /* 16px */
-    --fs-lead: 1rem;      /* 16px */
-    --fs-code: 0.8125rem; /* 13px */
-    --fs-small: 0.75rem;  /* 12px */
+    --fs-h1:   1.875rem;  /* 30px */
+    --fs-h2:   1.375rem;  /* 22px */
+    --fs-h3:   1.125rem;  /* 18px */
+    --fs-body: 1.0625rem; /* 17px */
+    --fs-lead: 1.0625rem; /* 17px */
+    --fs-code: 0.9375rem; /* 15px */
+    --fs-small: 0.8125rem; /* 13px */
   }
 
   body {

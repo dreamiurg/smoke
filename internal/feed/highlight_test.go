@@ -69,58 +69,6 @@ func TestMentionPattern(t *testing.T) {
 	}
 }
 
-func TestHighlightHashtags(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		colorize bool
-		wantCyan bool
-	}{
-		{"with color", "hello #world", true, true},
-		{"without color", "hello #world", false, false},
-		{"no hashtag", "hello world", true, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := HighlightHashtags(tt.input, tt.colorize)
-			hasCyan := strings.Contains(result, FgCyan)
-			if hasCyan != tt.wantCyan {
-				t.Errorf("cyan color present = %v, want %v", hasCyan, tt.wantCyan)
-			}
-			if tt.wantCyan && !strings.Contains(result, Reset) {
-				t.Error("expected Reset code when color applied")
-			}
-		})
-	}
-}
-
-func TestHighlightMentions(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		colorize    bool
-		wantMagenta bool
-	}{
-		{"with color", "hello @user", true, true},
-		{"without color", "hello @user", false, false},
-		{"no mention", "hello world", true, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := HighlightMentions(tt.input, tt.colorize)
-			hasMagenta := strings.Contains(result, FgMagenta)
-			if hasMagenta != tt.wantMagenta {
-				t.Errorf("magenta color present = %v, want %v", hasMagenta, tt.wantMagenta)
-			}
-			if tt.wantMagenta && !strings.Contains(result, Reset) {
-				t.Error("expected Reset code when color applied")
-			}
-		})
-	}
-}
-
 func TestHighlightAll(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -69,9 +69,11 @@ func parseLocaleTimeFormat(locale string) TimeFormat {
 	return TimeFormat24h
 }
 
+var detectedFormat = DetectTimeFormat()
+
 // FormatTime formats a time value according to the detected locale preference.
 func FormatTime(t time.Time) string {
-	return FormatTimeWithFormat(t, DetectTimeFormat())
+	return FormatTimeWithFormat(t, detectedFormat)
 }
 
 // FormatTimeWithFormat formats a time value with the specified format preference.

@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.11.0](https://github.com/dreamiurg/smoke/compare/v1.10.2...v1.11.0) (2026-04-02)
+
+
+### Features
+
+* improve typography contrast and sizing for readability ([#116](https://github.com/dreamiurg/smoke/issues/116)) ([d4c0bb7](https://github.com/dreamiurg/smoke/commit/d4c0bb7f9c9476a44bfcb9e84f47835aa94ab2fa))
+
+## [1.10.2](https://github.com/dreamiurg/smoke/compare/v1.10.1...v1.10.2) (2026-03-21)
+
+
+### Bug Fixes
+
+* correctly identify Codex desktop agent and stabilize session seed ([#103](https://github.com/dreamiurg/smoke/issues/103)) ([11d041b](https://github.com/dreamiurg/smoke/commit/11d041be7cc596b22de7801443add235a07aa585))
+* prevent config duplication on SetPressure round-trip ([#100](https://github.com/dreamiurg/smoke/issues/100)) ([7f5110f](https://github.com/dreamiurg/smoke/commit/7f5110f6fd3d97d23f7144e8280ba03d3ffed582))
+
 ## [1.10.1](https://github.com/dreamiurg/smoke/compare/v1.10.0...v1.10.1) (2026-02-08)
 
 

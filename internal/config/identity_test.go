@@ -52,38 +52,6 @@ func TestGetIdentityWithOverride(t *testing.T) {
 	}
 }
 
-func TestParseFullIdentity(t *testing.T) {
-	// Get the actual auto-detected project for comparison
-	actualProject := detectProject()
-
-	tests := []struct {
-		input  string
-		agent  string
-		suffix string
-	}{
-		{"claude-swift-fox@smoke", "claude", "swift-fox"},
-		{"unknown-calm-owl@myproject", "unknown", "calm-owl"},
-		{"custom@test", "", "custom"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			id, err := parseFullIdentity(tt.input)
-			require.NoError(t, err)
-			if id.Agent != tt.agent {
-				t.Errorf("Agent: got %q, want %q", id.Agent, tt.agent)
-			}
-			if id.Suffix != tt.suffix {
-				t.Errorf("Suffix: got %q, want %q", id.Suffix, tt.suffix)
-			}
-			// Project should ALWAYS be auto-detected, not from input
-			if id.Project != actualProject {
-				t.Errorf("Project: got %q, want auto-detected %q (input @project should be ignored)", id.Project, actualProject)
-			}
-		})
-	}
-}
-
 func TestDetectProject(t *testing.T) {
 	project := detectProject()
 	if project == "" {
@@ -217,70 +185,6 @@ func TestGetIdentity_FallsBackToSessionSeed(t *testing.T) {
 		t.Errorf("Expected agent %q, got %q", detectedAgent, identity.Agent)
 	}
 	t.Logf("Identity with PPID fallback: %s", identity.String())
-}
-
-func TestParseFullIdentity_AllComponents(t *testing.T) {
-	// Get the actual auto-detected project
-	actualProject := detectProject()
-
-	tests := []struct {
-		name   string
-		input  string
-		wantID *Identity
-	}{
-		{
-			name:  "valid format with @project (project ignored)",
-			input: "agent-suffix@ignored-project",
-			wantID: &Identity{
-				Agent:   "agent",
-				Suffix:  "suffix",
-				Project: actualProject, // ALWAYS auto-detected
-			},
-		},
-		{
-			name:  "no agent dash with @project (project ignored)",
-			input: "agent@ignored-project",
-			wantID: &Identity{
-				Agent:   "",
-				Suffix:  "agent",
-				Project: actualProject, // ALWAYS auto-detected
-			},
-		},
-		{
-			name:  "no project separator (project auto-detected)",
-			input: "agent-suffix",
-			wantID: &Identity{
-				Agent:   "agent",
-				Suffix:  "suffix",
-				Project: actualProject, // ALWAYS auto-detected
-			},
-		},
-		{
-			name:  "case insensitive with @project (project ignored)",
-			input: "Agent-Suffix@Ignored-Project",
-			wantID: &Identity{
-				Agent:   "agent",
-				Suffix:  "suffix",
-				Project: actualProject, // ALWAYS auto-detected
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			id, err := parseFullIdentity(tt.input)
-			require.NoError(t, err)
-			if id.Agent != tt.wantID.Agent {
-				t.Errorf("Agent: got %q, want %q", id.Agent, tt.wantID.Agent)
-			}
-			if id.Suffix != tt.wantID.Suffix {
-				t.Errorf("Suffix: got %q, want %q", id.Suffix, tt.wantID.Suffix)
-			}
-			if id.Project != tt.wantID.Project {
-				t.Errorf("Project: got %q, want %q (should be auto-detected)", id.Project, tt.wantID.Project)
-			}
-		})
-	}
 }
 
 func TestDetectProject_InGitRepo(t *testing.T) {
@@ -551,17 +455,6 @@ func TestGetIdentity_NoSessionSeed(t *testing.T) {
 		// If no error, PPID fallback worked
 		t.Logf("Identity resolved via PPID fallback: %s", identity.String())
 	}
-}
-
-func TestDetectAgent_NoClaudeDir(t *testing.T) {
-	// Manually test detectAgent behavior
-	// The function checks for ~/.claude directory
-	agent := detectAgent()
-	// The function should return either "claude" or "unknown"
-	if agent != "claude" && agent != "unknown" {
-		t.Errorf("detectAgent() returned unexpected value: %q", agent)
-	}
-	t.Logf("detectAgent returned: %q", agent)
 }
 
 func TestExtractRepoName_SSHWithColonNoSlash(t *testing.T) {

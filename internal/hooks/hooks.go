@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ func installScriptFiles(hooksDir string) error {
 func loadOrResetSettings(result *InstallResult) (map[string]interface{}, error) {
 	settings, err := readSettings()
 	if err != nil {
-		if err == ErrInvalidSettings {
+		if errors.Is(err, ErrInvalidSettings) {
 			backupPath, backupErr := BackupSettings()
 			if backupErr != nil {
 				return nil, fmt.Errorf("backup invalid settings: %w", backupErr)
@@ -123,7 +124,7 @@ type UninstallResult struct {
 // If settings are invalid, it skips settings modification silently.
 func removeSettingsHooks(result *UninstallResult) error {
 	settings, err := readSettings()
-	if err != nil && err != ErrInvalidSettings {
+	if err != nil && !errors.Is(err, ErrInvalidSettings) {
 		return err
 	}
 	if err != nil {

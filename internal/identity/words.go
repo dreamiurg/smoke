@@ -65,13 +65,3 @@ var TechTerms = [30]string{
 	"mutex", "neural", "node", "parse", "pivot",
 	"query", "queue", "regex", "schema", "socket",
 }
-
-// Colors for identity generation (25 words)
-// Criteria: vivid, easy to spell, palette diversity
-var Colors = [25]string{
-	"amber", "azure", "bronze", "cerise", "coral",
-	"cyan", "ebony", "ember", "fawn", "gold",
-	"indigo", "ivory", "jade", "lemon", "lilac",
-	"magenta", "olive", "peach", "plum", "ruby",
-	"sage", "sienna", "slate", "tan", "ultra",
-}
