@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -87,7 +88,7 @@ func runReply(_ *cobra.Command, args []string) error {
 
 	reply, err := feed.NewReply(identity.String(), identity.Project, identity.Suffix, message, parentID)
 	if err != nil {
-		if err == feed.ErrContentTooLong {
+		if errors.Is(err, feed.ErrContentTooLong) {
 			err = fmt.Errorf("message exceeds 280 characters (got %d)", len(message))
 		}
 		tracker.Fail(err)

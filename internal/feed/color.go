@@ -50,11 +50,7 @@ func Colorize(text string, codes ...string) string {
 	if len(codes) == 0 {
 		return text
 	}
-	var prefix string
-	for _, code := range codes {
-		prefix += code
-	}
-	return prefix + text + Reset
+	return strings.Join(codes, "") + text + Reset
 }
 
 // ColorWriter wraps an io.Writer and conditionally applies color.
@@ -113,9 +109,8 @@ func (cw *ColorWriter) Dim(text string) string {
 // SplitIdentity splits an identity string into agent and project parts.
 // Identity format is "agent@project". If no @ is found, returns the full string as agent.
 func SplitIdentity(author string) (agent, project string) {
-	parts := strings.Split(author, "@")
-	if len(parts) == 2 {
-		return parts[0], parts[1]
+	if a, p, ok := strings.Cut(author, "@"); ok {
+		return a, p
 	}
 	return author, ""
 }

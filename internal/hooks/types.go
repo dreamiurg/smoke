@@ -67,22 +67,3 @@ type SettingsInfo struct {
 type InstallOptions struct {
 	Force bool // Overwrite modified scripts
 }
-
-// SettingsHooks represents the hooks section of Claude Code settings.json
-type SettingsHooks struct {
-	Stop        []SettingsHookEntry `json:"Stop,omitempty"`
-	PostToolUse []SettingsHookEntry `json:"PostToolUse,omitempty"`
-	// Other events are preserved but not modified by smoke
-}
-
-// SettingsHookEntry represents a hook configuration entry
-type SettingsHookEntry struct {
-	Matcher string       `json:"matcher"`
-	Hooks   []HookConfig `json:"hooks"`
-}
-
-// HookConfig represents an individual hook within an entry
-type HookConfig struct {
-	Type    string `json:"type"`    // Always "command" for shell scripts
-	Command string `json:"command"` // Full path to script
-}

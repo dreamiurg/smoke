@@ -10,18 +10,12 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dreamiurg/smoke/internal/config"
 	"github.com/dreamiurg/smoke/internal/feed"
 	"github.com/dreamiurg/smoke/internal/hooks"
 )
-
-// isTerminal returns true if stdout is a terminal
-func isTerminal() bool {
-	return term.IsTerminal(int(os.Stdout.Fd()))
-}
 
 // color returns the colored string if color output is enabled
 func color(c, s string) string {
@@ -61,7 +55,7 @@ const (
 )
 
 // useColor determines if color output should be used
-var useColor = isTerminal()
+var useColor = feed.IsTerminal(os.Stdout.Fd())
 
 // Check represents a single diagnostic check
 type Check struct {
@@ -315,7 +309,7 @@ func checkHookScripts(status *hooks.Status) Check {
 func checkHookSettings(status *hooks.Status) Check {
 	const name = "Claude Hook Settings"
 
-	missing := []string{}
+	var missing []string
 	if !status.Settings.Stop {
 		missing = append(missing, "Stop")
 	}
@@ -656,7 +650,7 @@ func performTUIConfigCheck() Check {
 	}
 
 	// Parse as generic map to check for deprecated fields
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		return Check{Name: name, Status: StatusFail, Message: "invalid YAML", Detail: err.Error()}
 	}
@@ -719,7 +713,7 @@ func fixTUIConfigStyleToLayout(tuiPath string) (*FixResult, error) {
 	}
 
 	// Parse as generic map
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err = yaml.Unmarshal(data, &parsed); err != nil {
 		return nil, err
 	}
