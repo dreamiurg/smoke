@@ -14,6 +14,7 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOIMPORTS=goimports
 GOMOD=$(GOCMD) mod
+GOVULNCHECK_VERSION ?= v1.5.0
 
 # Linker flags for version injection
 # Support both normal repos and bare repo + worktree setups
@@ -87,7 +88,7 @@ tidy-check: ## Check if go.mod is tidy
 	@git diff --exit-code go.mod go.sum || (echo "go.mod/go.sum not tidy, run 'make tidy'" && exit 1)
 
 vulncheck: ## Run govulncheck for dependency vulnerabilities
-	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
+	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	govulncheck ./...
 
 setup-hooks: ## Install pre-commit hooks (pre-commit and pre-push stages)

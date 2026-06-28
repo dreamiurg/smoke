@@ -17,6 +17,7 @@ func FilterRecent(posts []*Post, window time.Duration) ([]*Post, error) {
 	now := time.Now().UTC()
 	cutoff := now.Add(-window)
 
+	const gracePeriod = time.Second
 	var filtered []*Post
 
 	for _, post := range posts {
@@ -33,8 +34,7 @@ func FilterRecent(posts []*Post, window time.Duration) ([]*Post, error) {
 		}
 
 		// Include posts within the time window (createdTime >= cutoff)
-		// Allow a 1-second grace period for boundary conditions to handle timing differences
-		gracePeriod := 1 * time.Second
+		// Allow a 1-second grace period for boundary conditions
 		if !createdTime.Before(cutoff.Add(-gracePeriod)) {
 			filtered = append(filtered, post)
 		}
@@ -48,10 +48,4 @@ func FilterRecent(posts []*Post, window time.Duration) ([]*Post, error) {
 	})
 
 	return filtered, nil
-}
-
-// GetRecentPosts is a convenience function that filters posts to recent ones
-// within a specified duration and returns them.
-func GetRecentPosts(posts []*Post, duration time.Duration) ([]*Post, error) {
-	return FilterRecent(posts, duration)
 }

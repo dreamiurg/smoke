@@ -207,11 +207,11 @@ func runHooksStatusJSON(status *hooks.Status) error {
 		}
 	}
 
-	data, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(output); err != nil {
 		return fmt.Errorf("marshal JSON: %w", err)
 	}
-	fmt.Println(string(data))
 	return nil
 }
 

@@ -290,52 +290,6 @@ func autoDetectIdentity(project string) (*Identity, error) {
 	}, nil
 }
 
-// parseFullIdentity parses "agent-suffix@project" or "name@project" format
-// NOTE: @project is ALWAYS auto-detected and cannot be overridden
-func parseFullIdentity(s string) (*Identity, error) {
-	parts := strings.SplitN(s, "@", 2)
-
-	// Extract name part (before @, or whole string if no @)
-	agentSuffix := parts[0]
-
-	// ALWAYS auto-detect project, ignore @ override
-	project := detectProject()
-
-	// Split agent-suffix (e.g., "claude-swift-fox" -> "claude", "swift-fox")
-	firstDash := strings.Index(agentSuffix, "-")
-	if firstDash == -1 {
-		// Simple name without dash (e.g., "ember@testrig")
-		// Use as suffix only, no agent prefix
-		return &Identity{
-			Agent:   "",
-			Suffix:  sanitizeName(agentSuffix),
-			Project: project,
-		}, nil
-	}
-
-	return &Identity{
-		Agent:   sanitizeName(agentSuffix[:firstDash]),
-		Suffix:  sanitizeName(agentSuffix[firstDash+1:]),
-		Project: project,
-	}, nil
-}
-
-// detectAgent determines the agent type from environment
-func detectAgent() string {
-	// Check for Claude Code
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "unknown"
-	}
-
-	claudeDir := filepath.Join(home, ".claude")
-	if _, err := os.Stat(claudeDir); err == nil {
-		return "claude"
-	}
-
-	return "unknown"
-}
-
 // getSessionSeed returns a stable seed for the current session.
 // Walks the process tree to find an agent ancestor (Claude, Codex, Gemini),
 // ensuring all commands within the same session get the same identity regardless

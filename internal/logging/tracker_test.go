@@ -145,47 +145,6 @@ func TestCategorizeError(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
-	tests := []struct {
-		s        string
-		substr   string
-		expected bool
-	}{
-		{"hello world", "world", true},
-		{"Hello World", "world", true}, // case insensitive
-		{"hello", "world", false},
-		{"", "test", false},
-		{"test", "", true},
-	}
-
-	for _, tt := range tests {
-		result := contains(tt.s, tt.substr)
-		if result != tt.expected {
-			t.Errorf("contains(%q, %q) = %v, want %v", tt.s, tt.substr, result, tt.expected)
-		}
-	}
-}
-
-func TestToLower(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"HELLO", "hello"},
-		{"Hello", "hello"},
-		{"hello", "hello"},
-		{"Hello123", "hello123"},
-		{"", ""},
-	}
-
-	for _, tt := range tests {
-		result := toLower(tt.input)
-		if result != tt.expected {
-			t.Errorf("toLower(%q) = %q, want %q", tt.input, result, tt.expected)
-		}
-	}
-}
-
 // TestTrackerIntegration tests the full tracking flow with a captured log
 func TestTrackerIntegration(t *testing.T) {
 	// Create a buffer to capture log output

@@ -51,8 +51,9 @@ func runLogs(_ *cobra.Command, args []string) error {
 
 	logPath, err := config.GetLogPath()
 	if err != nil {
-		tracker.Fail(fmt.Errorf("failed to get log path: %w", err))
-		return fmt.Errorf("failed to get log path: %w", err)
+		wrappedErr := fmt.Errorf("failed to get log path: %w", err)
+		tracker.Fail(wrappedErr)
+		return wrappedErr
 	}
 
 	// Handle --clear flag

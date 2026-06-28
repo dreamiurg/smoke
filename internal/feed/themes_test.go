@@ -296,19 +296,3 @@ func TestThemeCount(t *testing.T) {
 		t.Errorf("AllThemes count = %d, want %d", len(AllThemes), expected)
 	}
 }
-
-func TestBackwardCompatibilityMethods(t *testing.T) {
-	theme := GetTheme("dracula")
-
-	// Test Foreground() method
-	fg := theme.Foreground()
-	if fg != theme.Text {
-		t.Error("Foreground() should return Text color")
-	}
-
-	// Test Dim() method
-	dim := theme.Dim()
-	if dim != theme.TextMuted {
-		t.Error("Dim() should return TextMuted color")
-	}
-}

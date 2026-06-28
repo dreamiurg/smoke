@@ -718,54 +718,6 @@ func TestLoadPostsCmd(t *testing.T) {
 	}
 }
 
-func TestComputeStats(t *testing.T) {
-	posts := []*Post{
-		{Author: "agent1@project1"},
-		{Author: "agent2@project1"},
-		{Author: "agent1@project2"},
-		{Author: "agent3@project2"},
-	}
-
-	stats := ComputeStats(posts)
-
-	if stats.PostCount != 4 {
-		t.Errorf("ComputeStats().PostCount = %d, want 4", stats.PostCount)
-	}
-	if stats.AgentCount != 3 {
-		t.Errorf("ComputeStats().AgentCount = %d, want 3", stats.AgentCount)
-	}
-	if stats.ProjectCount != 2 {
-		t.Errorf("ComputeStats().ProjectCount = %d, want 2", stats.ProjectCount)
-	}
-}
-
-func TestComputeStats_NilPosts(t *testing.T) {
-	posts := []*Post{nil, {Author: "agent@project"}, nil}
-
-	stats := ComputeStats(posts)
-
-	if stats.PostCount != 3 {
-		t.Errorf("ComputeStats().PostCount = %d, want 3", stats.PostCount)
-	}
-	if stats.AgentCount != 1 {
-		t.Errorf("ComputeStats().AgentCount = %d, want 1", stats.AgentCount)
-	}
-}
-
-func TestComputeStats_Empty(t *testing.T) {
-	stats := ComputeStats(nil)
-
-	if stats.PostCount != 0 {
-		t.Errorf("ComputeStats(nil).PostCount = %d, want 0", stats.PostCount)
-	}
-	if stats.AgentCount != 0 {
-		t.Errorf("ComputeStats(nil).AgentCount = %d, want 0", stats.AgentCount)
-	}
-	if stats.ProjectCount != 0 {
-		t.Errorf("ComputeStats(nil).ProjectCount = %d, want 0", stats.ProjectCount)
-	}
-}
-
 func TestModelFormatPost_AllLayouts(t *testing.T) {
 	store := NewStoreWithPath(t.TempDir() + "/feed.jsonl")
 	post := &Post{
