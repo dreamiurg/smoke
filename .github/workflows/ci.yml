@@ -15,7 +15,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
@@ -51,7 +51,7 @@ jobs:
     name: SAST
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Semgrep
         run: pip install semgrep
       - name: Run Semgrep
@@ -61,7 +61,7 @@ jobs:
     name: Complexity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install lizard
         run: pip install lizard
       - name: Check complexity
@@ -71,7 +71,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install X11 dependencies
         run: sudo apt-get update && sudo apt-get install -y libx11-dev xorg-dev
@@ -126,7 +126,7 @@ jobs:
         goos: [darwin, linux]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
